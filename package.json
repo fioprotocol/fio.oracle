@@ -1,0 +1,18 @@
+{
+  "name": "oracle",
+  "version": "1.0.0",
+  "description": "Oracle for moving tokens and code to and from the FIO chain",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src/js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^7.25.0"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
