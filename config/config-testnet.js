@@ -5,5 +5,5 @@ export default {
     unsubscribeLandingPage: '',
     startBlock: 0,
     stepSize: 10,
-    waitingTime: 15, //data feed waiting time in s
+    waitingTime: 15,
 };
