@@ -1,3 +1,5 @@
+import config from '../config/config';
+
 const { curly } = require('node-libcurl')
 
 class UtilCtrl {
@@ -10,7 +12,19 @@ class UtilCtrl {
                'Content-Type: application/x-www-form-urlencoded',
              ],
            });
-         return data;
+        if(data.statusCode === 200) {
+          const actionIdx = config.oracleCache.get("actionIndex");
+          const dataLen = Object.keys(data.data.actions).length;
+          var array = Array();
+          for (var i = 0; i<dataLen;i++){
+            if (data.data.actions[i].account_action_seq > actionIdx) {
+                array.push(data.data.actions[i]);
+            }
+            config.oracleCache.set("actionIndex", data.data.actions[dataLen-1].account_action_seq)
+          }
+          return array;           
+        }
+        return [];
      }
 }
 export default new UtilCtrl();

@@ -2,6 +2,8 @@ import { join } from 'path';
 import { config as load } from 'dotenv-safe';
 import conf_mainnet from "./config-mainnet";
 import conf_testnet from "./config-testnet";
+const NodeCache = require( "node-cache" );
+const oracleCache = new NodeCache();
 
 load({
   example: join(process.cwd(), '.env'),
@@ -22,4 +24,5 @@ console.log('Uses ' + mode + ' configuration.');
 export default {
   mode,
   ...config,
+  oracleCache,
 };

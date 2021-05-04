@@ -1,3 +1,4 @@
+import contracts from './contracts_mainnet';
 
 export default {
   port: 3002,
@@ -7,4 +8,5 @@ export default {
   startBlock: 0,
   stepSize: 10,
   waitingTime: 15,
+  ...contracts
 };
