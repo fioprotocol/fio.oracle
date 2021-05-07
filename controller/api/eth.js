@@ -2,9 +2,11 @@ import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
-import { response } from "express";
 const Tx = require('ethereumjs-tx').Transaction
 var index = 0;
+const { TextEncoder, TextDecoder } = require('text-encoding');
+const fetch = require('node-fetch') 
+
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
@@ -13,6 +15,7 @@ class EthCtrl {
         this.oracleArray = Array();
         this.privArray = Array();
         this.pubArray = Array();
+        this.eventData = Array();
         const pubCustodian = process.env.CUSTODIAN_PUBLIC.split(",");
         const priCustodian = process.env.CUSTODIAN_PRIVATE.split(",");
         for (var i = 0; i<3;i++) {
