@@ -7,7 +7,7 @@ import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
-const fetch = require('node-fetch') 
+const fetch = require('node-fetch');
 const web3 = new Web3(config.web3Provider);
 const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
