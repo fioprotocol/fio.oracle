@@ -13,14 +13,14 @@ class UtilCtrl {
              ],
            });
         if(data.statusCode === 200) {
-          const actionIdx = config.oracleCache.get("actionIndex");
+          const lastNumber = config.oracleCache.get("lastBlockNumber");
           const dataLen = Object.keys(data.data.actions).length;
           var array = Array();
           for (var i = 0; i<dataLen;i++){
-            if (data.data.actions[i].account_action_seq > actionIdx) {
+            if (data.data.actions[i].block_num > lastNumber) {
                 array.push(data.data.actions[i]);
             }
-            config.oracleCache.set("actionIndex", data.data.actions[dataLen-1].account_action_seq)
+            config.oracleCache.set("lastBlockNumber", data.data.actions[dataLen-1].block_num)
           }
           return array;
         }
@@ -98,8 +98,19 @@ class UtilCtrl {
       if (response.statusCode == 200) {
         registered = response.data.is_registered;
       }
-      console.log("regitsred: ", registered)
       return registered;
+    }
+    async getInfo() {
+      const response = await curly.post(process.env.SERVER_URL_HISTORY+'v1/chain/get_info', {
+        httpHeader: [
+          'Content-Type: application/x-www-form-urlencoded',
+        ],
+      });
+      var lastBlockNum = 0;
+      if (response.statusCode == 200) {
+        lastBlockNum = response.data.last_irreversible_block_num;
+      }
+      return lastBlockNum;
     }
 }
 export default new UtilCtrl();

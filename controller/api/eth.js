@@ -32,58 +32,58 @@ class EthCtrl {
     async signConract(address, signKey, pubKey) {
         const regedOracle = await this.fioContract.methods.getOracles().call();
         if (regedOracle.length > 0 && regedOracle.includes(address)) {
-            // if (index == this.pubArray.length) {
-            //     return 0;
-            // } else  {
-            //     index++;
-            //     this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
-            // }
+            if (index == this.pubArray.length) {
+                return 0;
+            } else  {
+                index++;
+                this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+            }
         }
         console.log("registeredOra: ", regedOracle)
-        // try {
-        //     const regOracle = this.fioContract.methods.regoracle(address);
-        //     let regOracleABI = regOracle.encodeABI();
-        //     var nonce = await this.web3.eth.getTransactionCount(pubKey);
-        //     const tx = new Tx(
-        //         {
-        //           gasPrice: this.web3.utils.toHex(10000000000),
-        //           gasLimit: this.web3.utils.toHex(8000000),
-        //           to: config.FIO_token,
-        //           data: regOracleABI,
-        //           from: pubKey,
-        //           nonce: this.web3.utils.toHex(nonce),
-        //           // nonce: web3.utils.toHex(0)
-        //         },
-        //         { chain: 'ropsten', hardfork: 'istanbul' }
-        //     );
-        //     const privateKey = Buffer.from(signKey, 'hex');
-        //     tx.sign(privateKey);
-        //     const serializedTx = tx.serialize();
-        //     await this.web3.eth
-        //     .sendSignedTransaction('0x' + serializedTx.toString('hex'))
-        //     .on('transactionHash', (hash) => {
-        //         console.log(address+" : "+pubKey);
-        //         console.log('TxHash: ', hash);
-        //     })
-        //     .on('receipt', (receipt) => {
-        //         console.log("completed");
-        //         if (index == this.pubArray.length) {
-        //             return 0;
-        //         } else  {
-        //             index++;
-        //             this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
-        //             console.log(index);
-        //         }
-        //     })
-        // } catch (error) {
-        //     if (index == this.pubArray.length) {
-        //         return 0;
-        //     } else  {
-        //         index++;
-        //         this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
-        //     }
-        //     console.log(error);
-        // }
+        try {
+            const regOracle = this.fioContract.methods.regoracle(address);
+            let regOracleABI = regOracle.encodeABI();
+            var nonce = await this.web3.eth.getTransactionCount(pubKey);
+            const tx = new Tx(
+                {
+                  gasPrice: this.web3.utils.toHex(10000000000),
+                  gasLimit: this.web3.utils.toHex(8000000),
+                  to: config.FIO_token,
+                  data: regOracleABI,
+                  from: pubKey,
+                  nonce: this.web3.utils.toHex(nonce),
+                  // nonce: web3.utils.toHex(0)
+                },
+                { chain: 'ropsten', hardfork: 'istanbul' }
+            );
+            const privateKey = Buffer.from(signKey, 'hex');
+            tx.sign(privateKey);
+            const serializedTx = tx.serialize();
+            await this.web3.eth
+            .sendSignedTransaction('0x' + serializedTx.toString('hex'))
+            .on('transactionHash', (hash) => {
+                console.log(address+" : "+pubKey);
+                console.log('TxHash: ', hash);
+            })
+            .on('receipt', (receipt) => {
+                console.log("completed");
+                if (index == this.pubArray.length) {
+                    return 0;
+                } else  {
+                    index++;
+                    this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+                    console.log(index);
+                }
+            })
+        } catch (error) {
+            if (index == this.pubArray.length) {
+                return 0;
+            } else  {
+                index++;
+                this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+            }
+            console.log(error);
+        }
     }
     async wrapFunction(tx_id, quantity) {
         const regedOracle = await this.fioContract.methods.getOracles().call();
@@ -109,7 +109,7 @@ class EthCtrl {
                 const tx = new Tx(
                     {
                       gasPrice: this.web3.utils.toHex(10000000000),
-                      gasLimit: this.web3.utils.toHex(8000000),
+                      gasLimit: this.web3.utils.toHex(10000000),
                       to: config.FIO_token,
                       data: wrapABI,
                       from: pubKey,

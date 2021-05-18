@@ -92,7 +92,7 @@ class FIOCtrl {
                     const bn = bignumber(quantity.split(".")[0]);
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    ethCtrl.wrapFunction(tx_id, weiQuantity);
+                    // ethCtrl.wrapFunction(tx_id, weiQuantity);
                 }
             }      
         }

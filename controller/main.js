@@ -9,7 +9,8 @@ const cors = require("cors");
 const route = require("express").Router();
 class MainCtrl {
     async start(app) {
-        config.oracleCache.set( "actionIndex", 52, 10000 );
+        const lastBlockNum = await utilCtrl.getInfo();
+        config.oracleCache.set( "lastBlockNumber", lastBlockNum, 10000 );
         this.web3 = new Web3(config.web3Provider);
         this.web3.eth.getBlockNumber()
         .then((number)=>{
@@ -18,7 +19,7 @@ class MainCtrl {
         utilCtrl.availCheck("bp1@dapixdev");
         // ethCtrl.getContract();
         // ethCtrl.wrapFunction();
-        // setInterval(fioCtrl.wrapFunction,5000);
+        // setInterval(fioCtrl.wrapFunction,60000);
         // setInterval(fioCtrl.unwrapFunction,5000);
 
         this.initRoutes(app);
