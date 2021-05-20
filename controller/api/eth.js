@@ -39,7 +39,6 @@ class EthCtrl {
                 this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
             }
         }
-        console.log("registeredOra: ", regedOracle)
         try {
             const regOracle = this.fioContract.methods.regoracle(address);
             let regOracleABI = regOracle.encodeABI();
@@ -109,7 +108,7 @@ class EthCtrl {
                 const tx = new Tx(
                     {
                       gasPrice: this.web3.utils.toHex(10000000000),
-                      gasLimit: this.web3.utils.toHex(10000000),
+                      gasLimit: this.web3.utils.toHex(50000000),
                       to: config.FIO_token,
                       data: wrapABI,
                       from: pubKey,

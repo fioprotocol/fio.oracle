@@ -5,26 +5,43 @@ const { curly } = require('node-libcurl')
 class UtilCtrl {
     constructor(){
     }
-    async getActions(accountName, pos) {
+    async getLatestAction(accountName, pos) {
+      const lastNumber = config.oracleCache.get("lastBlockNumber");
+      var offset = parseInt(process.env.POLLOFFSET);
+      var data = await this.getActions(accountName, pos, offset);
+      while(data.length > 0 && data[0].block_num > lastNumber) {
+        offset -= 10;
+        data = await this.getActions(accountName, pos, offset);
+        console.log("data: ", data);
+      }
+      var realData = Array();
+      for(var i = 0; i < data.length; i++) {
+        if (data[i].block_num > lastNumber) {
+          realData.push(data[i]);
+        }
+        const len = realData.length;
+        if( len > 0) {
+          config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
+        }
+      }
+      return realData;
+    }
+    async getActions(accountName, pos, offset) {
         const data = await curly.post(process.env.SERVER_URL_HISTORY+'v1/history/get_actions', {
-             postFields: JSON.stringify({ "account_name": accountName, "pos": pos}),
+             postFields: JSON.stringify({ "account_name": accountName, "pos": pos, offset: offset}),
              httpHeader: [
                'Content-Type: application/x-www-form-urlencoded',
              ],
            });
         if(data.statusCode === 200) {
-          const lastNumber = config.oracleCache.get("lastBlockNumber");
           const dataLen = Object.keys(data.data.actions).length;
           var array = Array();
           for (var i = 0; i<dataLen;i++){
-            if (data.data.actions[i].block_num > lastNumber) {
                 array.push(data.data.actions[i]);
-            }
-            config.oracleCache.set("lastBlockNumber", data.data.actions[dataLen-1].block_num)
           }
           return array;
         }
-        return [];
+        // return [];
     }
     async getBalance(accountName) {
       const data = await curly.post(process.env.SERVER_URL_HISTORY+'v1/chain/get_account', {

@@ -12,6 +12,7 @@ const web3 = new Web3(config.web3Provider);
 const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
 const httpEndpoint = process.env.SERVER_URL_ACTION
+const fs = require('fs');
 const unwrapTokens = async (obt_id, fioAmount) => {
     let contract = 'fio.oracle',
     action = 'unwraptokens',
@@ -83,7 +84,8 @@ class FIOCtrl {
     }
     
     async wrapFunction(req,res) {
-        const wrapData = await utilCtrl.getActions("qhh25sqpktwh", -1);
+        const wrapData = await utilCtrl.getLatestAction("qhh25sqpktwh", -1);
+        console.log("wrapData: ",wrapData);
         const dataLen = Object.keys(wrapData).length;
         if (dataLen != 0 ) {
             for (var i = 0; i<dataLen;i++){
@@ -92,8 +94,10 @@ class FIOCtrl {
                     const bn = bignumber(quantity.split(".")[0]);
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    // ethCtrl.wrapFunction(tx_id, weiQuantity);
-                }
+                    console.log(wrapData[i].block_num);
+                    fs.writeFileSync('controller/api/logs/blockNumber.log', wrapData[i].block_num);
+                    ethCtrl.wrapFunction(tx_id, weiQuantity);
+                }   
             }      
         }
     }
@@ -105,6 +109,7 @@ class FIOCtrl {
             toBlock: 'latest'
         }, (error, events) => {
             if (!error){
+                console.log("events: ", events);
                 var obj=JSON.parse(JSON.stringify(events));
                 var array = Object.keys(obj)
                 if (array.length != 0) {
@@ -113,7 +118,7 @@ class FIOCtrl {
                     for (var i = 0; i < array.length; i++) {
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
-                        unwrapTokens(txId, amount);
+                        // unwrapTokens(txId, amount);
                     }
                 }
               }

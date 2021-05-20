@@ -26,6 +26,7 @@
     "ethereumjs-tx": "^2.1.2",
     "ethers": "^5.1.4",
     "express": "^4.17.1",
+    "fs": "^0.0.1-security",
     "mathjs": "^9.3.2",
     "node-cache": "^5.1.2",
     "node-fetch": "^2.6.1",
