@@ -13,6 +13,9 @@ const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
 const httpEndpoint = process.env.SERVER_URL_ACTION
 const fs = require('fs');
+const pathFIO = "controller/api/logs/FIO.log";
+const pathETH = "controller/api/logs/ETH.log";
+
 const unwrapTokens = async (obt_id, fioAmount) => {
     let contract = 'fio.oracle',
     action = 'unwraptokens',
@@ -72,15 +75,48 @@ const unwrapTokens = async (obt_id, fioAmount) => {
     const json = await pushResult.json()
 
     if (json.type) {
-    console.log('Error: ', json);
+        console.log('Error: ', json);
+        fs.appendFileSync(pathFIO, JSON.stringify(json));
+
     } else if (json.error) {
-    console.log('Error: ', json)
+        console.log('Error: ', json)
+        fs.appendFileSync(pathFIO, JSON.stringify(json));
     } else {
-    console.log('Result: ', json)
+        console.log('Result: ', json)
+        fs.appendFileSync(pathFIO, JSON.stringify(json));
     }
 }
 class FIOCtrl {
     constructor() {
+        try {
+            if(fs.existsSync(pathFIO)) {
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(pathFIO, "", function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                }); 
+    
+            }
+            if(fs.existsSync(pathETH)) {
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(pathETH, "", function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                }); 
+    
+            }
+
+        } catch (err) {
+            console.error(err);
+        }
     }
     
     async wrapFunction(req,res) {
@@ -96,6 +132,7 @@ class FIOCtrl {
                     const tx_id = wrapData[i].action_trace.trx_id;
                     console.log(wrapData[i].block_num);
                     fs.writeFileSync('controller/api/logs/blockNumber.log', wrapData[i].block_num);
+                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     ethCtrl.wrapFunction(tx_id, weiQuantity);
                 }   
             }      
@@ -118,12 +155,14 @@ class FIOCtrl {
                     for (var i = 0; i < array.length; i++) {
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
-                        // unwrapTokens(txId, amount);
+                        fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
+                        unwrapTokens(txId, amount);
                     }
                 }
               }
               else {
                 console.log(error)
+                fs.appendFileSync(pathETH, error);
               }
         })
     }
