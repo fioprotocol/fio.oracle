@@ -15,7 +15,8 @@ const httpEndpoint = process.env.SERVER_URL_ACTION
 const fs = require('fs');
 const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
-
+const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
+const blockNumETH = "controller/api/logs/blockNumberETH.log";
 const unwrapTokens = async (obt_id, fioAmount) => {
     let contract = 'fio.oracle',
     action = 'unwraptokens',
@@ -87,37 +88,7 @@ const unwrapTokens = async (obt_id, fioAmount) => {
     }
 }
 class FIOCtrl {
-    constructor() {
-        try {
-            if(fs.existsSync(pathFIO)) {
-                console.log("The file exists.");
-            } else {
-                console.log('The file does not exist.');
-                fs.writeFile(pathFIO, "", function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }
-                    console.log("The file was saved!");
-                }); 
-    
-            }
-            if(fs.existsSync(pathETH)) {
-                console.log("The file exists.");
-            } else {
-                console.log('The file does not exist.');
-                fs.writeFile(pathETH, "", function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }
-                    console.log("The file was saved!");
-                }); 
-    
-            }
-
-        } catch (err) {
-            console.error(err);
-        }
-    }
+    constructor() {}
     
     async wrapFunction(req,res) {
         const wrapData = await utilCtrl.getLatestAction("qhh25sqpktwh", -1);
@@ -131,7 +102,7 @@ class FIOCtrl {
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
                     console.log(wrapData[i].block_num);
-                    fs.writeFileSync('controller/api/logs/blockNumber.log', wrapData[i].block_num);
+                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num);
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     ethCtrl.wrapFunction(tx_id, weiQuantity);
                 }   
@@ -151,11 +122,12 @@ class FIOCtrl {
                 var array = Object.keys(obj)
                 if (array.length != 0) {
                     var newNumber = obj[array[0]].blockNumber + 1;
-                    config.oracleCache.set( "ethBlockNumber", newNumber, 10000 );
                     for (var i = 0; i < array.length; i++) {
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
                         fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
+                        config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
+                        fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber);
                         unwrapTokens(txId, amount);
                     }
                 }

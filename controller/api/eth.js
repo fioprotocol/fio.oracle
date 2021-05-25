@@ -7,38 +7,9 @@ var index = 0;
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch') 
 const fs = require('fs');
-const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
 class EthCtrl {
     constructor() {
-        try {
-            if(fs.existsSync(pathFIO)) {
-                console.log("The file exists.");
-            } else {
-                console.log('The file does not exist.');
-                fs.writeFile(pathFIO, "", function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }
-                    console.log("The file was saved!");
-                }); 
-    
-            }
-            if(fs.existsSync(pathETH)) {
-                console.log("The file exists.");
-            } else {
-                console.log('The file does not exist.');
-                fs.writeFile(pathETH, "", function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }
-                    console.log("The file was saved!");
-                }); 
-    
-            }
-        } catch (err) {
-            console.error(err);
-        }
         this.web3 = new Web3(config.web3Provider);
         this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
