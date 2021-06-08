@@ -2,10 +2,10 @@ import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
-const Tx = require('ethereumjs-tx').Transaction
+const Tx = require('ethereumjs-tx').Transaction;
 var index = 0;
 const { TextEncoder, TextDecoder } = require('text-encoding');
-const fetch = require('node-fetch') 
+const fetch = require('node-fetch');
 
 class EthCtrl {
     constructor() {
@@ -29,14 +29,14 @@ class EthCtrl {
         }
     }
 
-    async signConract(address, signKey, pubKey) {
+    async signContract(address, signKey, pubKey) {
         const regedOracle = await this.fioContract.methods.getOracles().call();
         if (regedOracle.length > 0 && regedOracle.includes(address)) {
             if (index == this.pubArray.length) {
                 return 0;
             } else  {
                 index++;
-                this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+                this.signContract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
             }
         }
         try {
@@ -70,7 +70,7 @@ class EthCtrl {
                     return 0;
                 } else  {
                     index++;
-                    this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+                    this.signContract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
                     console.log(index);
                 }
             })
@@ -79,7 +79,7 @@ class EthCtrl {
                 return 0;
             } else  {
                 index++;
-                this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+                this.signContract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
             }
             console.log(error);
         }
@@ -93,13 +93,6 @@ class EthCtrl {
             try {
                 const pubKey = pubCustodian[i];
                 const signKey = priCustodian[i];
-                console.log("pubkey: ",pubCustodian[i]);
-                console.log("signkey: ",pubCustodian[i]);
-                this.fioContract.methods.getApproval(tx_id).call()
-                .then((response) => {
-                    console.log(response);
-                });
-
                 const wrapFunc = this.fioContract.methods.wrap(config.ownerAddress, quantity, tx_id);
                 let wrapABI = wrapFunc.encodeABI();
                 var nonce = await this.web3.eth.getTransactionCount(pubKey);
@@ -107,8 +100,8 @@ class EthCtrl {
 
                 const tx = new Tx(
                     {
-                      gasPrice: this.web3.utils.toHex(10000000000),
-                      gasLimit: this.web3.utils.toHex(50000000),
+                      gasPrice: this.web3.utils.toHex(50000000000),
+                      gasLimit: this.web3.utils.toHex(8000000),
                       to: config.FIO_token,
                       data: wrapABI,
                       from: pubKey,
@@ -136,7 +129,7 @@ class EthCtrl {
 
     }
     async getContract() {
-        this.signConract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
+        this.signContract(this.oracleArray[index], this.privArray[index], this.pubArray[index]);
     }
 }
 

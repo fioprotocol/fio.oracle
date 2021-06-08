@@ -1,18 +1,18 @@
 import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
-// import ethCtrl from './api/eth';
+import ethCtrl from './api/eth';
 import utilCtrl from './util';
 import config from '../config/config';
-import Web3 from "web3";
+import Web3 from 'web3';
 // import util from './util';
 const fs = require('fs');
-const cors = require("cors");
-const route = require("express").Router();
+const cors = require('cors');
+const route = require('express').Router();
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         try {
-            const lastProcessed = fs.readFileSync('controller/api/logs/blockNumber.log', 'utf8')
+            const lastProcessed = fs.readFileSync('controller/api/logs/blockNumber.log', 'utf8');
             config.oracleCache.set( "lastBlockNumber", parseInt(lastProcessed), 10000 );
         } catch (err) {
             console.error(err)
