@@ -1,9 +1,9 @@
 import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
-// import ethCtrl from './api/eth';
+import ethCtrl from './api/eth';
 import utilCtrl from './util';
 import config from '../config/config';
-import Web3 from "web3";
+import Web3 from 'web3';
 // import util from './util';
 const fs = require('fs');
 const cors = require("cors");
