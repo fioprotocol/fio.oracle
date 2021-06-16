@@ -5,8 +5,9 @@ import fioNftABI from "../../config/ABI/FIONFT.json"
 const Tx = require('ethereumjs-tx').Transaction;
 var index = 0;
 const { TextEncoder, TextDecoder } = require('text-encoding');
-const fetch = require('node-fetch');
-
+const fetch = require('node-fetch') 
+const fs = require('fs');
+const pathETH = "controller/api/logs/ETH.log";
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
@@ -93,37 +94,47 @@ class EthCtrl {
             try {
                 const pubKey = pubCustodian[i];
                 const signKey = priCustodian[i];
-                const wrapFunc = this.fioContract.methods.wrap(config.ownerAddress, quantity, tx_id);
-                let wrapABI = wrapFunc.encodeABI();
-                var nonce = await this.web3.eth.getTransactionCount(pubKey);
-                console.log(signKey);
+                this.fioContract.methods.getApproval(tx_id).call()
+                .then((response) => {
+                    console.log(response);
+                });
 
-                const tx = new Tx(
-                    {
-                      gasPrice: this.web3.utils.toHex(50000000000),
-                      gasLimit: this.web3.utils.toHex(8000000),
-                      to: config.FIO_token,
-                      data: wrapABI,
-                      from: pubKey,
-                      nonce: this.web3.utils.toHex(nonce),
-                      // nonce: web3.utils.toHex(0)
-                    },
-                    { chain: 'ropsten', hardfork: 'istanbul' }
-                );
-                const privateKey = Buffer.from(signKey, 'hex');
-                tx.sign(privateKey);
-                const serializedTx = tx.serialize();
-                await this.web3.eth
-                .sendSignedTransaction('0x' + serializedTx.toString('hex'))
-                .on('transactionHash', (hash) => {
-                    console.log(config.ownerAddress+" : "+pubKey);
-                    console.log('TxHash: ', hash);
-                })
-                .on('receipt', (receipt) => {
-                    console.log("completed");
-                })
+                if(this.web3.utils.isAddress(config.ownerAddress) === true) {
+                    const wrapFunc = this.fioContract.methods.wrap(config.ownerAddress, quantity, tx_id);
+                    let wrapABI = wrapFunc.encodeABI();
+                    var nonce = await this.web3.eth.getTransactionCount(pubKey);
+                    console.log(signKey);    
+                    const tx = new Tx(
+                        {
+                          gasPrice: this.web3.utils.toHex(38000000000),
+                          gasLimit: this.web3.utils.toHex(21000),
+                          to: config.FIO_token,
+                          data: wrapABI,
+                          from: pubKey,
+                          nonce: this.web3.utils.toHex(nonce),
+                          // nonce: web3.utils.toHex(0)
+                        },
+                        { chain: 'ropsten', hardfork: 'istanbul' }
+                    );
+                    const privateKey = Buffer.from(signKey, 'hex');
+                    tx.sign(privateKey);
+                    const serializedTx = tx.serialize();
+                    await this.web3.eth
+                    .sendSignedTransaction('0x' + serializedTx.toString('hex'))
+                    .on('transactionHash', (hash) => {
+                        console.log(config.ownerAddress+" : "+pubKey);
+                        console.log('TxHash: ', hash);
+                    })
+                    .on('receipt', (receipt) => {
+                        console.log("completed");
+                        fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\n');
+                    })
+                } else {
+                    console.log("Invalid Address");
+                }
             } catch (error) {
                 console.log(error);
+                fs.appendFileSync(pathETH, error+'\n');
             }
         }
 
