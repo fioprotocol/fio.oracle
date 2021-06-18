@@ -17,6 +17,7 @@ const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
+const pathWrapTransact = "controller/api/logs/WrapTransaction.log"
 const unwrapTokens = async (obt_id, fioAmount) => {
     let contract = 'fio.oracle',
     action = 'unwraptokens',
@@ -101,10 +102,16 @@ class FIOCtrl {
                     const bn = bignumber(quantity.split(".")[0]);
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
+                    const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
                     console.log(wrapData[i].block_num);
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num);
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
-                    ethCtrl.wrapFunction(tx_id, weiQuantity);
+                    fs.appendFileSync(pathWrapTransact, wrapText);
+                    // console.log(i);
+                    // if (i == 0) {
+                    //     console.log("1123123");
+                    //     // ethCtrl.wrapFunction(tx_id, weiQuantity);
+                    // }
                 }   
             }      
         }

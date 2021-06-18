@@ -8,6 +8,7 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch') 
 const fs = require('fs');
 const pathETH = "controller/api/logs/ETH.log";
+const pathWrapTransact = "controller/api/logs/WrapTransaction.log"
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
@@ -46,8 +47,8 @@ class EthCtrl {
             var nonce = await this.web3.eth.getTransactionCount(pubKey);
             const tx = new Tx(
                 {
-                  gasPrice: this.web3.utils.toHex(10000000000),
-                  gasLimit: this.web3.utils.toHex(8000000),
+                  gasPrice: this.web3.utils.toHex(parseInt(process.env.GASPRICE)),
+                  gasLimit: this.web3.utils.toHex(parseInt(process.env.GASLIMIT)),
                   to: config.FIO_token,
                   data: regOracleABI,
                   from: pubKey,
@@ -90,6 +91,7 @@ class EthCtrl {
         const pubCustodian = process.env.CUSTODIAN_PUBLIC.split(",");
         const priCustodian = process.env.CUSTODIAN_PRIVATE.split(",");
         this.fioContract.methods.getApproval(tx_id).call();
+        var transactionCount = 0;
         for (var i =0; i < 3; i++) {
             try {
                 const pubKey = pubCustodian[i];
@@ -106,8 +108,8 @@ class EthCtrl {
                     console.log(signKey);    
                     const tx = new Tx(
                         {
-                          gasPrice: this.web3.utils.toHex(38000000000),
-                          gasLimit: this.web3.utils.toHex(21000),
+                          gasPrice: this.web3.utils.toHex(parseInt(process.env.TGASPRICE)),
+                          gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
                           to: config.FIO_token,
                           data: wrapABI,
                           from: pubKey,
@@ -128,6 +130,7 @@ class EthCtrl {
                     .on('receipt', (receipt) => {
                         console.log("completed");
                         fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\n');
+                        transactionCount++;
                     })
                 } else {
                     console.log("Invalid Address");
@@ -136,6 +139,26 @@ class EthCtrl {
                 console.log(error);
                 fs.appendFileSync(pathETH, error+'\n');
             }
+        }
+        console.log(transactionCount);
+        if(transactionCount === 3) {
+            let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
+            csvContent.shift(); // remove the the first element from array
+            // var newTxId;
+            // var newQuantity;
+            // if (csvContent.length > 0) {
+            //     newTxId = csvContent[0].split(' ')[0];
+            //     newQuantity = Number(csvContent[0].split(' ')[1]);
+            //     console.log("newTxID: ", newTxId)
+            //     console.log("newTxID: ", newQuantity)    
+            //     this.wrapFunction(newTxId, newQuantity);
+            // } else {
+            //     return 0;
+            // }
+            csvContent = csvContent.join('\r\n'); // convert array back to string
+            fs.writeFileSync(pathWrapTransact, csvContent)
+        } else {
+
         }
 
     }
