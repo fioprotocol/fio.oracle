@@ -15,5 +15,6 @@ yarn-error.log*
 .env.test
 .env.production
 
+.log
 # boilerplate internals
 template
