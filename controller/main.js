@@ -12,11 +12,23 @@ const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
+const WrapTransaction = "controller/api/logs/WrapTransaction.log"
 
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         try {
+            if(fs.existsSync(WrapTransaction)) {
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(WrapTransaction, "", function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                }); 
+            }
             if(fs.existsSync(pathFIO)) {
                 console.log("The file exists.");
             } else {
@@ -27,7 +39,6 @@ class MainCtrl {
                     }
                     console.log("The file was saved!");
                 }); 
-    
             }
             if(fs.existsSync(pathETH)) {
                 console.log("The file exists.");
