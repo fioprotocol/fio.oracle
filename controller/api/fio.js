@@ -5,6 +5,7 @@ import config from "../../config/config";
 import { bignumber, number } from 'mathjs';
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
+import { count } from 'console';
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
@@ -95,6 +96,7 @@ class FIOCtrl {
         const wrapData = await utilCtrl.getLatestAction("qhh25sqpktwh", -1);
         console.log("wrapData: ",wrapData);
         const dataLen = Object.keys(wrapData).length;
+        var count = 0;
         if (dataLen != 0 ) {
             for (var i = 0; i<dataLen;i++){
                 if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {
@@ -108,10 +110,10 @@ class FIOCtrl {
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     // console.log(i);
-                    // if (i == 0) {
-                    //     console.log("1123123");
-                    //     // ethCtrl.wrapFunction(tx_id, weiQuantity);
-                    // }
+                    if (count == 0) {
+                        ethCtrl.wrapFunction(tx_id, weiQuantity);
+                    }
+                    count++;
                 }   
             }      
         }

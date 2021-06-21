@@ -8,7 +8,8 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch') 
 const fs = require('fs');
 const pathETH = "controller/api/logs/ETH.log";
-const pathWrapTransact = "controller/api/logs/WrapTransaction.log"
+const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
+const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
@@ -140,25 +141,25 @@ class EthCtrl {
                 fs.appendFileSync(pathETH, error+'\n');
             }
         }
-        console.log(transactionCount);
         if(transactionCount === 3) {
             let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
             csvContent.shift(); // remove the the first element from array
-            // var newTxId;
-            // var newQuantity;
-            // if (csvContent.length > 0) {
-            //     newTxId = csvContent[0].split(' ')[0];
-            //     newQuantity = Number(csvContent[0].split(' ')[1]);
-            //     console.log("newTxID: ", newTxId)
-            //     console.log("newTxID: ", newQuantity)    
-            //     this.wrapFunction(newTxId, newQuantity);
-            // } else {
-            //     return 0;
-            // }
+            var newTxId;
+            var newQuantity;
+            if (csvContent.length > 0) {
+                newTxId = csvContent[0].split(' ')[0];
+                newQuantity = Number(csvContent[0].split(' ')[1]);
+                console.log("newTxID: ", newTxId)
+                console.log("newTxID: ", newQuantity)    
+                this.wrapFunction(newTxId, newQuantity);
+            } else {
+                return 0;
+            }
             csvContent = csvContent.join('\r\n'); // convert array back to string
             fs.writeFileSync(pathWrapTransact, csvContent)
         } else {
-
+            const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
+            fs.writeFileSync(WrapErrTransaction, wrapText);
         }
 
     }
