@@ -32,7 +32,7 @@ class EthCtrl {
         }
     }
 
-    async signContract(address, signKey, pubKey) {
+    async signContract(address, signKey, pubKey) { // regOralce by custodian
         const regedOracle = await this.fioContract.methods.getOracles().call();
         if (regedOracle.length > 0 && regedOracle.includes(address)) {
             if (index == this.pubArray.length) {
@@ -87,13 +87,13 @@ class EthCtrl {
             console.log(error);
         }
     }
-    async wrapFunction(tx_id, quantity) {
+    async wrapFunction(tx_id, quantity) {// excute wrap action
         const regedOracle = await this.fioContract.methods.getOracles().call();
-        const pubCustodian = process.env.CUSTODIAN_PUBLIC.split(",");
-        const priCustodian = process.env.CUSTODIAN_PRIVATE.split(",");
+        const pubCustodian = process.env.CUSTODIAN_PUBLIC.split(",");//custodian public key
+        const priCustodian = process.env.CUSTODIAN_PRIVATE.split(",");//custodian private key
         this.fioContract.methods.getApproval(tx_id).call();
         var transactionCount = 0;
-        for (var i =0; i < 3; i++) {
+        for (var i =0; i < 3; i++) { // loop every
             try {
                 const pubKey = pubCustodian[i];
                 const signKey = priCustodian[i];
@@ -102,10 +102,10 @@ class EthCtrl {
                     console.log(response);
                 });
 
-                if(this.web3.utils.isAddress(config.ownerAddress) === true) {
+                if(this.web3.utils.isAddress(config.ownerAddress) === true) { //check validation if the address is ERC20 address
                     const wrapFunc = this.fioContract.methods.wrap(config.ownerAddress, quantity, tx_id);
                     let wrapABI = wrapFunc.encodeABI();
-                    var nonce = await this.web3.eth.getTransactionCount(pubKey);
+                    var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
                     console.log(signKey);    
                     const tx = new Tx(
                         {
@@ -122,7 +122,7 @@ class EthCtrl {
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
                     const serializedTx = tx.serialize();
-                    await this.web3.eth
+                    await this.web3.eth//excute the sign transaction using public key and private key of oracle
                     .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                     .on('transactionHash', (hash) => {
                         console.log(config.ownerAddress+" : "+pubKey);
@@ -141,25 +141,23 @@ class EthCtrl {
                 fs.appendFileSync(pathETH, error+'\n');
             }
         }
-        if(transactionCount === 3) {
+        if(transactionCount === 3) { //check if all oracles are signed
             let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
             csvContent.shift(); // remove the the first element from array
             var newTxId;
             var newQuantity;
-            if (csvContent.length > 0) {
+            if (csvContent.length > 0) { //check if the queue is empty
                 newTxId = csvContent[0].split(' ')[0];
                 newQuantity = Number(csvContent[0].split(' ')[1]);
-                console.log("newTxID: ", newTxId)
-                console.log("newTxID: ", newQuantity)    
-                this.wrapFunction(newTxId, newQuantity);
+                this.wrapFunction(newTxId, newQuantity);//excuete next transaction from transaction log
             } else {
                 return 0;
             }
             csvContent = csvContent.join('\r\n'); // convert array back to string
             fs.writeFileSync(pathWrapTransact, csvContent)
-        } else {
+        } else {// if wrap action is not processed because of issue
             const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
-            fs.writeFileSync(WrapErrTransaction, wrapText);
+            fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break
         }
 
     }

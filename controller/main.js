@@ -8,21 +8,21 @@ import Web3 from 'web3';
 const fs = require('fs');
 const cors = require("cors");
 const route = require("express").Router();
-const pathFIO = "controller/api/logs/FIO.log";
-const pathETH = "controller/api/logs/ETH.log";
-const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
-const blockNumETH = "controller/api/logs/blockNumberETH.log";
-const WrapTransaction = "controller/api/logs/WrapTransaction.log";
-const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
+const pathFIO = "controller/api/logs/FIO.log";//log events and errors on FIO side
+const pathETH = "controller/api/logs/ETH.log";//log events and errors on ETH side
+const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknumber for the wrapAction
+const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
+const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
+const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         try {
-            if(fs.existsSync(WrapTransaction)) {
+            if(fs.existsSync(WrapTransaction)) { //check file exist
                 console.log("The file exists.");
             } else {
                 console.log('The file does not exist.');
-                fs.writeFile(WrapTransaction, "", function(err) {
+                fs.writeFile(WrapTransaction, "", function(err) { //create new file
                     if(err) {
                         return console.log(err);
                     }
@@ -93,16 +93,16 @@ class MainCtrl {
         } catch (err) {
             console.error(err)
         }
-        this.web3 = new Web3(config.web3Provider);
+        this.web3 = new Web3(config.web3Provider); //init Web3 service
         this.web3.eth.getBlockNumber()
         .then((number)=>{
-            config.oracleCache.set( "ethBlockNumber", number, 10000 );
+            config.oracleCache.set( "ethBlockNumber", number, 10000 ); //store the latest ETH block_num for unwrap to cache.
         })
-        utilCtrl.availCheck("bp1@dapixdev");
+        utilCtrl.availCheck("bp1@dapixdev");// fio account validation check
         // ethCtrl.getContract();
         // ethCtrl.wrapFunction();
-        setInterval(fioCtrl.wrapFunction, parseInt(process.env.POLLTIME));
-        setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME));
+        setInterval(fioCtrl.wrapFunction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
+        setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
 
         this.initRoutes(app);
     }

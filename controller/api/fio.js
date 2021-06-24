@@ -19,9 +19,9 @@ const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log"
-const unwrapTokens = async (obt_id, fioAmount) => {
+const unwrapTokens = async (obt_id, fioAmount) => { // excute unwrap action using eth transaction data and amount
     let contract = 'fio.oracle',
-    action = 'unwraptokens',
+    action = 'unwraptokens', //action name
     oraclePrivateKey = process.env.PRIVATE_KEY,
     oraclePublicKey = process.env.PUBLIC_KEY,
     oracleAccount = 'qbxn5zhw2ypw',
@@ -70,7 +70,7 @@ const unwrapTokens = async (obt_id, fioAmount) => {
         textEncoder: new TextEncoder()
     });
 
-    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', {
+    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', { //excute transactoin for unwrap
         body: JSON.stringify(tx),
         method: 'POST',
     });
@@ -79,14 +79,14 @@ const unwrapTokens = async (obt_id, fioAmount) => {
 
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, JSON.stringify(json));
+        fs.appendFileSync(pathFIO, JSON.stringify(json)); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
         fs.appendFileSync(pathFIO, JSON.stringify(json));
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json));
+        fs.appendFileSync(pathFIO, JSON.stringify(json));//store receipt to log
     }
 }
 class FIOCtrl {
@@ -99,19 +99,18 @@ class FIOCtrl {
         var count = 0;
         if (dataLen != 0 ) {
             for (var i = 0; i<dataLen;i++){
-                if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {
+                if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {// get FIO action data if wrapping action
                     const quantity = wrapData[i].action_trace.act.data.quantity;
                     const bn = bignumber(quantity.split(".")[0]);
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
                     const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
-                    console.log(wrapData[i].block_num);
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num);
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     // console.log(i);
                     if (count == 0) {
-                        ethCtrl.wrapFunction(tx_id, weiQuantity);
+                        ethCtrl.wrapFunction(tx_id, weiQuantity);//excute first wrap action
                     }
                     count++;
                 }   
@@ -120,7 +119,7 @@ class FIOCtrl {
     }
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
-        fioContract.getPastEvents('unwrapped',{
+        fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber,
             toBlock: 'latest'
@@ -137,7 +136,7 @@ class FIOCtrl {
                         fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber);
-                        unwrapTokens(txId, amount);
+                        unwrapTokens(txId, amount);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
