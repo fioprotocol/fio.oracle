@@ -5,7 +5,6 @@ import config from "../../config/config";
 import { bignumber, number } from 'mathjs';
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
-import { count } from 'console';
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
@@ -18,16 +17,16 @@ const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
-const pathWrapTransact = "controller/api/logs/WrapTransaction.log"
-const unwrapTokens = async (obt_id, fioAmount) => {
+const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
+const unwrapTokens = async (obt_id, fioAmount) => { // excute unwrap action using eth transaction data and amount
     let contract = 'fio.oracle',
-    action = 'unwraptokens',
-    oraclePrivateKey = process.env.PRIVATE_KEY,
-    oraclePublicKey = process.env.PUBLIC_KEY,
-    oracleAccount = 'qbxn5zhw2ypw',
+    action = 'unwraptokens', //action name
+    oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
+    oraclePublicKey = process.env.FIO_ORACLE_PUBLIC_KEY,
+    oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
     amount = fioAmount,
     obtId = obt_id,
-    fioAddress = 'bp1@dapixdev';
+    fioAddress = process.env.FIO_ORACLE_ADDRESS;
     const info = await (await fetch(httpEndpoint + 'v1/chain/get_info')).json();
     const blockInfo = await (await fetch(httpEndpoint + 'v1/chain/get_block', { body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`, method: 'POST' })).json()
     const chainId = info.chain_id;
@@ -70,7 +69,7 @@ const unwrapTokens = async (obt_id, fioAmount) => {
         textEncoder: new TextEncoder()
     });
 
-    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', {
+    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', { //excute transactoin for unwrap
         body: JSON.stringify(tx),
         method: 'POST',
     });
@@ -79,39 +78,38 @@ const unwrapTokens = async (obt_id, fioAmount) => {
 
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, JSON.stringify(json));
+        fs.appendFileSync(pathFIO, JSON.stringify(json)); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
         fs.appendFileSync(pathFIO, JSON.stringify(json));
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json));
+        fs.appendFileSync(pathFIO, JSON.stringify(json));//store receipt to log
     }
 }
 class FIOCtrl {
     constructor() {}
     
-    async wrapFunction(req,res) {
-        const wrapData = await utilCtrl.getLatestAction("qhh25sqpktwh", -1);
-        console.log("wrapData: ",wrapData);
+    async getLatestWrapAction(req,res) {
+        const wrapData = await utilCtrl.getLatestAction(process.env.FIO_ORACLE_WRAP_ACCOUNT, -1);
         const dataLen = Object.keys(wrapData).length;
-        var count = 0;
         if (dataLen != 0 ) {
+            var count = 0;
             for (var i = 0; i<dataLen;i++){
-                if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {
+                if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {// get FIO action data if wrapping action
+                    console.log(wrapData[i]);
                     const quantity = wrapData[i].action_trace.act.data.quantity;
                     const bn = bignumber(quantity.split(".")[0]);
                     const weiQuantity = Number(bn) * 1000000000;
                     const tx_id = wrapData[i].action_trace.trx_id;
                     const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
-                    console.log(wrapData[i].block_num);
+                    console.log("weiQuantity: ", weiQuantity)
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num);
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     fs.appendFileSync(pathWrapTransact, wrapText);
-                    // console.log(i);
                     if (count == 0) {
-                        ethCtrl.wrapFunction(tx_id, weiQuantity);
+                        ethCtrl.wrapFunction(tx_id, weiQuantity);//excute first wrap action
                     }
                     count++;
                 }   
@@ -120,9 +118,9 @@ class FIOCtrl {
     }
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
-        fioContract.getPastEvents('unwrapped',{
+        fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
-            fromBlock: lastBlockNumber,
+            fromBlock: lastBlockNumber+1,
             toBlock: 'latest'
         }, (error, events) => {
             if (!error){
@@ -137,7 +135,7 @@ class FIOCtrl {
                         fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber);
-                        unwrapTokens(txId, amount);
+                        unwrapTokens(txId, amount);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
