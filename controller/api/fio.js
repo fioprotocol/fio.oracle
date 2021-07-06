@@ -105,7 +105,7 @@ class FIOCtrl {
                     const tx_id = wrapData[i].action_trace.trx_id;
                     const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
                     console.log("weiQuantity: ", weiQuantity)
-                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num);
+                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     if (count == 0) {
@@ -134,7 +134,7 @@ class FIOCtrl {
                         const amount = Number(obj[array[i]].returnValues.amount)
                         fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
-                        fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber);
+                        fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
                         unwrapTokens(txId, amount);//execute unwrap action using transaction_id and amount
                     }
                 }
