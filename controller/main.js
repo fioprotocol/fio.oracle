@@ -70,7 +70,7 @@ class MainCtrl {
                 config.oracleCache.set( "lastBlockNumber", parseInt(lastProcessed), 10000 );
             } else {
                 console.log('The file does not exist.');
-                fs.writeFile(blockNumFIO, lastBlockNum, function(err) {
+                fs.writeFile(blockNumFIO, lastBlockNum.toString(), function(err) {
                     if(err) {
                         return console.log(err);
                     }
@@ -85,7 +85,7 @@ class MainCtrl {
             } else {
                 console.log('The file does not exist.');
                 const latestBlockNum = await this.web3.eth.getBlockNumber();
-                fs.writeFile(blockNumETH, latestBlockNum, function(err) {
+                fs.writeFile(blockNumETH, latestBlockNum.toString(), function(err) {
                     if(err) {
                         return console.log(err);
                     }
