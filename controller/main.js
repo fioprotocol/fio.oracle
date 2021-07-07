@@ -4,7 +4,6 @@ import ethCtrl from './api/eth';
 import utilCtrl from './util';
 import config from '../config/config';
 import Web3 from 'web3';
-// import util from './util';
 const fs = require('fs');
 const cors = require("cors");
 
@@ -96,14 +95,7 @@ class MainCtrl {
         } catch (err) {
             console.error(err)
         }
-        // //init Web3 service
-        // this.web3.eth.getBlockNumber()
-        // .then((number)=>{
-        //     config.oracleCache.set( "ethBlockNumber", number, 10000 ); //store the latest ETH block_num for unwrap to cache.
-        // })
-        utilCtrl.availCheck("bp1@dapixdev");// fio account validation check
-        // ethCtrl.getContract();
-        // ethCtrl.wrapFunction();
+        utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
         setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
         setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
         this.initRoutes(app);
