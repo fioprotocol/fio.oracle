@@ -96,11 +96,11 @@ class MainCtrl {
         } catch (err) {
             console.error(err)
         }
-        //init Web3 service
-        this.web3.eth.getBlockNumber()
-        .then((number)=>{
-            config.oracleCache.set( "ethBlockNumber", number, 10000 ); //store the latest ETH block_num for unwrap to cache.
-        })
+        // //init Web3 service
+        // this.web3.eth.getBlockNumber()
+        // .then((number)=>{
+        //     config.oracleCache.set( "ethBlockNumber", number, 10000 ); //store the latest ETH block_num for unwrap to cache.
+        // })
         utilCtrl.availCheck("bp1@dapixdev");// fio account validation check
         // ethCtrl.getContract();
         // ethCtrl.wrapFunction();

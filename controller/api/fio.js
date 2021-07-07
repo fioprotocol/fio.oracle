@@ -94,6 +94,7 @@ class FIOCtrl {
     async getLatestWrapAction(req,res) {
         const wrapData = await utilCtrl.getLatestAction(process.env.FIO_ORACLE_WRAP_ACCOUNT, -1);
         const dataLen = Object.keys(wrapData).length;
+        console.log("wrapData: ", wrapData);
         if (dataLen != 0 ) {
             var count = 0;
             for (var i = 0; i<dataLen;i++){

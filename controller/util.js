@@ -12,7 +12,6 @@ class UtilCtrl {
       while(data.length > 0 && data[0].block_num > lastNumber) {
         offset -= 10;
         data = await this.getActions(accountName, pos, offset);
-        console.log("data: ", data);
       }
       var realData = Array();
       for(var i = 0; i < data.length; i++) {
