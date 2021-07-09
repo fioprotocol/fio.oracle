@@ -14,21 +14,22 @@ class EthCtrl {
         this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
     }
-    async wrapFunction(tx_id, quantity) {// excute wrap action
+    async wrapFunction(tx_id, wrapData) {// excute wrap action
+        console.log("wrapData: ", wrapData)
+        const quantity = wrapData.amount;
         const info = await (await fetch(process.env.ETHAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
         var gasPrice = 0;
-        if (gasMode == "1") {
+        if ((gasMode == "1" && info.status === "1")||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
             if (process.env.GASPRICELEVEL == "average") {
                 gasPrice = parseInt(info.result.ProposeGasPrice) * 1000000000;
             } else if(process.env.GASPRICELEVEL == "low") {
                 gasPrice = parseInt(info.result.SafeGasPrice) * 1000000000;
             } else if(process.env.GASPRICELEVEL == "high") {
-                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;                
+                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;
             }
-        } else {
+        } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
             gasPrice = parseInt(process.env.TGASPRICE);
-
         }
         const regedOracle = await this.fioContract.methods.getOracles().call();
         if(regedOracle.length > 0 && regedOracle.includes(process.env.ETH_ORACLE_PUBLIC)) {
@@ -41,10 +42,10 @@ class EthCtrl {
                 .then((response) => {
                     console.log(response);
                 });
-                if(this.web3.utils.isAddress(config.ownerAddress) === true) { //check validation if the address is ERC20 address
+                if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
                     console.log("quantity: ", quantity);
                     console.log("gas: ", gasPrice);
-                    const wrapFunc = this.fioContract.methods.wrap(config.ownerAddress, quantity, tx_id);
+                    const wrapFunc = this.fioContract.methods.wrap(wrapData.public_address, quantity, tx_id);
                     let wrapABI = wrapFunc.encodeABI();
                     var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
                     console.log(signKey);    
@@ -66,7 +67,7 @@ class EthCtrl {
                     await this.web3.eth//excute the sign transaction using public key and private key of oracle
                     .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                     .on('transactionHash', (hash) => {
-                        console.log(config.ownerAddress+" : "+pubKey);
+                        console.log(wrapData.public_address+" : "+pubKey);
                         console.log('TxHash: ', hash);
                     })
                     .on('receipt', (receipt) => {

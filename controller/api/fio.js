@@ -94,23 +94,20 @@ class FIOCtrl {
     async getLatestWrapAction(req,res) {
         const wrapData = await utilCtrl.getLatestAction(process.env.FIO_ORACLE_WRAP_ACCOUNT, -1);
         const dataLen = Object.keys(wrapData).length;
-        console.log("wrapData: ", wrapData);
         if (dataLen != 0 ) {
             var count = 0;
             for (var i = 0; i<dataLen;i++){
-                if (wrapData[i].action_trace.act.data.memo == "Token Wrapping") {// get FIO action data if wrapping action
-                    console.log(wrapData[i]);
-                    const quantity = wrapData[i].action_trace.act.data.quantity;
-                    const bn = bignumber(quantity.split(".")[0]);
-                    const weiQuantity = Number(bn) * 1000000000;
+                if (wrapData[i].action_trace.act.name == "wraptokens") {// get FIO action data if wrapping action
+                    const weiQuantity = wrapData[i].action_trace.act.data.amount;
+                    const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    const wrapText = tx_id + ' ' + weiQuantity + '\r\n';
+                    const wrapText = tx_id + ' ' + weiQuantity + ' ' + pub_address + '\r\n';
                     console.log("weiQuantity: ", weiQuantity)
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     if (count == 0) {
-                        ethCtrl.wrapFunction(tx_id, weiQuantity);//excute first wrap action
+                        ethCtrl.wrapFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                     }
                     count++;
                 }   
