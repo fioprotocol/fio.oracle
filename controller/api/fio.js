@@ -92,7 +92,7 @@ class FIOCtrl {
     constructor() {}
     
     async getLatestWrapAction(req,res) {
-        const wrapData = await utilCtrl.getLatestAction(process.env.FIO_ORACLE_WRAP_ACCOUNT, -1);
+        const wrapData = await utilCtrl.getLatestAction("fio.oracle", -1);
         const dataLen = Object.keys(wrapData).length;
         if (dataLen != 0 ) {
             var count = 0;
@@ -116,6 +116,7 @@ class FIOCtrl {
     }
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
+        console.log("lastBlocku: ", lastBlockNumber)
         fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber+1,
