@@ -2,6 +2,7 @@ import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
+import { time } from "console";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
 const fs = require('fs');
@@ -72,11 +73,12 @@ class EthCtrl {
                     })
                     .on('receipt', (receipt) => {
                         console.log("completed");
-                        fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\n');            
+                        fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\r\n');            
                         transactionCount++;
                     })
                     if(transactionCount == 0) {
-                        const wrapText = tx_id + ' ' + quantity + '\r\n';
+                        const timeStamp = new Date().toISOString();
+                        const wrapText = tx_id + ' ' + quantity +' ' + timeStamp + '\r\n';
                         fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break        
                     }
                     let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
@@ -99,7 +101,8 @@ class EthCtrl {
                 }
             } catch (error) {
                 console.log(error);
-                fs.appendFileSync(pathETH, error+'\r\n');
+                const timeStamp = new Date().toISOString();
+                fs.appendFileSync(pathETH, error+' '+ timeStamp +'\r\n');
             }
         }
     }

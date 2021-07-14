@@ -90,7 +90,7 @@ class MainCtrl {
                     }
                     console.log("The file was saved!");
                 }); 
-                config.oracleCache.set( "ethBlockNumber", "0", 10000 );
+                config.oracleCache.set( "ethBlockNumber", latestBlockNum, 10000 );
             }
         } catch (err) {
             console.error(err)
