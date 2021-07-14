@@ -18,15 +18,14 @@ const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
-const unwrapTokens = async (obt_id, fioAmount) => { // excute unwrap action using eth transaction data and amount
+const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap action using eth transaction data and amount
     let contract = 'fio.oracle',
     action = 'unwraptokens', //action name
     oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
     oraclePublicKey = process.env.FIO_ORACLE_PUBLIC_KEY,
     oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
     amount = fioAmount,
-    obtId = obt_id,
-    fioAddress = process.env.FIO_ORACLE_ADDRESS;
+    obtId = obt_id;
     const info = await (await fetch(httpEndpoint + 'v1/chain/get_info')).json();
     const blockInfo = await (await fetch(httpEndpoint + 'v1/chain/get_block', { body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`, method: 'POST' })).json()
     const chainId = info.chain_id;
@@ -75,17 +74,17 @@ const unwrapTokens = async (obt_id, fioAmount) => { // excute unwrap action usin
     });
 
     const json = await pushResult.json()
-
+    const timeStamp = new Date().toISOString();
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, JSON.stringify(json)); //store error to log
+        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n'); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json));
+        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n');
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json));//store receipt to log
+        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n');//store receipt to log
     }
 }
 class FIOCtrl {
@@ -98,13 +97,14 @@ class FIOCtrl {
             var count = 0;
             for (var i = 0; i<dataLen;i++){
                 if (wrapData[i].action_trace.act.name == "wraptokens") {// get FIO action data if wrapping action
+                    const timeStamp = new Date().toISOString();
                     const weiQuantity = wrapData[i].action_trace.act.data.amount;
                     const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    const wrapText = tx_id + ' ' + weiQuantity + ' ' + pub_address + '\r\n';
+                    const wrapText = tx_id + ' ' + weiQuantity + ' ' + pub_address + ' ' + timeStamp + '\r\n';
                     console.log("weiQuantity: ", weiQuantity)
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
-                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i]));
+                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     if (count == 0) {
                         ethCtrl.wrapFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
@@ -119,7 +119,7 @@ class FIOCtrl {
         console.log("lastBlocku: ", lastBlockNumber)
         fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
-            fromBlock: lastBlockNumber+1,
+            fromBlock: lastBlockNumber,
             toBlock: 'latest'
         }, (error, events) => {
             if (!error){
@@ -127,20 +127,23 @@ class FIOCtrl {
                 var obj=JSON.parse(JSON.stringify(events));
                 var array = Object.keys(obj)
                 if (array.length != 0) {
-                    var newNumber = obj[array[0]].blockNumber + 1;
                     for (var i = 0; i < array.length; i++) {
+                        const timeStamp = new Date().toISOString();
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
-                        fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]]));
+                        const fioAddress = obj[array[i]].returnValues.fioaddress
+                        console.log("eee: ",obj[array[i]]);
+                        fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]])+' '+timeStamp);
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
-                        unwrapTokens(txId, amount);//execute unwrap action using transaction_id and amount
+                        unwrapTokens(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
               else {
                 console.log(error)
-                fs.appendFileSync(pathETH, error);
+                const timeStamp = new Date().toISOString();
+                fs.appendFileSync(pathETH, error+' '+timeStamp+'\r\n');
               }
         })
     }
