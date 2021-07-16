@@ -14,11 +14,24 @@ const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknu
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
+const serverErr = "controller/api/logs/ServerErr.log";//store the error startup error
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         this.web3 = new Web3(config.web3Provider); 
         try {
+            if(fs.existsSync(serverErr)) { //check file exist
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(serverErr, "", function(err) { //create new file
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                }); 
+            }
+
             if(fs.existsSync(WrapTransaction)) { //check file exist
                 console.log("The file exists.");
             } else {
@@ -92,13 +105,15 @@ class MainCtrl {
                 }); 
                 config.oracleCache.set( "ethBlockNumber", latestBlockNum, 10000 );
             }
+            utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
+            setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
+            setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            this.initRoutes(app);    
         } catch (err) {
-            console.error(err)
+            const timeStamp = new Date().toISOString();
+            fs.appendFileSync(serverErr, error+' '+ timeStamp +'\r\n');
+            console.error(err);
         }
-        utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
-        setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-        setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-        this.initRoutes(app);
     }
     initRoutes(app) {
         route.use(cors({ origin: "*" }));
