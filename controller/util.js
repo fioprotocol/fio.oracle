@@ -25,6 +25,26 @@ class UtilCtrl {
       }
       return realData;
     }
+    async getLatestWrapDomainAction(accountName, pos) {
+      const lastNumber = config.oracleCache.get("lastBlockNumber");
+      var offset = parseInt(process.env.POLLOFFSET);
+      var data = await this.getActions(accountName, pos, offset);
+      while(data.length > 0 && data[0].block_num > lastNumber) {
+        offset -= 10;
+        data = await this.getActions(accountName, pos, offset);
+      }
+      var realData = Array();
+      for(var i = 0; i < data.length; i++) {
+        if (data[i].block_num > lastNumber) {
+          realData.push(data[i]);
+        }
+        const len = realData.length;
+        if( len > 0) {
+          config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
+        }
+      }
+      return realData;
+    }
     async getActions(accountName, pos, offset) {
         const data = await curly.post(process.env.SERVER_URL_HISTORY+'v1/history/get_actions', {
              postFields: JSON.stringify({ "account_name": accountName, "pos": pos, offset: offset}),

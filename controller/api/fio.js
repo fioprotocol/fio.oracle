@@ -114,6 +114,29 @@ class FIOCtrl {
             }      
         }
     }
+    async getLatestDomainWrapAction(req,res) {
+        const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
+        const dataLen = Object.keys(wrapData).length;
+        if (dataLen != 0 ) {
+            var count = 0;
+            for (var i = 0; i<dataLen;i++){
+                if (wrapData[i].action_trace.act.name == "wrapdomain") {// get FIO action data if wrapping action
+                    console.log(wrapData[i].action_trace);
+                    const timeStamp = new Date().toISOString();
+                    const pub_address = wrapData[i].action_trace.act.data.public_address;
+                    const tx_id = wrapData[i].action_trace.trx_id;
+                    const wrapText = tx_id + ' ' + pub_address + ' ' + timeStamp + '\r\n';
+                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
+                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
+                    fs.appendFileSync(pathWrapTransact, wrapText);
+                    if (count == 0) {
+                        ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                    }
+                    count++;
+                }   
+            }      
+        }
+    }    
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
         console.log("lastBlocku: ", lastBlockNumber)
