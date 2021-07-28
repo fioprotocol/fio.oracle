@@ -14,7 +14,7 @@ const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknu
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
-const serverErr = "controller/api/logs/ServerErr.log";//store the error startup error
+const serverErr = "controller/api/logs/error.log";//store the error startup error
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
@@ -112,8 +112,7 @@ class MainCtrl {
             this.initRoutes(app);
         } catch (err) {
             const timeStamp = new Date().toISOString();
-            fs.appendFileSync(serverErr, error+' '+ timeStamp +'\r\n');
-            console.error(err);
+            fs.appendFileSync(serverErr, timeStamp+' '+ err +'\r\n');
         }
     }
     initRoutes(app) {

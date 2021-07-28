@@ -1,7 +1,7 @@
 import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
-import fioNftABI from "../../config/ABI/FIONFT.json"
+import fioNftABI from "../../config/ABI/FIONFT.json";
 import { time } from "console";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
@@ -73,7 +73,7 @@ class EthCtrl {
                     })
                     .on('receipt', (receipt) => {
                         console.log("completed");
-                        fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\r\n');            
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + JSON.stringify(receipt) +'\r\n');
                         transactionCount++;
                     })
                     if(transactionCount == 0) {
@@ -102,7 +102,7 @@ class EthCtrl {
             } catch (error) {
                 console.log(error);
                 const timeStamp = new Date().toISOString();
-                fs.appendFileSync(pathETH, error+' '+ timeStamp +'\r\n');
+                fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error +'\r\n');
             }
         }
     }
@@ -160,7 +160,7 @@ class EthCtrl {
                 })
                 .on('receipt', (receipt) => {
                     console.log("completed");
-                    fs.appendFileSync(pathETH, JSON.stringify(receipt)+'\r\n');
+                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + JSON.stringify(receipt) +'\r\n');
                     transactionCount++;
                 })
                 if(transactionCount == 0) {
@@ -189,7 +189,7 @@ class EthCtrl {
         } catch (error) {
             console.log(error);
             const timeStamp = new Date().toISOString();
-            fs.appendFileSync(pathETH, error+' '+ timeStamp +'\r\n');
+            fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error +'\r\n');
         }
     }
 }
