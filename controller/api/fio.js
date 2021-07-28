@@ -2,7 +2,6 @@ import utilCtrl from '../util';
 import ethCtrl from '../api/eth';
 import Web3 from "web3";
 import config from "../../config/config";
-import { bignumber, number } from 'mathjs';
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
 const { Fio } = require('@fioprotocol/fiojs');
@@ -77,14 +76,14 @@ const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap
     const timeStamp = new Date().toISOString();
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n');
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, JSON.stringify(json)+ ' ' + timeStamp +'\r\n');//store receipt to log
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
     }
 }
 class FIOCtrl {
@@ -110,10 +109,33 @@ class FIOCtrl {
                         ethCtrl.wrapFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                     }
                     count++;
+                }
+            }
+        }
+    }
+    async getLatestDomainWrapAction(req,res) {
+        const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
+        const dataLen = Object.keys(wrapData).length;
+        if (dataLen != 0 ) {
+            var count = 0;
+            for (var i = 0; i<dataLen;i++){
+                if (wrapData[i].action_trace.act.name == "wrapdomain") {// get FIO action data if wrapping action
+                    console.log(wrapData[i].action_trace);
+                    const timeStamp = new Date().toISOString();
+                    const pub_address = wrapData[i].action_trace.act.data.public_address;
+                    const tx_id = wrapData[i].action_trace.trx_id;
+                    const wrapText = tx_id + ' ' + pub_address + ' ' + timeStamp + '\r\n';
+                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
+                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
+                    fs.appendFileSync(pathWrapTransact, wrapText);
+                    if (count == 0) {
+                        ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                    }
+                    count++;
                 }   
             }      
         }
-    }
+    }    
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
         console.log("lastBlocku: ", lastBlockNumber)
@@ -123,7 +145,6 @@ class FIOCtrl {
             toBlock: 'latest'
         }, (error, events) => {
             if (!error){
-                console.log("events: ", events);
                 var obj=JSON.parse(JSON.stringify(events));
                 var array = Object.keys(obj)
                 if (array.length != 0) {
@@ -132,8 +153,7 @@ class FIOCtrl {
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
                         const fioAddress = obj[array[i]].returnValues.fioaddress
-                        console.log("eee: ",obj[array[i]]);
-                        fs.appendFileSync(pathETH, JSON.stringify(obj[array[i]])+' '+timeStamp);
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
                         unwrapTokens(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
@@ -143,7 +163,7 @@ class FIOCtrl {
               else {
                 console.log(error)
                 const timeStamp = new Date().toISOString();
-                fs.appendFileSync(pathETH, error+' '+timeStamp+'\r\n');
+                fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
               }
         })
     }

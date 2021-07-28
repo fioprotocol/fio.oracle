@@ -14,11 +14,11 @@ const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknu
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
-const serverErr = "controller/api/logs/ServerErr.log";//store the error startup error
+const serverErr = "controller/api/logs/error.log";//store the error startup error
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
-        this.web3 = new Web3(config.web3Provider); 
+        this.web3 = new Web3(config.web3Provider);
         try {
             if(fs.existsSync(serverErr)) { //check file exist
                 console.log("The file exists.");
@@ -29,7 +29,7 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
             }
 
             if(fs.existsSync(WrapTransaction)) { //check file exist
@@ -52,7 +52,7 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
             }
             if(fs.existsSync(pathFIO)) {
                 console.log("The file exists.");
@@ -63,7 +63,7 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
             }
             if(fs.existsSync(pathETH)) {
                 console.log("The file exists.");
@@ -74,7 +74,7 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
             }
             if(fs.existsSync(blockNumFIO)) {
                 console.log("The file exists.");
@@ -87,7 +87,7 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
                 config.oracleCache.set( "lastBlockNumber", lastBlockNum, 10000 );
             }
             if(fs.existsSync(blockNumETH)) {
@@ -102,17 +102,17 @@ class MainCtrl {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
-                }); 
+                });
                 config.oracleCache.set( "ethBlockNumber", latestBlockNum, 10000 );
             }
             utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
-            setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-            setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            this.initRoutes(app);    
+            setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
+            // setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
+            // setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            this.initRoutes(app);
         } catch (err) {
             const timeStamp = new Date().toISOString();
-            fs.appendFileSync(serverErr, error+' '+ timeStamp +'\r\n');
-            console.error(err);
+            fs.appendFileSync(serverErr, timeStamp+' '+ err +'\r\n');
         }
     }
     initRoutes(app) {
