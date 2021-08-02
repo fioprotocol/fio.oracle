@@ -26,6 +26,7 @@ class UtilCtrl {
       return realData;
     }
     async getLatestWrapDomainAction(accountName, pos) {
+      console.log("wrapData: ");
       const lastNumber = config.oracleCache.get("lastBlockNumber");
       var offset = parseInt(process.env.POLLOFFSET);
       var data = await this.getActions(accountName, pos, offset);
