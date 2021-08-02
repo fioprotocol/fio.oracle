@@ -114,6 +114,7 @@ class FIOCtrl {
         }
     }
     async getLatestDomainWrapAction(req,res) {
+        console.log("wrap:");
         const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
         const dataLen = Object.keys(wrapData).length;
         if (dataLen != 0 ) {

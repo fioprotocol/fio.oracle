@@ -16,7 +16,6 @@ class EthCtrl {
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
     }
     async wrapFunction(tx_id, wrapData) {// excute wrap action
-        console.log("wrapData: ", wrapData)
         const quantity = wrapData.amount;
         const info = await (await fetch(process.env.ETHAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
@@ -106,8 +105,7 @@ class EthCtrl {
             }
         }
     }
-    async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
-        const quantity = wrapData.amount;
+    async wrapDomainFunction(tx_id, wrapData) {// excute wrap action        const quantity = wrapData.amount;
         const info = await (await fetch(process.env.ETHAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
         var gasPrice = 0;
@@ -160,7 +158,7 @@ class EthCtrl {
                 })
                 .on('receipt', (receipt) => {
                     console.log("completed");
-                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + JSON.stringify(receipt) +'\r\n');
+                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
                     transactionCount++;
                 })
                 if(transactionCount == 0) {
