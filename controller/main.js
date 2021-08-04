@@ -15,6 +15,8 @@ const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNu
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
 const serverErr = "controller/api/logs/error.log";//store the error startup error
+const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
+const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log"
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
@@ -31,7 +33,28 @@ class MainCtrl {
                     console.log("The file was saved!");
                 });
             }
-
+            if(fs.existsSync(pathDomainWrapTransact)) { //check file exist
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(pathDomainWrapTransact, "", function(err) { //create new file
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                });
+            }
+            if(fs.existsSync(domainWrapErrTransaction)) { //check file exist
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(domainWrapErrTransaction, "", function(err) { //create new file
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                });
+            }
             if(fs.existsSync(WrapTransaction)) { //check file exist
                 console.log("The file exists.");
             } else {
