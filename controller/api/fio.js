@@ -17,6 +17,7 @@ const pathETH = "controller/api/logs/ETH.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
+const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap action using eth transaction data and amount
     let contract = 'fio.oracle',
     action = 'unwraptokens', //action name
@@ -100,7 +101,7 @@ class FIOCtrl {
                     const weiQuantity = wrapData[i].action_trace.act.data.amount;
                     const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    const wrapText = tx_id + ' ' + weiQuantity + ' ' + pub_address + ' ' + timeStamp + '\r\n';
+                    const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
                     console.log("weiQuantity: ", weiQuantity)
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
@@ -114,7 +115,6 @@ class FIOCtrl {
         }
     }
     async getLatestDomainWrapAction(req,res) {
-        console.log("wrap:");
         const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
         const dataLen = Object.keys(wrapData).length;
         if (dataLen != 0 ) {
@@ -125,10 +125,10 @@ class FIOCtrl {
                     const timeStamp = new Date().toISOString();
                     const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
-                    const wrapText = tx_id + ' ' + pub_address + ' ' + timeStamp + '\r\n';
+                    const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
                     fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
-                    fs.appendFileSync(pathWrapTransact, wrapText);
+                    fs.appendFileSync(pathDomainWrapTransact, wrapText);
                     if (count == 0) {
                         ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                     }
@@ -139,7 +139,6 @@ class FIOCtrl {
     }    
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
-        console.log("lastBlocku: ", lastBlockNumber)
         fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber,
@@ -155,7 +154,7 @@ class FIOCtrl {
                         const amount = Number(obj[array[i]].returnValues.amount)
                         const fioAddress = obj[array[i]].returnValues.fioaddress
                         fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
-                        config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber, 10000 );
+                        config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
                         unwrapTokens(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
                     }

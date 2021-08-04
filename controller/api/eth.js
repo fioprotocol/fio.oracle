@@ -8,7 +8,10 @@ const fetch = require('node-fetch');
 const fs = require('fs');
 const pathETH = "controller/api/logs/ETH.log";
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
+const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
+const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
+
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
@@ -32,7 +35,7 @@ class EthCtrl {
             gasPrice = parseInt(process.env.TGASPRICE);
         }
         const regedOracle = await this.fioContract.methods.getOracles().call();
-        if(regedOracle.length > 0 && regedOracle.includes(process.env.ETH_ORACLE_PUBLIC)) {
+        if(regedOracle.includes(process.env.ETH_ORACLE_PUBLIC)) {
             this.fioContract.methods.getApproval(tx_id).call();
             var transactionCount = 0;
             try {
@@ -43,8 +46,6 @@ class EthCtrl {
                     console.log(response);
                 });
                 if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                    console.log("quantity: ", quantity);
-                    console.log("gas: ", gasPrice);
                     const wrapFunc = this.fioContract.methods.wrap(wrapData.public_address, quantity, tx_id);
                     let wrapABI = wrapFunc.encodeABI();
                     var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
@@ -72,29 +73,30 @@ class EthCtrl {
                     })
                     .on('receipt', (receipt) => {
                         console.log("completed");
+                        const timeStamp = new Date().toISOString();
                         fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + JSON.stringify(receipt) +'\r\n');
                         transactionCount++;
                     })
                     if(transactionCount == 0) {
                         const timeStamp = new Date().toISOString();
-                        const wrapText = tx_id + ' ' + quantity +' ' + timeStamp + '\r\n';
+                        const wrapText = tx_id + ' ' + JSON.stringify(wrapData) + '\r\n';
                         fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break        
                     }
                     let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
                     csvContent.shift(); // remove the the first element from array
                     var newTxId;
-                    var newQuantity;
-                    if (csvContent.length > 0 && csvContent[0] != '') { //check if the queue is empty
+                    var newData;
+                    if (csvContent[0] !== undefined && csvContent[0] != '') { //check if the queue is empty
                         newTxId = csvContent[0].split(' ')[0];
-                        newQuantity = Number(csvContent[0].split(' ')[1]);
-                        this.wrapFunction(newTxId, newQuantity);//excuete next transaction from transaction log
+                        newData = JSON.parse(csvContent[0].split(' ')[1]);
+                        this.wrapDomainFunction(newTxId, newData);//excuete next transaction from transaction log
                         csvContent = csvContent.join('\r\n'); // convert array back to string
                         fs.writeFileSync(pathWrapTransact, csvContent)
                     } else {
                         fs.writeFileSync(pathWrapTransact, "")
                         return 0;
                     }
-
+    
                 } else {
                     console.log("Invalid Address");
                 }
@@ -105,7 +107,8 @@ class EthCtrl {
             }
         }
     }
-    async wrapDomainFunction(tx_id, wrapData) {// excute wrap action        const quantity = wrapData.amount;
+
+    async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
         const info = await (await fetch(process.env.ETHAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
         var gasPrice = 0;
@@ -120,7 +123,6 @@ class EthCtrl {
         } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
             gasPrice = parseInt(process.env.TGASPRICE);
         }
-        const regedOracle = await this.fioNftContract.methods.getOracle(process.env.ETH_ORACLE_PUBLIC).call();
         this.fioNftContract.methods.getApproval(tx_id).call();
         var transactionCount = 0;
         try {
@@ -158,26 +160,27 @@ class EthCtrl {
                 })
                 .on('receipt', (receipt) => {
                     console.log("completed");
+                    const timeStamp = new Date().toISOString();
                     fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
                     transactionCount++;
                 })
                 if(transactionCount == 0) {
                     const timeStamp = new Date().toISOString();
-                    const wrapText = tx_id + ' ' + quantity +' ' + timeStamp + '\r\n';
-                    fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break        
+                    const wrapText = tx_id + ' ' + JSON.stringify(wrapData) + '\r\n';
+                    fs.writeFileSync(domainWrapErrTransaction, wrapText); // store issued transaction to log by line-break        
                 }
-                let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
-                csvContent.shift(); // remove the the first element from array
+                let csvContent = fs.readFileSync(pathDomainWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
+                csvContent.shift(); // remove the first element from array
                 var newTxId;
-                var newQuantity;
+                var newData;
                 if (csvContent.length > 0 && csvContent[0] != '') { //check if the queue is empty
                     newTxId = csvContent[0].split(' ')[0];
-                    newQuantity = Number(csvContent[0].split(' ')[1]);
-                    this.wrapFunction(newTxId, newQuantity);//excuete next transaction from transaction log
+                    newData = JSON.parse(csvContent[0].split(' ')[1]);
+                    this.wrapDomainFunction(newTxId, newData);//excuete next transaction from transaction log
                     csvContent = csvContent.join('\r\n'); // convert array back to string
-                    fs.writeFileSync(pathWrapTransact, csvContent)
+                    fs.writeFileSync(pathDomainWrapTransact, csvContent)
                 } else {
-                    fs.writeFileSync(pathWrapTransact, "")
+                    fs.writeFileSync(pathDomainWrapTransact, "")
                     return 0;
                 }
 
