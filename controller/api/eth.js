@@ -11,7 +11,6 @@ const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
 const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
-
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);

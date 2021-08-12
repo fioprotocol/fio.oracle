@@ -13,10 +13,10 @@ const pathETH = "controller/api/logs/ETH.log";//log events and errors on ETH sid
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknumber for the wrapAction
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
-const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit.
+const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
 const serverErr = "controller/api/logs/error.log";//store the error startup error
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
-const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log"
+const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
@@ -132,6 +132,8 @@ class MainCtrl {
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            // setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+
             this.initRoutes(app);
         } catch (err) {
             const timeStamp = new Date().toISOString();
