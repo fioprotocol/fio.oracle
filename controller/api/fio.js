@@ -53,7 +53,76 @@ const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap
             },
         }]
     };
-    var abiMap = new Map()
+    var abiMap = new Map();
+    var tokenRawAbi = await (await fetch(httpEndpoint + 'v1/chain/get_raw_abi', { body: `{"account_name": "fio.oracle"}`, method: 'POST' })).json()
+    abiMap.set('fio.oracle', tokenRawAbi)
+
+    var privateKeys = [oraclePrivateKey];
+
+    const tx = await Fio.prepareTransaction({
+        transaction,
+        chainId,
+        privateKeys,
+        abiMap,
+        textDecoder: new TextDecoder(),
+        textEncoder: new TextEncoder()
+    });
+
+    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', { //excute transactoin for unwrap
+        body: JSON.stringify(tx),
+        method: 'POST',
+    });
+
+    const json = await pushResult.json()
+    const timeStamp = new Date().toISOString();
+    if (json.type) {
+        console.log('Error: ', json);
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+
+    } else if (json.error) {
+        console.log('Error: ', json)
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+    } else {
+        console.log('Result: ', json)
+        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+    }
+}
+const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap action using eth transaction data and amount
+    let contract = 'fio.oracle',
+    action = 'unwrapdomain', //action name
+    oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
+    oraclePublicKey = process.env.FIO_ORACLE_PUBLIC_KEY,
+    oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+    domain = fioDomain,
+    obtId = obt_id;
+    const info = await (await fetch(httpEndpoint + 'v1/chain/get_info')).json();
+    const blockInfo = await (await fetch(httpEndpoint + 'v1/chain/get_block', { body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`, method: 'POST' })).json()
+    const chainId = info.chain_id;
+    const currentDate = new Date();
+    const timePlusTen = currentDate.getTime() + 10000;
+    const timeInISOString = (new Date(timePlusTen)).toISOString();
+    const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
+
+    const transaction = {
+        expiration,
+        ref_block_num: blockInfo.block_num & 0xffff,
+        ref_block_prefix: blockInfo.ref_block_prefix,
+        actions: [{
+            account: contract,
+            name: action,
+            authorization: [{
+                actor: oracleAccount,
+                permission: 'active',
+            }],
+            data: {
+                fio_address: fioAddress,
+                fio_domain: domain,
+                obt_id: obtId,
+                actor: oracleAccount
+            },
+        }]
+    };
+    var abiMap = new Map();
     var tokenRawAbi = await (await fetch(httpEndpoint + 'v1/chain/get_raw_abi', { body: `{"account_name": "fio.oracle"}`, method: 'POST' })).json()
     abiMap.set('fio.oracle', tokenRawAbi)
 
@@ -139,7 +208,7 @@ class FIOCtrl {
     }    
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
-        fioContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
+        fioContract.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber,
             toBlock: 'latest'
@@ -157,6 +226,38 @@ class FIOCtrl {
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
                         unwrapTokens(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
+                    }
+                }
+              }
+              else {
+                console.log(error)
+                const timeStamp = new Date().toISOString();
+                fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
+              }
+        })
+    }
+
+    async unwrapDomainFunction() {
+        const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
+        fioNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
+            // filter: {id: 1},  
+            fromBlock: lastBlockNumber,
+            toBlock: 'latest'
+        }, (error, events) => {
+            if (!error){
+                var obj=JSON.parse(JSON.stringify(events));
+                var array = Object.keys(obj)
+                console.log('events: ', events);
+                if (array.length != 0) {
+                    for (var i = 0; i < array.length; i++) {
+                        const timeStamp = new Date().toISOString();
+                        const txId = obj[array[i]].transactionHash;
+                        const amount = Number(obj[array[i]].returnValues.amount)
+                        const fioAddress = obj[array[i]].returnValues.fioaddress
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
+                        config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
+                        fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
+                        unwrapDomain(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
