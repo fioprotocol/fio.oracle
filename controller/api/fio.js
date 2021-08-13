@@ -239,30 +239,35 @@ class FIOCtrl {
 
     async unwrapDomainFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
+
+
         fioNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber,
             toBlock: 'latest'
-        }, (error, events) => {
+        }, async (error, events) => {
             if (!error){
                 var obj=JSON.parse(JSON.stringify(events));
                 var array = Object.keys(obj)
-                console.log('events: ', events);
+                // console.log('events: ', events);
                 if (array.length != 0) {
                     for (var i = 0; i < array.length; i++) {
                         const timeStamp = new Date().toISOString();
                         const txId = obj[array[i]].transactionHash;
-                        const amount = Number(obj[array[i]].returnValues.amount)
                         const fioAddress = obj[array[i]].returnValues.fioaddress
-                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
+                        const token_id = parseInt(obj[array[i]].returnValues.tokenId);
+                        const fullDomain = await fioNftContract.methods.tokenURI(token_id).call();
+                        const subArray = fullDomain.split('/');
+                        const realDomain = subArray[subArray.length-1].split('.')[0];
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
-                        unwrapDomain(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
+                        unwrapDomain(txId, realDomain, fioAddress);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
               else {
-                console.log(error)
+                // console.log(error)
                 const timeStamp = new Date().toISOString();
                 fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
               }
