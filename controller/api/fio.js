@@ -91,7 +91,6 @@ const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap
     let contract = 'fio.oracle',
     action = 'unwrapdomain', //action name
     oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-    oraclePublicKey = process.env.FIO_ORACLE_PUBLIC_KEY,
     oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
     domain = fioDomain,
     obtId = obt_id;
@@ -124,7 +123,7 @@ const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap
     };
     var abiMap = new Map();
     var tokenRawAbi = await (await fetch(httpEndpoint + 'v1/chain/get_raw_abi', { body: `{"account_name": "fio.oracle"}`, method: 'POST' })).json()
-    abiMap.set('fio.oracle', tokenRawAbi)
+    abiMap.set('fio.oracle', tokenRawAbi);
 
     var privateKeys = [oraclePrivateKey];
 
@@ -202,10 +201,10 @@ class FIOCtrl {
                         ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                     }
                     count++;
-                }   
-            }      
+                }
+            }
         }
-    }    
+    }
     async unwrapFunction() {
         const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
         fioContract.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
@@ -249,20 +248,17 @@ class FIOCtrl {
             if (!error){
                 var obj=JSON.parse(JSON.stringify(events));
                 var array = Object.keys(obj)
-                // console.log('events: ', events);
+                console.log('events: ', events);
                 if (array.length != 0) {
                     for (var i = 0; i < array.length; i++) {
                         const timeStamp = new Date().toISOString();
                         const txId = obj[array[i]].transactionHash;
-                        const fioAddress = obj[array[i]].returnValues.fioaddress
-                        const token_id = parseInt(obj[array[i]].returnValues.tokenId);
-                        const fullDomain = await fioNftContract.methods.tokenURI(token_id).call();
-                        const subArray = fullDomain.split('/');
-                        const realDomain = subArray[subArray.length-1].split('.')[0];
+                        const fioAddress = obj[array[i]].returnValues.fioaddress;
+                        const domain = obj[array[i]].returnValues.domain;
                         fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
-                        unwrapDomain(txId, realDomain, fioAddress);//execute unwrap action using transaction_id and amount
+                        unwrapDomain(txId, domain, fioAddress);//execute unwrap action using transaction_id and amount
                     }
                 }
               }
