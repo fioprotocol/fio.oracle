@@ -136,7 +136,7 @@ const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap
         textEncoder: new TextEncoder()
     });
 
-    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', { //excute transactoin for unwrap
+    const pushResult = await fetch(httpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
         body: JSON.stringify(tx),
         method: 'POST',
     });
