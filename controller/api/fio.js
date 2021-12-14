@@ -1,5 +1,6 @@
 import utilCtrl from '../util';
 import ethCtrl from '../api/eth';
+import polygonCtrl from '../api/polygon';
 import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
@@ -187,9 +188,12 @@ class FIOCtrl {
         const dataLen = Object.keys(wrapData).length;
         if (dataLen != 0 ) {
             var count = 0;
+            var polyCount = 0;
             for (var i = 0; i<dataLen;i++){
-                if (wrapData[i].action_trace.act.name == "wrapdomain") {// get FIO action data if wrapping action
-                    console.log(wrapData[i].action_trace);
+                console.log(wrapData[i].action_trace.act.name);
+                console.log(wrapData[i].action_trace.act);
+
+                if (wrapData[i].action_trace.act.name == "wrapdomain" && wrapData[i].action_trace.act.data.chain_code == "ETH") {// get FIO action data if wrapping action
                     const timeStamp = new Date().toISOString();
                     const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
@@ -201,6 +205,19 @@ class FIOCtrl {
                         ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                     }
                     count++;
+                } else if(wrapData[i].action_trace.act.name == "wrapdomain" && wrapData[i].action_trace.act.data.chain_code == "MATIC") {
+
+                    const timeStamp = new Date().toISOString();
+                    const pub_address = wrapData[i].action_trace.act.data.public_address;
+                    const tx_id = wrapData[i].action_trace.trx_id;
+                    const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
+                    fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
+                    fs.appendFileSync(pathFIO, JSON.stringify(wrapData[i])+' '+timeStamp);
+                    fs.appendFileSync(pathDomainWrapTransact, wrapText);
+                    if (polyCount == 0) {
+                        polygonCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                    }
+                    polyCount++;
                 }
             }
         }

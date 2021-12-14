@@ -10,8 +10,11 @@ const cors = require("cors");
 const route = require("express").Router();
 const pathFIO = "controller/api/logs/FIO.log";//log events and errors on FIO side
 const pathETH = "controller/api/logs/ETH.log";//log events and errors on ETH side
+const pathMATIC = "controller/api/logs/MATIC.log"
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknumber for the wrapAction
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
+const blockNumMATIC = "controller/api/logs/blockNumberMATIC log";//store ETH blockNumber for the unwrapAction
+
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
 const serverErr = "controller/api/logs/error.log";//store the error startup error
@@ -28,7 +31,7 @@ class MainCtrl {
                 console.log('The file does not exist.');
                 fs.writeFile(serverErr, "", function(err) { //create new file
                     if(err) {
-                        return console.log(err);
+                        return yonsole.log(err);
                     }
                     console.log("The file was saved!");
                 });
@@ -106,6 +109,20 @@ class MainCtrl {
             } else {
                 console.log('The file does not exist.');
                 fs.writeFile(blockNumFIO, lastBlockNum.toString(), function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                });
+                config.oracleCache.set( "lastBlockNumber", lastBlockNum, 10000 );
+            }
+            if(fs.existsSync(blockNumMATIC)) {
+                console.log("The file exists.");
+                const lastProcessed = fs.readFileSync(blockNumMATIC, 'utf8')
+                config.oracleCache.set( "lastBlockNumber", parseInt(lastProcessed), 10000 );
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(blockNumMATIC, lastBlockNum.toString(), function(err) {
                     if(err) {
                         return console.log(err);
                     }

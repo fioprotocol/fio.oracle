@@ -7,6 +7,7 @@ const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
 const fs = require('fs');
 const pathETH = "controller/api/logs/ETH.log";
+const pathPolygon = "controller/api/logs/MATIC.log"
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
@@ -14,6 +15,7 @@ const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.l
 class PolyCtrl {
     constructor() {
         this.web3 = new Web3(config.web3Provider);
+        this.polyWeb3 = new Web3(config.polygonProvider);
         this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
     }
@@ -71,7 +73,7 @@ class PolyCtrl {
                 .on('receipt', (receipt) => {
                     console.log("completed");
                     const timeStamp = new Date().toISOString();
-                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
+                    fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
                     transactionCount++;
                 })
                 if(transactionCount == 0) {
