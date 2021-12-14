@@ -1,6 +1,7 @@
 import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import ethCtrl from './api/eth';
+import polyCtrl from './api/polygon';
 import utilCtrl from './util';
 import config from '../config/config';
 import Web3 from 'web3';
@@ -10,10 +11,10 @@ const cors = require("cors");
 const route = require("express").Router();
 const pathFIO = "controller/api/logs/FIO.log";//log events and errors on FIO side
 const pathETH = "controller/api/logs/ETH.log";//log events and errors on ETH side
-const pathMATIC = "controller/api/logs/MATIC.log"
+const pathMATIC = "controller/api/logs/MATIC.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknumber for the wrapAction
 const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
-const blockNumMATIC = "controller/api/logs/blockNumberMATIC log";//store ETH blockNumber for the unwrapAction
+const blockNumMATIC = "controller/api/logs/blockNumberMATIC.log";//store ETH blockNumber for the unwrapAction
 
 const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
@@ -24,6 +25,7 @@ class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         this.web3 = new Web3(config.web3Provider);
+        this.polyWeb3 = new Web3(config.polygonProvider);
         try {
             if(fs.existsSync(serverErr)) { //check file exist
                 console.log("The file exists.");
@@ -102,6 +104,17 @@ class MainCtrl {
                     console.log("The file was saved!");
                 });
             }
+            if(fs.existsSync(pathMATIC)) {
+                console.log("The file exists.");
+            } else {
+                console.log('The file does not exist.');
+                fs.writeFile(pathMATIC, "", function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                });
+            }
             if(fs.existsSync(blockNumFIO)) {
                 console.log("The file exists.");
                 const lastProcessed = fs.readFileSync(blockNumFIO, 'utf8')
@@ -119,16 +132,17 @@ class MainCtrl {
             if(fs.existsSync(blockNumMATIC)) {
                 console.log("The file exists.");
                 const lastProcessed = fs.readFileSync(blockNumMATIC, 'utf8')
-                config.oracleCache.set( "lastBlockNumber", parseInt(lastProcessed), 10000 );
+                config.oracleCache.set( "polygonBlockNumber", parseInt(lastProcessed), 10000 );
             } else {
-                console.log('The file does not exist.');
-                fs.writeFile(blockNumMATIC, lastBlockNum.toString(), function(err) {
+                cconsole.log('The file does not exist.');
+                const latestBlockNum = await this.polyWeb3.eth.getBlockNumber();
+                fs.writeFile(blockNumMATIC, latestBlockNum.toString(), function(err) {
                     if(err) {
                         return console.log(err);
                     }
                     console.log("The file was saved!");
                 });
-                config.oracleCache.set( "lastBlockNumber", lastBlockNum, 10000 );
+                config.oracleCache.set( "polygonBlockNumber", latestBlockNum, 10000 );
             }
             if(fs.existsSync(blockNumETH)) {
                 console.log("The file exists.");
@@ -146,6 +160,7 @@ class MainCtrl {
                 config.oracleCache.set( "ethBlockNumber", latestBlockNum, 10000 );
             }
             utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
+            // polyCtrl.getContract();
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds

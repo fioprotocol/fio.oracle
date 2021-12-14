@@ -5,18 +5,22 @@ import Web3 from "web3";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
+import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
 const web3 = new Web3(config.web3Provider);
 const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
+const fioPolygonNftContract = new web3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON)
 const httpEndpoint = process.env.SERVER_URL_ACTION
 const fs = require('fs');
 const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
+const pathMATIC = "controller/api/logs/MATIC.log";
 const blockNumFIO = "controller/api/logs/blockNumberFIO.log";
 const blockNumETH = "controller/api/logs/blockNumberETH.log";
+const blockNumMATIC = "controller/api/logs/blockNumberMATIC.log";
 const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap action using eth transaction data and amount
@@ -286,7 +290,37 @@ class FIOCtrl {
               }
         })
     }
-
+    async unwrapPolygonDomainFunction() {
+        const lastBlockNumber = config.oracleCache.get("polygonBlockNumber");
+        fioPolygonNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
+            // filter: {id: 1},  
+            fromBlock: lastBlockNumber,
+            toBlock: 'latest'
+        }, async (error, events) => {
+            if (!error){
+                var obj=JSON.parse(JSON.stringify(events));
+                var array = Object.keys(obj)
+                console.log('events: ', events);
+                if (array.length != 0) {
+                    for (var i = 0; i < array.length; i++) {
+                        const timeStamp = new Date().toISOString();
+                        const txId = obj[array[i]].transactionHash;
+                        const fioAddress = obj[array[i]].returnValues.fioaddress;
+                        const domain = obj[array[i]].returnValues.domain;
+                        fs.appendFileSync(pathMATIC, timeStamp + ' ' + 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
+                        config.oracleCache.set( "polygonBlockNumber", obj[array[i]].blockNumber+1, 10000 );
+                        fs.writeFileSync(blockNumMATIC, obj[array[i]].blockNumber.toString());
+                        unwrapDomain(txId, domain, fioAddress);//execute unwrap action using transaction_id and amount
+                    }
+                }
+              }
+              else {
+                // console.log(error)
+                const timeStamp = new Date().toISOString();
+                fs.appendFileSync(pathMATIC, timeStamp + ' ' + 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
+              }
+        })
+    }
 }
 
 export default new FIOCtrl();

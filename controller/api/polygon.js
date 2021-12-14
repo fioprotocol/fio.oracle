@@ -1,7 +1,8 @@
 import Web3 from "web3";
+import Common from "ethereumjs-common";
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
-import fioNftABI from "../../config/ABI/FIONFT.json";
+import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
 import { time } from "console";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
@@ -12,17 +13,17 @@ const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
 const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
+
 class PolyCtrl {
     constructor() {
-        this.web3 = new Web3(config.web3Provider);
-        this.polyWeb3 = new Web3(config.polygonProvider);
-        this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
+        this.web3 = new Web3(config.polygonProvider);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
     }
-
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
         const info = await (await fetch(process.env.ETHAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
+        const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
+        const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
         var gasPrice = 0;
         if ((gasMode == "1" && info.status === "1")||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
             if (process.env.GASPRICELEVEL == "average") {
@@ -44,7 +45,7 @@ class PolyCtrl {
             .then((response) => {
                 console.log(response);
             });
-            if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
+            if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "MATIC") { //check validation if the address is ERC20 address
                 const wrapFunc = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, tx_id);
                 let wrapABI = wrapFunc.encodeABI();
                 var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
@@ -53,13 +54,13 @@ class PolyCtrl {
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                        to: config.FIO_NFT,
+                        to: config.FIO_NFT_POLYGON,
                         data: wrapABI,
                         from: pubKey,
                         nonce: this.web3.utils.toHex(nonce),
                         // nonce: web3.utils.toHex(0)
                     },
-                    { chain: 'ropsten', hardfork: 'istanbul' }
+                    {common}
                 );
                 const privateKey = Buffer.from(signKey, 'hex');
                 tx.sign(privateKey);
@@ -100,9 +101,8 @@ class PolyCtrl {
                 console.log("Invalid Address");
             }
         } catch (error) {
-            console.log(error);
             const timeStamp = new Date().toISOString();
-            fs.appendFileSync(pathETH, timeStamp + ' ' + 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error +'\r\n');
+            fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error +'\r\n');
         }
     }
 }
