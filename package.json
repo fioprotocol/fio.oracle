@@ -24,6 +24,7 @@
     "dotenv": "^8.2.0",
     "dotenv-safe": "^8.2.0",
     "esm": "^3.2.25",
+    "ethereumjs-common": "^1.5.2",
     "ethereumjs-tx": "^2.1.2",
     "ethers": "^5.1.4",
     "express": "^4.17.1",
