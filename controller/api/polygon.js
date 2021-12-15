@@ -49,7 +49,7 @@ class PolyCtrl {
                 const wrapFunc = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, tx_id);
                 let wrapABI = wrapFunc.encodeABI();
                 var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
-                console.log(signKey);    
+                console.log(signKey);
                 const tx = new Tx(
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
