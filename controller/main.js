@@ -129,21 +129,6 @@ class MainCtrl {
                 });
                 config.oracleCache.set( "lastBlockNumber", lastBlockNum, 10000 );
             }
-            if(fs.existsSync(blockNumMATIC)) {
-                console.log("The file exists.");
-                const lastProcessed = fs.readFileSync(blockNumMATIC, 'utf8')
-                config.oracleCache.set( "polygonBlockNumber", parseInt(lastProcessed), 10000 );
-            } else {
-                cconsole.log('The file does not exist.');
-                const latestBlockNum = await this.polyWeb3.eth.getBlockNumber();
-                fs.writeFile(blockNumMATIC, latestBlockNum.toString(), function(err) {
-                    if(err) {
-                        return console.log(err);
-                    }
-                    console.log("The file was saved!");
-                });
-                config.oracleCache.set( "polygonBlockNumber", latestBlockNum, 10000 );
-            }
             if(fs.existsSync(blockNumETH)) {
                 console.log("The file exists.");
                 const lastProcessed = fs.readFileSync(blockNumETH, 'utf8')
@@ -159,12 +144,28 @@ class MainCtrl {
                 });
                 config.oracleCache.set( "ethBlockNumber", latestBlockNum, 10000 );
             }
+            if(fs.existsSync(blockNumMATIC)) {
+                console.log("The file exists.");
+                const lastProcessed = fs.readFileSync(blockNumMATIC, 'utf8')
+                config.oracleCache.set( "polygonBlockNumber", parseInt(lastProcessed), 10000 );
+            } else {
+                console.log('The file does not exist.');
+                const latestBlockNum = await this.polyWeb3.eth.getBlockNumber();
+                fs.writeFile(blockNumMATIC, latestBlockNum.toString(), function(err) {
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The file was saved!");
+                });
+                config.oracleCache.set( "polygonBlockNumber", latestBlockNum, 10000 );
+            }
             utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
-            // polyCtrl.getContract();
+            // ethCtrl.getContract();
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
             setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.unwrapPolygonDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
 
             this.initRoutes(app);
         } catch (err) {
