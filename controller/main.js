@@ -33,7 +33,7 @@ class MainCtrl {
                 console.log('The file does not exist.');
                 fs.writeFile(serverErr, "", function(err) { //create new file
                     if(err) {
-                        return yonsole.log(err);
+                        return console.log(err);
                     }
                     console.log("The file was saved!");
                 });
