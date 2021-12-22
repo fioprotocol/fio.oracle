@@ -20,19 +20,13 @@ class PolyCtrl {
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
     }
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
-        const info = await (await fetch(process.env.ETHAPIURL)).json();
+        const info = await (await fetch(process.env.POLYAPIURL)).json();
         const gasMode = process.env.USEGASAPI;
         const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
         const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
         var gasPrice = 0;
-        if ((gasMode == "1" && info.status === "1")||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
-            if (process.env.GASPRICELEVEL == "average") {
-                gasPrice = parseInt(info.result.ProposeGasPrice) * 1000000000;
-            } else if(process.env.GASPRICELEVEL == "low") {
-                gasPrice = parseInt(info.result.SafeGasPrice) * 1000000000;
-            } else if(process.env.GASPRICELEVEL == "high") {
-                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;
-            }
+        if ((gasMode == "1" && info.id > 0)||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
+            gasPrice = info.result.result;
         } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
             gasPrice = parseInt(process.env.TGASPRICE);
         }
@@ -52,7 +46,7 @@ class PolyCtrl {
                 console.log(signKey);
                 const tx = new Tx(
                     {
-                        gasPrice: this.web3.utils.toHex(gasPrice),
+                        gasPrice: gasMode === 1 ? gasPrice : this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
                         to: config.FIO_NFT_POLYGON,
                         data: wrapABI,

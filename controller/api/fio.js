@@ -10,9 +10,10 @@ const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
 const web3 = new Web3(config.web3Provider);
+const polyWeb3 = new Web3(config.polygonProvider);
 const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
-const fioPolygonNftContract = new web3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON)
+const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON)
 const httpEndpoint = process.env.SERVER_URL_ACTION
 const fs = require('fs');
 const pathFIO = "controller/api/logs/FIO.log";
@@ -59,7 +60,7 @@ const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap
         }]
     };
     var abiMap = new Map();
-    var tokenRawAbi = await (await fetch(httpEndpoint + 'v1/chain/get_raw_abi', { body: `{"account_name": "fio.oracle"}`, method: 'POST' })).json()
+    var tokenRawAbi = await  (await fetch(httpEndpoint + 'v1/chain/get_raw_abi', { body: `{"account_name": "fio.oracle"}`, method: 'POST' })).json()
     abiMap.set('fio.oracle', tokenRawAbi)
 
     var privateKeys = [oraclePrivateKey];
