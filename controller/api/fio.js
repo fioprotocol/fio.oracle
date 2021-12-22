@@ -293,7 +293,6 @@ class FIOCtrl {
     }
     async unwrapPolygonDomainFunction() {
         const lastBlockNumber = config.oracleCache.get("polygonBlockNumber");
-        console.log(lastBlockNumber);
         fioPolygonNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
             // filter: {id: 1},  
             fromBlock: lastBlockNumber,
