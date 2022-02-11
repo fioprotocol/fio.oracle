@@ -1,5 +1,4 @@
 import contracts from './contracts_testnet';
-const infuraProjectId = process.env.INFURA_PROJECT_ID;
 export default {
     port: 3010,
     portMonitor: 20,
