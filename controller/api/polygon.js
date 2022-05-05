@@ -25,8 +25,15 @@ class PolyCtrl {
         const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
         const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
         var gasPrice = 0;
-        if ((gasMode == "1" && info.id > 0)||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
-            gasPrice = info.result.result;
+        if ((gasMode == "1" && info.status > 0)||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
+
+            if (process.env.GASPRICELEVEL == "average") {
+                gasPrice = parseInt(info.result.ProposeGasPrice) * 1000000000
+            } else if(process.env.GASPRICELEVEL == "low") {
+                gasPrice = parseInt(info.result.SafeGasPrice) * 1000000000;
+            } else if(process.env.GASPRICELEVEL == "high") {
+                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;
+            }
         } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
             gasPrice = parseInt(process.env.TGASPRICE);
         }
@@ -42,11 +49,10 @@ class PolyCtrl {
             if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "MATIC") { //check validation if the address is ERC20 address
                 const wrapFunc = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, tx_id);
                 let wrapABI = wrapFunc.encodeABI();
-                var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
-                console.log(signKey);
+                var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate nonce value for transaction
                 const tx = new Tx(
                     {
-                        gasPrice: gasMode === 1 ? gasPrice : this.web3.utils.toHex(gasPrice),
+                        gasPrice: this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
                         to: config.FIO_NFT_POLYGON,
                         data: wrapABI,
@@ -59,18 +65,24 @@ class PolyCtrl {
                 const privateKey = Buffer.from(signKey, 'hex');
                 tx.sign(privateKey);
                 const serializedTx = tx.serialize();
-                await this.web3.eth//excute the sign transaction using public key and private key of oracle
-                .sendSignedTransaction('0x' + serializedTx.toString('hex'))
-                .on('transactionHash', (hash) => {
-                    console.log(wrapData.public_address+" : "+pubKey);
-                    console.log('TxHash: ', hash);
-                })
-                .on('receipt', (receipt) => {
-                    console.log("completed");
-                    const timeStamp = new Date().toISOString();
-                    fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
-                    transactionCount++;
-                })
+                try{
+                    await this.web3.eth//excute the sign transaction using public key and private key of oracle
+                    .sendSignedTransaction('0x' + serializedTx.toString('hex'))
+                    .on('transactionHash', (hash) => {
+                        console.log(wrapData.public_address+" : "+pubKey);
+                        console.log('TxHash: ', hash);
+                    })
+                    .on('receipt', (receipt) => {
+                        console.log("completed");
+                        const timeStamp = new Date().toISOString();
+                        fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
+                        transactionCount++;
+                    })
+                }catch(e) {
+                    console.log(e);
+                }
+
+
                 if(transactionCount == 0) {
                     const timeStamp = new Date().toISOString();
                     const wrapText = tx_id + ' ' + JSON.stringify(wrapData) + '\r\n';
