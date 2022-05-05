@@ -195,8 +195,6 @@ class FIOCtrl {
             var count = 0;
             var polyCount = 0;
             for (var i = 0; i<dataLen;i++){
-                console.log(wrapData[i].action_trace.act.name);
-                console.log(wrapData[i].action_trace.act);
 
                 if (wrapData[i].action_trace.act.name == "wrapdomain" && wrapData[i].action_trace.act.data.chain_code == "ETH") {// get FIO action data if wrapping action
                     const timeStamp = new Date().toISOString();
@@ -211,7 +209,6 @@ class FIOCtrl {
                     }
                     count++;
                 } else if(wrapData[i].action_trace.act.name == "wrapdomain" && wrapData[i].action_trace.act.data.chain_code == "MATIC") {
-
                     const timeStamp = new Date().toISOString();
                     const pub_address = wrapData[i].action_trace.act.data.public_address;
                     const tx_id = wrapData[i].action_trace.trx_id;
