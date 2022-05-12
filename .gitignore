@@ -17,3 +17,6 @@ yarn-error.log*
 
 # boilerplate internals
 template
+
+# log directory
+controller/api/logs

@@ -21,7 +21,8 @@ POLLOFFSET=               # The number of wrap transactions to get on FIO side i
 GASLIMIT=                 # The default gas limit
 GASPRICE=                 # The default ethereum gas price
 TGASLIMIT=                # Manual gas price and gas limit setting
-TGASPRICE=                # Manual gas price and gas price setting
+TGASPRICE=                # Manual gas price and gas price setting for ETH erc20
+PGASPRICE=                # Manual gas price and gas price setting for Polygon erc721
 ETHAPIURL=                # The etherscan API URL 
 USEGASAPI=                # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
 GASPRICELEVEL=            # Which price to use from the gas price API (low/average/high)

@@ -25,17 +25,17 @@ class PolyCtrl {
         const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
         const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
         var gasPrice = 0;
-        if ((gasMode == "1" && info.status > 0)||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
+        if ((gasMode == "1" && info.status > 0)||(gasMode == "0" && parseInt(process.env.PGASPRICE) <= 0)) {
 
             if (process.env.GASPRICELEVEL == "average") {
-                gasPrice = parseInt(info.result.ProposeGasPrice) * 1000000000
+                gasPrice = parseInt(info.result.ProposeGasPrice);
             } else if(process.env.GASPRICELEVEL == "low") {
-                gasPrice = parseInt(info.result.SafeGasPrice) * 1000000000;
+                gasPrice = parseInt(info.result.SafeGasPrice);
             } else if(process.env.GASPRICELEVEL == "high") {
-                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;
+                gasPrice = parseInt(info.result.FastGasPrice);
             }
         } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
-            gasPrice = parseInt(process.env.TGASPRICE);
+            gasPrice = parseInt(process.env.PGASPRICE);
         }
         this.fioNftContract.methods.getApproval(tx_id).call();
         var transactionCount = 0;
