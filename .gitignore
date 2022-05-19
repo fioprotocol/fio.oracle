@@ -4,6 +4,8 @@ build
 dist
 node_modules
 package-lock.json
+launch.json
+
 # misc
 .DS_Store
 npm-debug.log*

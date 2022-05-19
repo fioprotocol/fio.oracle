@@ -19,7 +19,7 @@ const blockNumMATIC = logDir + "blockNumberMATIC.log";//store ETH blockNumber fo
 
 const WrapTransaction = logDir + "WrapTransaction.log";//store fio transaction data for wrapAction
 const WrapErrTransaction = logDir + "WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
-const serverErr = logDir + "rror.log";//store the error startup error
+const serverErr = logDir + "Error.log";//store the error startup error
 const pathDomainWrapTransact = logDir + "DomainWrapTransaction.log";
 const domainWrapErrTransaction = logDir + "DomainWrapErrTransaction.log";
 class MainCtrl {
