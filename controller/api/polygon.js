@@ -28,11 +28,11 @@ class PolyCtrl {
         if ((gasMode == "1" && info.status > 0)||(gasMode == "0" && parseInt(process.env.PGASPRICE) <= 0)) {
 
             if (process.env.GASPRICELEVEL == "average") {
-                gasPrice = parseInt(info.result.ProposeGasPrice);
+                gasPrice = parseInt(info.result.ProposeGasPrice) * 1000000000;
             } else if(process.env.GASPRICELEVEL == "low") {
-                gasPrice = parseInt(info.result.SafeGasPrice);
+                gasPrice = parseInt(info.result.SafeGasPrice) * 1000000000;
             } else if(process.env.GASPRICELEVEL == "high") {
-                gasPrice = parseInt(info.result.FastGasPrice);
+                gasPrice = parseInt(info.result.FastGasPrice) * 1000000000;
             }
         } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
             gasPrice = parseInt(process.env.PGASPRICE);
