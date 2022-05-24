@@ -9,24 +9,36 @@ const fs = require('fs');
 const cors = require("cors");
 
 const route = require("express").Router();
-const pathFIO = "controller/api/logs/FIO.log";//log events and errors on FIO side
-const pathETH = "controller/api/logs/ETH.log";//log events and errors on ETH side
-const pathMATIC = "controller/api/logs/MATIC.log";
-const blockNumFIO = "controller/api/logs/blockNumberFIO.log";//store FIO blocknumber for the wrapAction
-const blockNumETH = "controller/api/logs/blockNumberETH.log";//store ETH blockNumber for the unwrapAction
-const blockNumMATIC = "controller/api/logs/blockNumberMATIC.log";//store ETH blockNumber for the unwrapAction
+const logDir = "controller/api/logs/";//log events and errors on FIO side
+const pathFIO = logDir + "FIO.log";//log events and errors on FIO side
+const pathETH = logDir + "ETH.log";//log events and errors on ETH side
+const pathMATIC = logDir + "MATIC.log";
+const blockNumFIO = logDir + "blockNumberFIO.log";//store FIO blocknumber for the wrapAction
+const blockNumETH = logDir + "blockNumberETH.log";//store ETH blockNumber for the unwrapAction
+const blockNumMATIC = logDir + "blockNumberMATIC.log";//store ETH blockNumber for the unwrapAction
 
-const WrapTransaction = "controller/api/logs/WrapTransaction.log";//store fio transaction data for wrapAction
-const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
-const serverErr = "controller/api/logs/error.log";//store the error startup error
-const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
-const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
+const WrapTransaction = logDir + "WrapTransaction.log";//store fio transaction data for wrapAction
+const WrapErrTransaction = logDir + "WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
+const serverErr = logDir + "Error.log";//store the error startup error
+const pathDomainWrapTransact = logDir + "DomainWrapTransaction.log";
+const domainWrapErrTransaction = logDir + "DomainWrapErrTransaction.log";
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         this.web3 = new Web3(config.web3Provider);
         this.polyWeb3 = new Web3(config.polygonProvider);
         try {
+            if(fs.existsSync(logDir)) { //check if the log path exists
+                console.log("The log directory exists.");
+            } else {
+                console.log('The log directory does not exist.');
+                fs.mkdir(logDir, function(err) { //create new file
+                    if(err) {
+                        return console.log(err);
+                    }
+                    console.log("The directory was created!");
+                });
+            }
             if(fs.existsSync(serverErr)) { //check file exist
                 console.log("The file exists.");
             } else {
