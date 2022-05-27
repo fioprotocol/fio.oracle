@@ -75,7 +75,7 @@ class PolyCtrl {
                     .on('receipt', (receipt) => {
                         console.log("completed");
                         const timeStamp = new Date().toISOString();
-                        fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
+                        fs.appendFileSync(pathPolygon, timeStamp + ' ' + 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt) +'\r\n');
                         transactionCount++;
                     })
                 }catch(e) {
