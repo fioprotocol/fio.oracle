@@ -241,7 +241,7 @@ class FIOCtrl {
                         const txId = obj[array[i]].transactionHash;
                         const amount = Number(obj[array[i]].returnValues.amount)
                         const fioAddress = obj[array[i]].returnValues.fioaddress
-                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(obj[array[i]]) +'\r\n');
                         config.oracleCache.set( "ethBlockNumber", obj[array[i]].blockNumber+1, 10000 );
                         fs.writeFileSync(blockNumETH, obj[array[i]].blockNumber.toString());
                         unwrapTokens(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
@@ -251,7 +251,7 @@ class FIOCtrl {
               else {
                 console.log(error)
                 const timeStamp = new Date().toISOString();
-                fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
+                fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + error +'\r\n');
               }
         })
     }
