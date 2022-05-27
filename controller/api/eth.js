@@ -11,6 +11,8 @@ const pathWrapTransact = "controller/api/logs/WrapTransaction.log";
 const pathDomainWrapTransact = "controller/api/logs/DomainWrapTransaction.log";
 const WrapErrTransaction = "controller/api/logs/WrapErrTransaction.log";
 const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.log";
+var index = 0;
+const { TextEncoder, TextDecoder } = require('text-encoding');
 
 class EthCtrl {
     constructor() {
@@ -18,6 +20,7 @@ class EthCtrl {
         this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
     }
+
     async wrapFunction(tx_id, wrapData) {// excute wrap action
         const quantity = wrapData.amount;
         const info = await (await fetch(process.env.ETHAPIURL)).json();
@@ -60,7 +63,7 @@ class EthCtrl {
                             nonce: this.web3.utils.toHex(nonce),
                             // nonce: web3.utils.toHex(0)
                         },
-                        { chain: 'ropsten', hardfork: 'istanbul' }
+                        { chain: 'rinkeby', hardfork: 'istanbul' }
                     );
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
@@ -147,7 +150,7 @@ class EthCtrl {
                         nonce: this.web3.utils.toHex(nonce),
                         // nonce: web3.utils.toHex(0)
                     },
-                    { chain: 'ropsten', hardfork: 'istanbul' }
+                    { chain: 'rinkeby', hardfork: 'istanbul' }
                 );
                 const privateKey = Buffer.from(signKey, 'hex');
                 tx.sign(privateKey);
@@ -193,6 +196,7 @@ class EthCtrl {
             fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error +'\r\n');
         }
     }
+
 }
 
 export default new EthCtrl();
