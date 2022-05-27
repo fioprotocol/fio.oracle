@@ -94,7 +94,7 @@ class EthCtrl {
                     if (csvContent[0] !== undefined && csvContent[0] != '') { //check if the queue is empty
                         newTxId = csvContent[0].split(' ')[0];
                         newData = JSON.parse(csvContent[0].split(' ')[1]);
-                        this.wrapDomainFunction(newTxId, newData);//excuete next transaction from transaction log
+                        this.wrapFunction(newTxId, newData); //execute next transaction from transaction log
                         csvContent = csvContent.join('\r\n'); // convert array back to string
                         fs.writeFileSync(pathWrapTransact, csvContent)
                     } else {
