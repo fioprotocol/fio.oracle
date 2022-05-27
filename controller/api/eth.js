@@ -91,7 +91,7 @@ class EthCtrl {
                     csvContent.shift(); // remove the the first element from array
                     var newTxId;
                     var newData;
-                    if (csvContent[0] !== undefined && csvContent[0] != '') { //check if the queue is empty
+                    if (csvContent.length > 0 && csvContent[0] != '') { //check if the queue is empty
                         newTxId = csvContent[0].split(' ')[0];
                         newData = JSON.parse(csvContent[0].split(' ')[1]);
                         this.wrapFunction(newTxId, newData); //execute next transaction from transaction log
