@@ -15,14 +15,12 @@ To configure your  application, create a .env file with the following parameters
 MODE=                     # testnet or mainnet
 SERVER_URL_HISTORY=       # URL of FIO history node
 SERVER_URL_ACTION=        # URL of FIO API node
-ETHERSCAN_KEY=            # Etherscan key for gas pricing
 POLLTIME=                 # Seconds between poll for wrap and unwrap events (60 seconds=60000)
 POLLOFFSET=               # The number of wrap transactions to get on FIO side in each call (If you set 20, you can get 20 latest actions on FIO side)
-GASLIMIT=                 # The default gas limit
-GASPRICE=                 # The default ethereum gas price
-TGASLIMIT=                # Manual gas price and gas limit setting
-TGASPRICE=                # Manual gas price and gas price setting for ETH erc20
-PGASPRICE=                # Manual gas price and gas price setting for Polygon erc721
+TGASLIMIT=                # Manual gas limit for ETH erc20
+TGASPRICE=                # Manual gas price for ETH erc20
+PGASLIMIT=                # Manual gas limit for Polygon erc721
+PGASPRICE=                # Manual gas price for Polygon erc721
 ETHAPIURL=                # The etherscan API URL 
 USEGASAPI=                # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
 GASPRICELEVEL=            # Which price to use from the gas price API (low/average/high)
