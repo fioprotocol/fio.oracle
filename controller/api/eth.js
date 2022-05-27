@@ -65,6 +65,8 @@ class EthCtrl {
                         },
                         { chain: 'rinkeby', hardfork: 'istanbul' }
                     );
+                    const timeStamp = new Date().toISOString();
+                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + config.FIO_token + ', from: ' + pubKey + '}' + '\r\n');
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
                     const serializedTx = tx.serialize();
@@ -77,7 +79,7 @@ class EthCtrl {
                     .on('receipt', (receipt) => {
                         console.log("completed");
                         const timeStamp = new Date().toISOString();
-                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + JSON.stringify(receipt) +'\r\n');
+                        fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens receipt' + ' ' + JSON.stringify(receipt) +'\r\n');
                         transactionCount++;
                     })
                     if(transactionCount == 0) {

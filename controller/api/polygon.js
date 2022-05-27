@@ -53,7 +53,7 @@ class PolyCtrl {
                 const tx = new Tx(
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
-                        gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
+                        gasLimit: this.web3.utils.toHex(parseInt(process.env.PGASLIMIT)),
                         to: config.FIO_NFT_POLYGON,
                         data: wrapABI,
                         from: pubKey,
