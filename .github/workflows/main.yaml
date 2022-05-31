@@ -24,7 +24,9 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v3
+        env:
+          DOCKER_IMAGE_TAG: ${{ git describe --tags --abbrev=0 }}
         with:
           context: .
           push: false
-          tags: user/app:latest
+          tags: eostribe/app:${DOCKER_IMAGE_TAG}
