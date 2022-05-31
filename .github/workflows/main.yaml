@@ -4,6 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
+    types: [ closed ]
     branches: [ main ]
 
   # Allows you to run this workflow manually from the Actions tab
@@ -18,6 +19,19 @@ jobs:
       - uses: actions-ecosystem/action-get-latest-tag@v1
         id: get-latest-tag
 
+      - uses: actions-ecosystem/action-bump-semver@v1
+        id: bump-semver
+        with:
+          current_version: ${{ steps.get-latest-tag.outputs.tag }}
+          level: minor
+
+      - uses: actions-ecosystem/action-push-tag@v1
+        if: ${{ steps.bump-semver.outputs.new_version != null }}
+        with:
+          tag: ${{ steps.bump-semver.outputs.new_version }}
+          message: "${{ steps.bump-semver.outputs.new_version }}: PR #${{ steps.get-merged-pull-request.outputs.number }} ${{ steps.get-merged-pull-request.outputs.title }}"
+
+
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -28,5 +42,5 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          push: false
-          tags: eostribe/app:${{ steps.get-latest-tag.outputs.tag }}
+          push: true
+          tags: eostribe/fio_wrapping:${{ steps.bump-semver.outputs.new_version }}
