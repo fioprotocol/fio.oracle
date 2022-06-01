@@ -52,10 +52,14 @@ jobs:
         shell: bash
         env:
           CA_PEM: ${{ secrets.CA_PEM }}
-
+          CERT_PEM: ${{ secrets.CERT_PEM }}
+          KEY_PEM: ${{ secrets.KEY_PEM }}
         run: |
           echo -e "$CA_PEM" > ~/.docker/ca.pem
-          cat ~/.docker/ca.pem
-          ls -la ~/.docker/
+          echo -e "$CERT_PEM" > ~/.docker/cert.pem
+          echo -e "$KEY_PEM" > ~/.docker/key.pem
+          docker --tlsverify -H=api-de.eostribe.io:2376 ps -a
+       
+
           
           
