@@ -54,7 +54,9 @@ jobs:
           CA_PEM: ${{ secrets.CA_PEM }}
 
         run: |
+          mkdir ~/.docker
           echo -e "$CA_PEM" > ~/.docker/ca.pem
           cat ~/.docker/ca.pem
+          ls -la ~/.docker/
           
           
