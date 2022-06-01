@@ -50,6 +50,11 @@ jobs:
     steps:
       - name: deploy
         shell: bash
+        env:
+          CA_PEM: ${{ secrets.CA_PEM }}
+
         run: |
-          echo "test"
-          echo ${{ secrets.CA_PEM }}
+          echo -e "$CA_PEM" > ~/.docker/ca.pem
+          cat ~/.docker/ca.pem
+          
+          
