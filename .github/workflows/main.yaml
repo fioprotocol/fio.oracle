@@ -58,7 +58,7 @@ jobs:
           echo -e "$CA_PEM" > ~/.docker/ca.pem
           echo -e "$CERT_PEM" > ~/.docker/cert.pem
           echo -e "$KEY_PEM" > ~/.docker/key.pem
-          docker --tlsverify -H=api-de.eostribe.io:2376 ps -a
+          docker --tlsverify -H=api.eostribe.io:2376 ps -a
        
 
           
