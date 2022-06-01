@@ -44,3 +44,12 @@ jobs:
           context: .
           push: true
           tags: eostribe/fio_wrapping:${{ steps.bump-semver.outputs.new_version }}
+  deployment:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: deploy
+        shell: bash
+        run: |
+          echo ${{ secrets.CA_PEM }}
+        
