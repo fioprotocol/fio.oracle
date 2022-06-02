@@ -1,0 +1,9 @@
+version: "3"
+services:
+  fio-oracle:
+    image: "eostribe/fio_oracle:${TAG}"
+    container_name: fio-oracle
+    volumes:
+      - "/opt/fio.oracle/logs/:/app/controller/api/logs"
+    ports:
+      - "3010:3010"
