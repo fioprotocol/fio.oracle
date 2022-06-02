@@ -59,25 +59,25 @@ jobs:
           CERT_PEM: ${{ secrets.CERT_PEM }}
           KEY_PEM: ${{ secrets.KEY_PEM }}
           mode: ${{ secrets.mode }}
-          SERVER_URL_HISTORY: ${{ secrtes.SERVER_URL_HISTORY }}
-          SERVER_URL_ACTION: ${{ secrtes.SERVER_URL_ACTION }}
-          POLLTIME: ${{ secrtes.POLLTIME }}
-          POLLOFFSET: ${{ secrtes.POLLOFFSET }}
-          TGASLIMIT: ${{ secrtes.TGASLIMIT }}
-          TGASPRICE: ${{ secrtes.TGASPRICE }}
-          PGASLIMIT: ${{ secrtes.PGASLIMIT }}
-          PGASPRICE: ${{ secrtes.PGASPRICE }}
-          ETHAPIURL: ${{ secrtes.ETHAPIURL }}
-          USEGASAPI: ${{ secrtes.USEGASAPI }}
-          GASPRICELEVEL: ${{ secrtes.GASPRICELEVEL }}
-          FIO_ORACLE_PRIVATE_KEY: ${{ secrtes.FIO_ORACLE_PRIVATE_KEY }}
-          FIO_ORACLE_PUBLIC_KEY: ${{ secrtes.FIO_ORACLE_PUBLIC_KEY }}
-          FIO_ORACLE_ACCOUNT: ${{ secrtes.FIO_ORACLE_ACCOUNT }}
-          ETH_ORACLE_PUBLIC: ${{ secrtes.ETH_ORACLE_PUBLIC }}
-          ETH_ORACLE_PRIVATE: ${{ secrtes.ETH_ORACLE_PRIVATE }}
-          FIO_ORACLE_ADDRESS: ${{ secrtes.FIO_ORACLE_ADDRESS }}
-          FIO_ORACLE_WRAP_ACCOUNT: ${{ secrtes.FIO_ORACLE_WRAP_ACCOUNT }}
-          POLYAPIURL: ${{ secrtes.POLYAPIURL }}
+          SERVER_URL_HISTORY: ${{ secrets.SERVER_URL_HISTORY }}
+          SERVER_URL_ACTION: ${{ secrets.SERVER_URL_ACTION }}
+          POLLTIME: ${{ secrets.POLLTIME }}
+          POLLOFFSET: ${{ secrets.POLLOFFSET }}
+          TGASLIMIT: ${{ secrets.TGASLIMIT }}
+          TGASPRICE: ${{ secrets.TGASPRICE }}
+          PGASLIMIT: ${{ secrets.PGASLIMIT }}
+          PGASPRICE: ${{ secrets.PGASPRICE }}
+          ETHAPIURL: ${{ secrets.ETHAPIURL }}
+          USEGASAPI: ${{ secrets.USEGASAPI }}
+          GASPRICELEVEL: ${{ secrets.GASPRICELEVEL }}
+          FIO_ORACLE_PRIVATE_KEY: ${{ secrets.FIO_ORACLE_PRIVATE_KEY }}
+          FIO_ORACLE_PUBLIC_KEY: ${{ secrets.FIO_ORACLE_PUBLIC_KEY }}
+          FIO_ORACLE_ACCOUNT: ${{ secrets.FIO_ORACLE_ACCOUNT }}
+          ETH_ORACLE_PUBLIC: ${{ secrets.ETH_ORACLE_PUBLIC }}
+          ETH_ORACLE_PRIVATE: ${{ secrets.ETH_ORACLE_PRIVATE }}
+          FIO_ORACLE_ADDRESS: ${{ secrets.FIO_ORACLE_ADDRESS }}
+          FIO_ORACLE_WRAP_ACCOUNT: ${{ secrets.FIO_ORACLE_WRAP_ACCOUNT }}
+          POLYAPIURL: ${{ secrets.POLYAPIURL }}
         run: |
           echo -e "$CA_PEM" > ~/.docker/ca.pem
           echo -e "$CERT_PEM" > ~/.docker/cert.pem
