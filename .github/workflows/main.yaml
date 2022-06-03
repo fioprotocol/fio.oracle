@@ -34,6 +34,9 @@ jobs:
           tag: ${{ steps.bump-semver.outputs.new_version }}
           message: "${{ steps.bump-semver.outputs.new_version }}: PR #${{ steps.get-merged-pull-request.outputs.number }} ${{ steps.get-merged-pull-request.outputs.title }}"
 
+      - name: create empty .env file
+        run: |
+          touch .env
 
       - name: Login to DockerHub
         uses: docker/login-action@v2
@@ -43,9 +46,6 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v3
-        run: |
-          touch .env
-
         with:
           context: .
           push: true
