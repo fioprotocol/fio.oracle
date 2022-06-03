@@ -81,11 +81,13 @@ jobs:
           FIO_ORACLE_ADDRESS: ${{ secrets.FIO_ORACLE_ADDRESS }}
           FIO_ORACLE_WRAP_ACCOUNT: ${{ secrets.FIO_ORACLE_WRAP_ACCOUNT }}
           POLYAPIURL: ${{ secrets.POLYAPIURL }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
           TAG: ${{ needs.build.outputs.LATEST_TAG }}
         run: |
           echo -e "$CA_PEM" > ~/.docker/ca.pem
           echo -e "$CERT_PEM" > ~/.docker/cert.pem
           echo -e "$KEY_PEM" > ~/.docker/key.pem
+          echo -e "$ENV_FILE" > ~/.env
           docker-compose --tlsverify -H=api.eostribe.io:2376 up -d
        
 
