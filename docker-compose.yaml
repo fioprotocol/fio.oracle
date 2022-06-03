@@ -3,8 +3,6 @@ services:
   fio-oracle:
     image: "eostribe/fio_oracle:${TAG}"
     container_name: fio-oracle
-    env_file:
-      - .env
     volumes:
       - "/opt/fio.oracle/logs/:/app/controller/api/logs"
     environment:
