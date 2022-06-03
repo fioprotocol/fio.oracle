@@ -88,7 +88,7 @@ jobs:
           echo -e "$CERT_PEM" > ~/.docker/cert.pem
           echo -e "$KEY_PEM" > ~/.docker/key.pem
           echo -e "$ENV_FILE" > ~/.env
-          docker-compose --tlsverify -H=api.eostribe.io:2376 up -d
+          docker-compose --tlsverify --env-file= ~/.env -H=api.eostribe.io:2376 up -d
        
 
           
