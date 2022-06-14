@@ -16,7 +16,7 @@ const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.l
 
 class PolyCtrl {
     constructor() {
-        this.web3 = new Web3(config.polygonProvider);
+        this.web3 = new Web3(process.env.POLYGONINFURA);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
     }
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action

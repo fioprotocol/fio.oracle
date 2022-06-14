@@ -16,7 +16,7 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 
 class EthCtrl {
     constructor() {
-        this.web3 = new Web3(config.web3Provider);
+        this.web3 = new Web3(process.env.ETHINFURA);
         this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
     }
@@ -52,7 +52,6 @@ class EthCtrl {
                     const wrapFunc = this.fioContract.methods.wrap(wrapData.public_address, quantity, tx_id);
                     let wrapABI = wrapFunc.encodeABI();
                     var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
-                    console.log(signKey);
                     const tx = new Tx(
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
@@ -85,7 +84,7 @@ class EthCtrl {
                     if(transactionCount == 0) {
                         const timeStamp = new Date().toISOString();
                         const wrapText = tx_id + ' ' + JSON.stringify(wrapData) + '\r\n';
-                        fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break        
+                        fs.writeFileSync(WrapErrTransaction, wrapText); // store issued transaction to log by line-break
                     }
                     let csvContent = fs.readFileSync(pathWrapTransact).toString().split('\r\n'); // read file and convert to array by line break
                     csvContent.shift(); // remove the the first element from array
@@ -141,7 +140,6 @@ class EthCtrl {
                 const wrapFunc = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, tx_id);
                 let wrapABI = wrapFunc.encodeABI();
                 var nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate noce value for transaction
-                console.log(signKey);    
                 const tx = new Tx(
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
@@ -160,7 +158,7 @@ class EthCtrl {
                 await this.web3.eth//excute the sign transaction using public key and private key of oracle
                 .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                 .on('transactionHash', (hash) => {
-                    console.log(wrapData.public_address+" : "+pubKey);
+                    console.log(wrapData.public_address+" : "+pubKey);z
                     console.log('TxHash: ', hash);
                 })
                 .on('receipt', (receipt) => {

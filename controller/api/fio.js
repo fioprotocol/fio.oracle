@@ -9,12 +9,12 @@ import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
-const web3 = new Web3(config.web3Provider);
-const polyWeb3 = new Web3(config.polygonProvider);
+const web3 = new Web3(process.env.ETHINFURA);
+const polyWeb3 = new Web3(process.env.POLYGONINFURA);
 const fioContract = new web3.eth.Contract(fioABI, config.FIO_token);
 const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
 const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON)
-const httpEndpoint = process.env.SERVER_URL_ACTION
+const httpEndpoint = process.env.SERVER_URL_ACTION;
 const fs = require('fs');
 const pathFIO = "controller/api/logs/FIO.log";
 const pathETH = "controller/api/logs/ETH.log";
