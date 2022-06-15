@@ -25,8 +25,8 @@ const domainWrapErrTransaction = logDir + "DomainWrapErrTransaction.log";
 class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
-        this.web3 = new Web3(config.web3Provider);
-        this.polyWeb3 = new Web3(config.polygonProvider);
+        this.web3 = new Web3(process.env.ETHINFURA);
+        this.polyWeb3 = new Web3(process.env.POLYGONINFURA);
         try {
             if(fs.existsSync(logDir)) { //check if the log path exists
                 console.log("The log directory exists.");
@@ -176,7 +176,7 @@ class MainCtrl {
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            // setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
             setInterval(fioCtrl.unwrapPolygonDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
 
             this.initRoutes(app);
