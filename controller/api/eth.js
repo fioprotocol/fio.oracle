@@ -158,7 +158,7 @@ class EthCtrl {
                 await this.web3.eth//excute the sign transaction using public key and private key of oracle
                 .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                 .on('transactionHash', (hash) => {
-                    console.log(wrapData.public_address+" : "+pubKey);z
+                    console.log(wrapData.public_address+" : "+pubKey);
                     console.log('TxHash: ', hash);
                 })
                 .on('receipt', (receipt) => {
