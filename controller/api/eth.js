@@ -17,8 +17,8 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(process.env.ETHINFURA);
-        this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
+        this.fioContract = new this.web3.eth.Contract(fioABI, process.env.FIOTOKENETH);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.FIONFTETH);
     }
 
     async wrapFunction(tx_id, wrapData) {// excute wrap action
@@ -56,7 +56,7 @@ class EthCtrl {
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
                             gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                            to: config.FIO_token,
+                            to: process.env.FIOTOKENETH,
                             data: wrapABI,
                             from: pubKey,
                             nonce: this.web3.utils.toHex(nonce),
@@ -65,7 +65,7 @@ class EthCtrl {
                         { chain: 'rinkeby', hardfork: 'istanbul' }
                     );
                     const timeStamp = new Date().toISOString();
-                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + config.FIO_token + ', from: ' + pubKey + '}' + '\r\n');
+                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + process.env.FIOTOKENETH + ', from: ' + pubKey + '}' + '\r\n');
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
                     const serializedTx = tx.serialize();
@@ -144,7 +144,7 @@ class EthCtrl {
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                        to: config.FIO_NFT,
+                        to: process.env.FIONFTETH,
                         data: wrapABI,
                         from: pubKey,
                         nonce: this.web3.utils.toHex(nonce),

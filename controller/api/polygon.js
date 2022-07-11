@@ -17,7 +17,7 @@ const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.l
 class PolyCtrl {
     constructor() {
         this.web3 = new Web3(process.env.POLYGONINFURA);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.FIOPOLYGONNFT);
     }
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
         const info = await (await fetch(process.env.POLYAPIURL)).json();
@@ -54,7 +54,7 @@ class PolyCtrl {
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.PGASLIMIT)),
-                        to: config.FIO_NFT_POLYGON,
+                        to: process.env.FIONFTPOLYGON,
                         data: wrapABI,
                         from: pubKey,
                         nonce: this.web3.utils.toHex(nonce),
