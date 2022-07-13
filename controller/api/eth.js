@@ -17,13 +17,13 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(process.env.ETHINFURA);
-        this.fioContract = new this.web3.eth.Contract(fioABI, config.FIO_token);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT);
+        this.fioContract = new this.web3.eth.Contract(fioABI, process.env.ETH_TOKEN_CONTRACT);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.ETH_NFT_CONTRACT);
     }
 
     async wrapFunction(tx_id, wrapData) {// excute wrap action
         const quantity = wrapData.amount;
-        const info = await (await fetch(process.env.ETHAPIURL)).json();
+        const info = await (await fetch(process.env.ETH_API_URL)).json();
         const gasMode = process.env.USEGASAPI;
         var gasPrice = 0;
         if ((gasMode == "1" && info.status === "1")||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
@@ -56,7 +56,7 @@ class EthCtrl {
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
                             gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                            to: config.FIO_token,
+                            to: process.env.ETH_TOKEN_CONTRACT,
                             data: wrapABI,
                             from: pubKey,
                             nonce: this.web3.utils.toHex(nonce),
@@ -65,7 +65,7 @@ class EthCtrl {
                         { chain: 'rinkeby', hardfork: 'istanbul' }
                     );
                     const timeStamp = new Date().toISOString();
-                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + config.FIO_token + ', from: ' + pubKey + '}' + '\r\n');
+                    fs.appendFileSync(pathETH, timeStamp + ' ' + 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + process.env.ETH_TOKEN_CONTRACT + ', from: ' + pubKey + '}' + '\r\n');
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
                     const serializedTx = tx.serialize();
@@ -113,7 +113,7 @@ class EthCtrl {
     }
 
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
-        const info = await (await fetch(process.env.ETHAPIURL)).json();
+        const info = await (await fetch(process.env.ETH_API_URL)).json();
         const gasMode = process.env.USEGASAPI;
         var gasPrice = 0;
         if ((gasMode == "1" && info.status === "1")||(gasMode == "0" && parseInt(process.env.TGASPRICE) <= 0)) {
@@ -144,7 +144,7 @@ class EthCtrl {
                     {
                         gasPrice: this.web3.utils.toHex(gasPrice),
                         gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                        to: config.FIO_NFT,
+                        to: process.env.ETH_NFT_CONTRACT,
                         data: wrapABI,
                         from: pubKey,
                         nonce: this.web3.utils.toHex(nonce),

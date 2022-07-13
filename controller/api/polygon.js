@@ -16,11 +16,11 @@ const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.l
 
 class PolyCtrl {
     constructor() {
-        this.web3 = new Web3(process.env.POLYGONINFURA);
+        this.web3 = new Web3(process.env.POLYGON_INFURA);
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
     }
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
-        const info = await (await fetch(process.env.POLYAPIURL)).json();
+        const info = await (await fetch(process.env.POLYGON_API_URL)).json();
         const gasMode = process.env.USEGASAPI;
         const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
         const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');

@@ -26,7 +26,7 @@ class MainCtrl {
     async start(app) {
         const lastBlockNum = await utilCtrl.getInfo();
         this.web3 = new Web3(process.env.ETHINFURA);
-        this.polyWeb3 = new Web3(process.env.POLYGONINFURA);
+        this.polyWeb3 = new Web3(process.env.POLYGON_INFURA);
         try {
             if(fs.existsSync(logDir)) { //check if the log path exists
                 console.log("The log directory exists.");
