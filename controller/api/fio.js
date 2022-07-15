@@ -83,14 +83,14 @@ const unwrapTokens = async (obt_id, fioAmount, fioAddress) => { // excute unwrap
     const timeStamp = new Date().toISOString();
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwraptokens", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwraptokens", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwraptokens", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
     }
 }
 const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap action using eth transaction data and amount
@@ -151,14 +151,14 @@ const unwrapDomain = async (obt_id, fioDomain, fioAddress) => { // excute unwrap
     const timeStamp = new Date().toISOString();
     if (json.type) {
         console.log('Error: ', json);
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwrapdomain", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
 
     } else if (json.error) {
         console.log('Error: ', json)
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwrapdomain", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
     } else {
         console.log('Result: ', json)
-        fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(json) +'\r\n'); //store error to log
+        fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "unwrapdomain", "transaction": ${JSON.stringify(json)} }\r\n`); //store error to log
     }
 }
 class FIOCtrl {
@@ -178,7 +178,7 @@ class FIOCtrl {
                     const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
                     console.log("weiQuantity: ", weiQuantity)
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
-                    fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'wraptokens' + ' ' + JSON.stringify(wrapData[i]) +'\r\n');
+                    fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "wraptokens", "transaction": ${JSON.stringify(wrapData[i])} }\r\n`);
 
                     fs.appendFileSync(pathWrapTransact, wrapText);
                     if (count == 0) {
@@ -203,7 +203,7 @@ class FIOCtrl {
                     const tx_id = wrapData[i].action_trace.trx_id;
                     const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
-                    fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'wrapdomain ETH' + ' ' + JSON.stringify(wrapData[i]) +'\r\n');
+                    fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "wrapdomain ETH", "transaction": ${JSON.stringify(wrapData[i])} }\r\n`);
                     fs.appendFileSync(pathDomainWrapTransact, wrapText);
                     if (count == 0) {
                         ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
@@ -215,7 +215,7 @@ class FIOCtrl {
                     const tx_id = wrapData[i].action_trace.trx_id;
                     const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data) + '\r\n';
                     fs.writeFileSync(blockNumFIO, wrapData[i].block_num.toString());
-                    fs.appendFileSync(pathFIO, timeStamp + ' ' + 'FIO' + ' ' + 'fio.oracle' + ' ' + 'wrapdomain MATIC' + ' ' + JSON.stringify(wrapData[i]) +'\r\n');
+                    fs.appendFileSync(pathFIO, `{"timeStamp": "${timeStamp}", "chain": "FIO", "contract": "fio.oracle", "action": "wrapdomain MATIC", "transaction": ${JSON.stringify(wrapData[i])} }\r\n`);
                     fs.appendFileSync(pathDomainWrapTransact, wrapText);
                     if (polyCount == 0) {
                         polygonCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
