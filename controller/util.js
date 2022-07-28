@@ -1,3 +1,4 @@
+require('dotenv').config();
 import config from '../config/config';
 
 const { curly } = require('node-libcurl')
@@ -20,11 +21,13 @@ class UtilCtrl {
         }
         const len = realData.length;
         if( len > 0) {
+          // todo: i think we should also update blockNumberFIO.log here
           config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
         }
       }
       return realData;
     }
+
     async getLatestWrapDomainAction(accountName, pos) {
       const lastNumber = config.oracleCache.get("lastBlockNumber");
       var offset = parseInt(process.env.POLLOFFSET);
@@ -40,6 +43,7 @@ class UtilCtrl {
         }
         const len = realData.length;
         if( len > 0) {
+          // todo: i think we should also update blockNumberFIO.log here
           config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
         }
       }
@@ -118,7 +122,7 @@ class UtilCtrl {
         });
         if(addressData.statusCode == 200) {
           const addresses = addressData.data.fio_addresses;
-          fio_address = addresses[0].fio_address; 
+          fio_address = addresses[0].fio_address;
         }
       }
       return fio_address;
