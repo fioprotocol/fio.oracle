@@ -1,3 +1,4 @@
+require('dotenv').config();
 import { join } from 'path';
 import { config as load } from 'dotenv-safe';
 import conf_mainnet from "./config-mainnet";
