@@ -64,6 +64,7 @@ class MainCtrl {
             this.initRoutes(app);
         } catch (err) {
             handleServerError(err, 'Startup');
+            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, FIO_ORACLE_ADDRESS, POLLTIME');
         }
     }
     initRoutes(app) {
