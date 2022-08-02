@@ -24,6 +24,7 @@ class EthCtrl {
     }
 
     async wrapFunction(tx_id, wrapData) {// excute wrap action
+        console.log('Execute wrapFunction');
         try {
             const quantity = wrapData.amount;
             const info = await (await fetch(process.env.ETH_API_URL)).json();
@@ -65,7 +66,7 @@ class EthCtrl {
                                 nonce: this.web3.utils.toHex(nonce),
                                 // nonce: web3.utils.toHex(0)
                             },
-                            { chain: 'rinkeby', hardfork: 'istanbul' }
+                            { chain: 'goerli' }
                         );
 
                         addLogMessage({
@@ -165,7 +166,7 @@ class EthCtrl {
                             nonce: this.web3.utils.toHex(nonce),
                             // nonce: web3.utils.toHex(0)
                         },
-                        { chain: 'rinkeby', hardfork: 'istanbul' }
+                        { chain: 'mumbai' }
                     );
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);
