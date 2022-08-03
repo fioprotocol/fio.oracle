@@ -1,7 +1,9 @@
-import contracts from './contracts_testnet';
+require('dotenv').config();
+
 export default {
-    port: 3010,
-    portMonitor: 20,
+    port: process.env.PORT,
     unsubscribeLandingPage: '',
-    ...contracts
+    FIO_token: process.env.ETH_TOKEN_CONTRACT,
+    FIO_NFT: process.env.ETH_NFT_CONTRACT,
+    FIO_NFT_POLYGON: process.env.POLYGON_NFT_CONTRACT,
 };
