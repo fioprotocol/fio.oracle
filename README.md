@@ -22,6 +22,8 @@ FIO_ORACLE_ACCOUNT=       # The FIO account used for approving unwrap transactio
 FIO_ORACLE_ADDRESS=       # The FIO Crypto Handle used for approving unwrap transactions
 ETH_ORACLE_PUBLIC=        # The ETH oracle public key used for signing ERC20 transactions
 ETH_ORACLE_PRIVATE=       # The ETH oracle private key used for signing ERC20 transactions
+POLYGON_ORACLE_PUBLIC=    # The POLYGON oracle public key used for signing ERC721 transactions
+POLYGON_ORACLE_PRIVATE=   # The POLYGON oracle private key used for signing ERC721 transactions
 POLLTIME=                 # Seconds between poll for wrap and unwrap events (60 seconds=60000)
 POLLOFFSET=               # The number of wrap transactions to get on FIO side in each call (If you set 20, you can get 20 latest actions on FIO side)
 USEGASAPI=                # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
@@ -32,11 +34,13 @@ PGASLIMIT=                # Manual gas limit for Polygon erc721
 PGASPRICE=                # Manual gas price for Polygon erc721
 ETH_API_URL=              # The Ethereum chain etherscan API URL 
 ETHINFURA=                # The Ethereum chain Infura API URL
-ETH_TOKEN_CONTRACT=       # Ethereum address of the erc20 token contract
-ETH_NFT_CONTRACT=         # Ethereum address of the erc721 NFT contract (Legacy, only supporting Polygon NFT for V1)
+FIO_TOKEN_ETH_CONTRACT=       # Ethereum address of the erc20 token contract
+FIO_NFT_ETH_CONTRACT=         # Ethereum address of the erc721 NFT contract (Legacy, only supporting Polygon NFT for V1)
 POLYGON_API_URL=          # The Polygon chain polyscan API URL
 POLYGON_INFURA=           # The Polygon chain Infura API URL
-POLYGON_NFT_CONTRACT=     # Polygon chain address of the erc721 NFT contract
+FIO_NFT_POLYGON_CONTRACT=     # The Polygon address of the erc721 NFT contract
+ETH_TESTNET_CHAIN_NAME=   # The Ethereum testnet chain name
+POLYGON_TESTNET_CHAIN_NAME=   # The Polygon testnet chain name
 ```
 
 ## Installation

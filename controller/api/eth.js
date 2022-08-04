@@ -1,10 +1,12 @@
 import Web3 from "web3";
-import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json";
-import { time } from "console";
 import {addLogMessage, handleServerError} from "../helpers";
+import * as process from "process";
+
+// todo: 'ethereumjs-tx' has been deprecated, update to @ethereumjs/tx
 const Tx = require('ethereumjs-tx').Transaction;
+
 const fetch = require('node-fetch');
 const fs = require('fs');
 require('dotenv').config();
@@ -19,11 +21,11 @@ const { TextEncoder, TextDecoder } = require('text-encoding');
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(process.env.ETHINFURA);
-        this.fioContract = new this.web3.eth.Contract(fioABI, process.env.ETH_TOKEN_CONTRACT);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.ETH_NFT_CONTRACT);
+        this.fioContract = new this.web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.FIO_NFT_ETH_CONTRACT);
     }
 
-    async wrapFunction(tx_id, wrapData) {// excute wrap action
+    async wrapFioToken(tx_id, wrapData) {// excute wrap action
         console.log('Execute wrapFunction');
         try {
             const quantity = wrapData.amount;
@@ -60,18 +62,18 @@ class EthCtrl {
                             {
                                 gasPrice: this.web3.utils.toHex(gasPrice),
                                 gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                                to: process.env.ETH_TOKEN_CONTRACT,
+                                to: process.env.FIO_TOKEN_ETH_CONTRACT,
                                 data: wrapABI,
                                 from: pubKey,
                                 nonce: this.web3.utils.toHex(nonce),
                                 // nonce: web3.utils.toHex(0)
                             },
-                            { chain: 'goerli' }
+                            { chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' }
                         );
 
                         addLogMessage({
                             filePath: pathETH,
-                            message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + process.env.ETH_TOKEN_CONTRACT + ', from: ' + pubKey + '}',
+                            message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + process.env.TGASLIMIT + ', amount: ' + quantity + ', to: ' + process.env.FIO_TOKEN_ETH_CONTRACT + ', from: ' + pubKey + '}',
                         });
 
                         const privateKey = Buffer.from(signKey, 'hex');
@@ -103,7 +105,7 @@ class EthCtrl {
                         if (csvContent.length > 0 && csvContent[0] != '') { //check if the queue is empty
                             newTxId = csvContent[0].split(' ')[0];
                             newData = JSON.parse(csvContent[0].split(' ')[1]);
-                            this.wrapFunction(newTxId, newData); //execute next transaction from transaction log
+                            this.wrapFioToken(newTxId, newData); //execute next transaction from transaction log
                             csvContent = csvContent.join('\r\n'); // convert array back to string
                             fs.writeFileSync(pathWrapTransact, csvContent)
                         } else {
@@ -127,6 +129,7 @@ class EthCtrl {
         }
     }
 
+    // todo: remove due to only polygon usage for wFIO domain wrapping
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
         try {
             const info = await (await fetch(process.env.ETH_API_URL)).json();
@@ -160,13 +163,14 @@ class EthCtrl {
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
                             gasLimit: this.web3.utils.toHex(parseInt(process.env.TGASLIMIT)),
-                            to: process.env.ETH_NFT_CONTRACT,
+                            to: process.env.FIO_NFT_ETH_CONTRACT,
                             data: wrapABI,
                             from: pubKey,
                             nonce: this.web3.utils.toHex(nonce),
                             // nonce: web3.utils.toHex(0)
                         },
-                        { chain: 'mumbai' }
+                        // todo: this should be used in polygonCtrl
+                        { chain: process.env.MODE === 'testnet' ? process.env.POLYGON_TESTNET_CHAIN_NAME : 'polygon' }
                     );
                     const privateKey = Buffer.from(signKey, 'hex');
                     tx.sign(privateKey);

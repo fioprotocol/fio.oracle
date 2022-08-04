@@ -49,6 +49,7 @@ class UtilCtrl {
       }
       return realData;
     }
+
     async getActions(accountName, pos, offset) {
         const data = await curly.post(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
           postFields: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
