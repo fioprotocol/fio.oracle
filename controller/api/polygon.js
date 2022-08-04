@@ -1,3 +1,5 @@
+import process from "process";
+
 require('dotenv').config();
 import Web3 from "web3";
 import Common from "ethereumjs-common";
@@ -19,7 +21,7 @@ const domainWrapErrTransaction = "controller/api/logs/DomainWrapErrTransaction.l
 class PolyCtrl {
     constructor() {
         this.web3 = new Web3(process.env.POLYGON_INFURA);
-        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON);
+        this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON_CONTRACT);
     }
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
         try {
@@ -43,8 +45,8 @@ class PolyCtrl {
             this.fioNftContract.methods.getApproval(tx_id).call();
             var transactionCount = 0;
             try {
-                const pubKey = process.env.ETH_ORACLE_PUBLIC;
-                const signKey = process.env.ETH_ORACLE_PRIVATE;
+                const pubKey = process.env.POLYGON_ORACLE_PUBLIC;
+                const signKey = process.env.POLYGON_ORACLE_PRIVATE;
                 this.fioNftContract.methods.getApproval(tx_id).call()
                     .then((response) => {
                         console.log(response);
@@ -57,7 +59,7 @@ class PolyCtrl {
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
                             gasLimit: this.web3.utils.toHex(parseInt(process.env.PGASLIMIT)),
-                            to: config.FIO_NFT_POLYGON,
+                            to: config.FIO_NFT_POLYGON_CONTRACT,
                             data: wrapABI,
                             from: pubKey,
                             nonce: this.web3.utils.toHex(nonce),

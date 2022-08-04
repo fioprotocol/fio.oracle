@@ -15,9 +15,9 @@ import {addLogMessage, handleServerError} from "../helpers";
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polyWeb3 = new Web3(process.env.POLYGON_INFURA);
-const fioContract = new web3.eth.Contract(fioABI, process.env.ETH_TOKEN_CONTRACT);
-const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT);
-const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON)
+const fioTokenContractOnEthChain = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
+const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT_ETH_CONTRACT);
+const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON_CONTRACT)
 const httpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 const pathLogFIO = "controller/api/logs/FIO.log";
 const pathLogETH = "controller/api/logs/ETH.log";
@@ -221,7 +221,7 @@ class FIOCtrl {
                         });
 
                         if (count == 0) {
-                            ethCtrl.wrapFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                            ethCtrl.wrapFioToken(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
                         }
                         count++;
                     }
@@ -233,6 +233,7 @@ class FIOCtrl {
     }
 
     async getLatestDomainWrapAction(req,res) {
+        console.log('Get latest Domain Wrap actions: start')
         try {
             const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
             const dataLen = Object.keys(wrapData).length;
@@ -297,12 +298,14 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, getLatestDomainWrapAction');
         }
+        console.log('Get latest Domain Wrap actions: all necessary actions were completed successfully')
     }
 
-    async unwrapFunction() {
+    async unwrapTokens() {
+        console.log('Get latest unwrap actions for wFIO tokens: start');
         try {
             const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
-            await fioContract.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
+            await fioTokenContractOnEthChain.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
                 // filter: {id: 1},
                 fromBlock: lastBlockNumber,
                 toBlock: 'latest'
@@ -337,6 +340,7 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, unwrapFunction');
         }
+        console.log('Get latest unwrap actions for wFIO tokens: all necessary actions were completed successfully')
     }
 
     async unwrapDomainFunction() {

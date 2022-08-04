@@ -37,6 +37,7 @@ class MainCtrl {
             await prepareLogFile({ filePath: pathFIO });
             await prepareLogFile({ filePath: pathETH });
             await prepareLogFile({ filePath: pathMATIC });
+            console.log('Startup: logs folders created');
             await prepareLogFile({
                 filePath: blockNumFIO,
                 blockName: 'lastBlockNumber',
@@ -52,21 +53,24 @@ class MainCtrl {
                 blockName: 'polygonBlockNumber',
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
+            console.log('Startup: blocks folders created');
 
-            await utilCtrl.availCheck(process.env.FIO_ORACLE_ADDRESS);// fio account validation check
             // ethCtrl.getContract();
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-            setInterval(fioCtrl.unwrapFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.unwrapTokens, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
             // setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
             setInterval(fioCtrl.unwrapPolygonDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
 
             this.initRoutes(app);
+
+            console.log('Startup: success')
         } catch (err) {
             handleServerError(err, 'Startup');
             throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, FIO_ORACLE_ADDRESS, POLLTIME');
         }
     }
+
     initRoutes(app) {
         route.use(cors({ origin: "*" }));
         app.use(fioRoute);
