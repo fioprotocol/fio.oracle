@@ -1,7 +1,8 @@
 import fs from "fs";
 import config from "../config/config";
 
-const logDir = "controller/api/logs/"; //log events and errors on FIO side
+export const logDir = "controller/api/logs/"; //log events and errors on FIO side
+
 const serverErrLogsPathname = logDir + "Error.log"; //store the error startup and else unexpected errors error
 
 // function to handle all unexpected request errors (like bad internet connection or invalid response) and add them into Error.log file
@@ -48,7 +49,7 @@ export const prepareLogFile = async ({
             // permanent fix (always use the latest block from the chain), to avoid BD-3541 (Blockheight too far in the past error)
             let lastBlockNumberInChain;
             if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
-            fs.writeFile(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
+            fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
                 if (err) {
                     return console.log(err);
                 }
@@ -60,7 +61,7 @@ export const prepareLogFile = async ({
         if (withLogsInConsole) console.log(`The file ${filePath} does not exist.`);
         let lastBlockNumberInChain;
         if (fetchLastBlockNumber && blockName) lastBlockNumberInChain = await fetchLastBlockNumber();
-        fs.writeFile(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
+        fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
             if (err) {
                 return console.log(err);
             }

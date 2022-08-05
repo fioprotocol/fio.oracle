@@ -1,5 +1,3 @@
-import process from "process";
-
 require('dotenv').config();
 import Web3 from "web3";
 import Common from "ethereumjs-common";
@@ -27,6 +25,9 @@ class PolyCtrl {
         try {
             const info = await (await fetch(process.env.POLYGON_API_URL)).json();
             const gasMode = process.env.USEGASAPI;
+
+            // { chain: process.env.MODE === 'testnet' ? process.env.POLYGON_TESTNET_CHAIN_NAME : 'polygon' }
+
             const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
             const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
             var gasPrice = 0;
