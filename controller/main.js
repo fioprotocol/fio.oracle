@@ -3,16 +3,15 @@ import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
 import Web3 from 'web3';
-import { handleServerError, prepareLogDirectory, prepareLogFile } from "./helpers";
-const fs = require('fs');
+import {handleServerError, logDir, prepareLogDirectory, prepareLogFile} from "./helpers";
+import process from "process";
 const cors = require("cors");
 
 const route = require("express").Router();
-const logDir = "controller/api/logs/";//log events and errors on FIO side
 const pathFIO = logDir + "FIO.log";//log events and errors on FIO side
 const pathETH = logDir + "ETH.log";//log events and errors on ETH side
 const pathMATIC = logDir + "MATIC.log";
-const blockNumFIO = logDir + "blockNumberFIO.log";//store FIO blocknumber for the wrapAction
+const blockNumFIO = logDir + "blockNumberFIO.log";//store FIO blockNumber for the wrapAction
 const blockNumETH = logDir + "blockNumberETH.log";//store ETH blockNumber for the unwrapAction
 const blockNumMATIC = logDir + "blockNumberMATIC.log";//store ETH blockNumber for the unwrapAction
 
@@ -37,7 +36,7 @@ class MainCtrl {
             await prepareLogFile({ filePath: pathFIO });
             await prepareLogFile({ filePath: pathETH });
             await prepareLogFile({ filePath: pathMATIC });
-            console.log('Startup: logs folders created');
+            console.log('Startup: logs folders is ready');
             await prepareLogFile({
                 filePath: blockNumFIO,
                 blockName: 'lastBlockNumber',
@@ -53,7 +52,7 @@ class MainCtrl {
                 blockName: 'polygonBlockNumber',
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
-            console.log('Startup: blocks folders created');
+            console.log('Startup: blocks folders is ready');
 
             // ethCtrl.getContract();
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
@@ -64,7 +63,8 @@ class MainCtrl {
 
             this.initRoutes(app);
 
-            console.log('Startup: success')
+            console.log(`Startup: success`)
+            console.log(`Mode: ${process.env.MODE}`)
         } catch (err) {
             handleServerError(err, 'Startup');
             throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, FIO_ORACLE_ADDRESS, POLLTIME');

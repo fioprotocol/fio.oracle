@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/js",
-    "dev": "cross-env MODE=development nodemon -r esm server.js"
+    "dev": "cross-env nodemon -r esm server.js"
   },
   "author": "",
   "license": "ISC",
