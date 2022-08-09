@@ -1,20 +1,18 @@
 import fs from "fs";
+import Web3 from 'web3';
 import config from "../config/config";
-
-export const logDir = "controller/api/logs/"; //log events and errors on FIO side
-
-const serverErrLogsPathname = logDir + "Error.log"; //store the error startup and else unexpected errors error
+import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
 
 // function to handle all unexpected request errors (like bad internet connection or invalid response) and add them into Error.log file
 export const handleServerError = async (err, additionalMessage = null) => {
     if (additionalMessage) console.log(additionalMessage+ ': ')
     console.log(err.stack)
 
-    prepareLogDirectory(logDir, false);
-    await prepareLogFile({ filePath: serverErrLogsPathname }, false);
+    prepareLogDirectory(LOG_DIRECTORY_PATH_NAME, false);
+    await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors }, false);
 
     addLogMessage({
-        filePath: serverErrLogsPathname,
+        filePath: LOG_FILES_PATH_NAMES.oracleErrors,
         message: (additionalMessage ?  (additionalMessage + ': ') : '') + err.stack,
     });
 }
@@ -87,3 +85,16 @@ export const addLogMessage = ({
         fs.appendFileSync(filePath, (addTimestamp ? (timestampTitle + timeStamp + ' ') : '') + message +'\r\n');
     }
 }
+
+export const convertWeiToGwei = (weiValue) => {
+    return parseFloat(Web3.utils.fromWei(weiValue, 'gwei'))
+}
+
+export const convertGweiToWei = (gweiValue) => {
+    return parseFloat(Web3.utils.toWei(gweiValue, 'gwei'));
+}
+
+export const convertWeiToEth = (weiValue) => {
+    return parseFloat(Web3.utils.fromWei(weiValue, "ether"));
+}
+

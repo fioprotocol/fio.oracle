@@ -1,58 +1,66 @@
+import {re} from "mathjs";
+
 require('dotenv').config();
+import Web3 from 'web3';
+const cors = require("cors");
+
+import { convertWeiToEth, handleServerError, prepareLogDirectory, prepareLogFile } from "./helpers";
+
+const route = require("express").Router();
 import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
-import Web3 from 'web3';
-import {handleServerError, logDir, prepareLogDirectory, prepareLogFile} from "./helpers";
-import process from "process";
-const cors = require("cors");
-
-const route = require("express").Router();
-const pathFIO = logDir + "FIO.log";//log events and errors on FIO side
-const pathETH = logDir + "ETH.log";//log events and errors on ETH side
-const pathMATIC = logDir + "MATIC.log";
-const blockNumFIO = logDir + "blockNumberFIO.log";//store FIO blockNumber for the wrapAction
-const blockNumETH = logDir + "blockNumberETH.log";//store ETH blockNumber for the unwrapAction
-const blockNumMATIC = logDir + "blockNumberMATIC.log";//store ETH blockNumber for the unwrapAction
-
-const WrapTransaction = logDir + "WrapTransaction.log";//store fio transaction data for wrapAction
-const WrapErrTransaction = logDir + "WrapErrTransaction.log";//store unprocessed fio transaction data for resubmit
-const serverErrLogsPathname = logDir + "Error.log";//store the error startup and else unexpected errors error
-const pathDomainWrapTransact = logDir + "DomainWrapTransaction.log";
-const domainWrapErrTransaction = logDir + "DomainWrapErrTransaction.log";
+import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
 
 class MainCtrl {
     async start(app) {
+        const logPrefix = `Startup --> `;
         try {
             this.web3 = new Web3(process.env.ETHINFURA);
             this.polyWeb3 = new Web3(process.env.POLYGON_INFURA);
 
-            prepareLogDirectory(logDir);
-            await prepareLogFile({ filePath: serverErrLogsPathname });
-            await prepareLogFile({ filePath: pathDomainWrapTransact });
-            await prepareLogFile({ filePath: domainWrapErrTransaction });
-            await prepareLogFile({ filePath: WrapTransaction });
-            await prepareLogFile({ filePath: WrapErrTransaction });
-            await prepareLogFile({ filePath: pathFIO });
-            await prepareLogFile({ filePath: pathETH });
-            await prepareLogFile({ filePath: pathMATIC });
-            console.log('Startup: logs folders is ready');
+            await this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
+                if (error) {
+                    console.log(logPrefix + error.stack)
+                } else {
+                    console.log(logPrefix + `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`)
+                }
+            })
+
+            await this.polyWeb3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, result) => {
+                if (error) {
+                    console.log(logPrefix + error.stack)
+                } else {
+                    console.log(logPrefix + `Oracle MATIC Address Balance: ${convertWeiToEth(result)} MATIC`)
+                }
+            })
+
+            prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
+            console.log(logPrefix + 'logs folders are ready');
             await prepareLogFile({
-                filePath: blockNumFIO,
+                filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
                 blockName: 'lastBlockNumber',
                 fetchLastBlockNumber: utilCtrl.getInfo
             });
             await prepareLogFile({
-                filePath: blockNumETH,
+                filePath: LOG_FILES_PATH_NAMES.blockNumberETH,
                 blockName: 'ethBlockNumber',
                 fetchLastBlockNumber: this.web3.eth.getBlockNumber
             });
             await prepareLogFile({
-                filePath: blockNumMATIC,
+                filePath: LOG_FILES_PATH_NAMES.blockNumberMATIC,
                 blockName: 'polygonBlockNumber',
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
-            console.log('Startup: blocks folders is ready');
+            console.log(logPrefix + 'blocks folders are ready');
 
             // ethCtrl.getContract();
             setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
@@ -63,11 +71,11 @@ class MainCtrl {
 
             this.initRoutes(app);
 
-            console.log(`Startup: success`)
-            console.log(`Mode: ${process.env.MODE}`)
+            console.log(logPrefix + `success`)
+            console.log(logPrefix + `Mode: ${process.env.MODE}`)
         } catch (err) {
-            handleServerError(err, 'Startup');
-            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, FIO_ORACLE_ADDRESS, POLLTIME');
+            handleServerError(err, logPrefix);
+            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME');
         }
     }
 

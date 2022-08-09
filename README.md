@@ -19,7 +19,6 @@ FIO_SERVER_URL_ACTION=    # URL of FIO API node
 FIO_ORACLE_PUBLIC_KEY=    # The FIO public key used for approving unwrap transactions
 FIO_ORACLE_PRIVATE_KEY=   # The FIO private key used for approving unwrap transactions
 FIO_ORACLE_ACCOUNT=       # The FIO account used for approving unwrap transactions
-FIO_ORACLE_ADDRESS=       # The FIO Crypto Handle used for approving unwrap transactions
 ETH_ORACLE_PUBLIC=        # The ETH oracle public key used for signing ERC20 transactions
 ETH_ORACLE_PRIVATE=       # The ETH oracle private key used for signing ERC20 transactions
 POLYGON_ORACLE_PUBLIC=    # The POLYGON oracle public key used for signing ERC721 transactions
