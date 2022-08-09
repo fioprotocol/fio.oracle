@@ -87,7 +87,7 @@ export const addLogMessage = ({
 }
 
 export const convertWeiToGwei = (weiValue) => {
-    return parseFloat(Web3.utils.fromWei(weiValue, 'gwei'))
+    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, 'gwei'))
 }
 
 export const convertGweiToWei = (gweiValue) => {
@@ -95,6 +95,6 @@ export const convertGweiToWei = (gweiValue) => {
 }
 
 export const convertWeiToEth = (weiValue) => {
-    return parseFloat(Web3.utils.fromWei(weiValue, "ether"));
+    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, "ether"));
 }
 

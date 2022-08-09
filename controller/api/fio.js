@@ -108,6 +108,8 @@ const unwrapTokensFromEthToFioChain = async (obt_id, fioAmount, fioAddress) => {
 
 // execute unwrap action using eth transaction data and amount
 const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) => {
+    const logPrefix = `FIO, unwrapDomainFromPolygonToFioChain --> fioAddress :  ${fioAddress}, fioDomain: ${fioDomain} `
+    console.log(logPrefix + 'Start');
     try {
         let contract = 'fio.oracle',
             action = 'unwrapdomain', //action name
@@ -170,7 +172,8 @@ const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) 
 
         const transactionResult = await pushResult.json();
 
-        console.log(`${(transactionResult.type || transactionResult.error) ? 'Error' : 'Result'}: `, transactionResult);
+        console.log(logPrefix + `${(transactionResult.type || transactionResult.error) ? 'Error' : 'Result'}:`);
+        console.log(transactionResult)
         addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.FIO,
             message: {
@@ -180,6 +183,7 @@ const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) 
                 transaction: transactionResult
             }
         });
+        console.log(logPrefix + 'End')
     } catch (err) {
         handleServerError(err, 'FIO, unwrapDomain');
     }

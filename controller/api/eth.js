@@ -41,12 +41,14 @@ class EthCtrl {
                 }
             } else if (gasMode === "0"||(gasMode === "1" && gasPriceSuggestions.status === "0")){
                 console.log(logPrefix + 'using gasPrice value from the .env:');
-                gasPrice = parseInt(process.env.TGASPRICE);
+                gasPrice = convertGweiToWei(process.env.TGASPRICE);
             }
 
-            const gasLimit = parseInt(process.env.TGASLIMIT);
+            if (!gasPrice) throw new Error(logPrefix + 'Cannot set valid Gas Price value');
 
-            console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)}) GWEI`)
+            const gasLimit = parseFloat(process.env.TGASLIMIT);
+
+            console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
             console.log('gasLimit = ' + gasLimit)
 
             // we shouldn't await it to do not block the rest of the actions
@@ -54,11 +56,10 @@ class EthCtrl {
                 if (error) {
                     console.log(logPrefix + error.stack)
                 } else {
-                    if (convertWeiToEth(oracleBalance) < ((convertWeiToEth(gasLimit * gasPrice) + '') * 5)) {
+                    if (convertWeiToEth(oracleBalance) < ((convertWeiToEth(gasLimit * gasPrice)) * 5)) {
                         const timeStamp = new Date().toISOString();
-                        console.log('Warning: Low ETH balance: <balance>')
-                        console.log(logPrefix + `Warning: Low Oracle ETH Address Balance: ${this.web3.utils.fromWei(oracleBalance, "ether")} ETH`)
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.oracleErrors, timeStamp + ' ' + logPrefix + `Warning: Low Oracle ETH Address Balance: ${this.web3.utils.fromWei(oracleBalance, "ether")} ETH`)
+                        console.log(logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
+                        fs.writeFileSync(LOG_FILES_PATH_NAMES.oracleErrors, timeStamp + ' ' + logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
                     }
                 }
             })
@@ -123,7 +124,7 @@ class EthCtrl {
                                 if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'it looks like the transaction ended out of gas.')
                             });
 
-                        if(transactionCount === 0) {
+                        if (transactionCount === 0) {
                             const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
                             fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransactionError, wrapText); // store issued transaction to log by line-break
                         }
