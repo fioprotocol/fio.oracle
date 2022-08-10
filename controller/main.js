@@ -11,6 +11,7 @@ import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
 import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
+import config from "../config/config";
 
 class MainCtrl {
     async start(app) {
@@ -47,27 +48,23 @@ class MainCtrl {
             console.log(logPrefix + 'logs folders are ready');
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-                blockName: 'lastBlockNumber',
                 fetchLastBlockNumber: utilCtrl.getInfo
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberETH,
-                blockName: 'ethBlockNumber',
                 fetchLastBlockNumber: this.web3.eth.getBlockNumber
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberMATIC,
-                blockName: 'polygonBlockNumber',
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
             console.log(logPrefix + 'blocks folders are ready');
 
             // ethCtrl.getContract();
-            setInterval(fioCtrl.getLatestDomainWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-            setInterval(fioCtrl.getLatestWrapAction, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-            setInterval(fioCtrl.unwrapTokens, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedWrapActions, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapTokensActions, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
             // setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            setInterval(fioCtrl.unwrapPolygonDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapDomainActionsOnPolygon, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
 
             this.initRoutes(app);
 

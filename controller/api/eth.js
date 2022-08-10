@@ -1,9 +1,11 @@
+import config from "../../config/config";
+
 require('dotenv').config();
 import Web3 from "web3";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json";
 import {addLogMessage, convertGweiToWei, convertWeiToEth, convertWeiToGwei, handleServerError} from "../helpers";
-import {LOG_FILES_PATH_NAMES} from "../constants";
+import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 // todo: 'ethereumjs-tx' has been deprecated, update to @ethereumjs/tx
 const Tx = require('ethereumjs-tx').Transaction;
@@ -24,6 +26,10 @@ class EthCtrl {
         const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain} --> `
         console.log(logPrefix + 'Executing wrapFioToken, data to wrap:');
         console.log(wrapData)
+
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapTokensExecuting))
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+
         try {
             const quantity = wrapData.amount;
             const gasPriceSuggestions = await (await fetch(process.env.ETH_API_URL)).json();
@@ -142,14 +148,18 @@ class EthCtrl {
                             console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapTokensTransaction} log file was successfully updated.`)
                         } else {
                             fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction, "")
+                            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
                             console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}: successfully completed`)
                             return 0;
                         }
                         console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}: successfully completed`)
                     } else {
+                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
                         console.log(logPrefix + "Invalid Address");
                     }
                 } catch (error) {
+                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
+
                     console.log(logPrefix + error.stack);
                     addLogMessage({
                         filePath: LOG_FILES_PATH_NAMES.ETH,
@@ -158,11 +168,15 @@ class EthCtrl {
                 }
             }
         } catch (err) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
             handleServerError(err, 'ETH, wrapFioToken');
         }
     }
 
     async wrapDomainFunction(tx_id, wrapData) {// excute wrap action
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting))
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, true, 0);
+
         try {
             const info = await (await fetch(process.env.ETH_API_URL)).json();
             const gasMode = process.env.USEGASAPI;
@@ -237,14 +251,19 @@ class EthCtrl {
                         csvContent = csvContent.join('\r\n'); // convert array back to string
                         fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, csvContent)
                     } else {
+                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
                         fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, "")
                         return 0;
                     }
 
+
                 } else {
+                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
                     console.log("Invalid Address");
                 }
             } catch (error) {
+                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
+
                 console.log(error);
                 addLogMessage({
                     filePath: LOG_FILES_PATH_NAMES.ETH,
@@ -252,6 +271,8 @@ class EthCtrl {
                 });
             }
         } catch (err) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
+
             handleServerError(err, 'ETH, wrapDomainFunction');
         }
     }

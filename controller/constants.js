@@ -13,3 +13,9 @@ export const LOG_FILES_PATH_NAMES = {
     wrapDomainTransaction: LOG_DIRECTORY_PATH_NAME + "DomainWrapTransaction.log",
     wrapDomainTransactionError: LOG_DIRECTORY_PATH_NAME + "DomainWrapErrTransaction.log",
 }
+
+export const ORACLE_CACHE_KEYS = {
+    isWrapTokensExecuting: 'isWrapTokensFunctionExecuting',
+    isWrapDomainByETHExecuting: 'isWrapDomainByETHFunctionExecuting',
+    isWrapDomainByMATICExecuting: 'isWrapDomainByMATICFunctionExecuting',
+}

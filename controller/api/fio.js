@@ -1,4 +1,4 @@
-import {LOG_FILES_PATH_NAMES} from "../constants";
+import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 const fs = require('fs');
 import Web3 from "web3";
@@ -13,7 +13,12 @@ import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
 import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
-import {addLogMessage, handleServerError} from "../helpers";
+import {
+    addLogMessage, getLastProceededBlockNumberOnEthereumChain,
+    getLastProceededBlockNumberOnPolygonChain,
+    handleServerError, updateBlockNumberETH,
+    updateBlockNumberFIO, updateBlockNumberMATIC
+} from "../helpers";
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polyWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -192,21 +197,32 @@ const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) 
 class FIOCtrl {
     constructor() {}
 
-    async getLatestWrapAction(req,res) {
+    async handleUnprocessedWrapActions(req, res) {
+        const logPrefix = 'Get latest Wrap (tokens and domains) actions on FIO chain --> ';
+        console.log(logPrefix + 'Start');
         try {
-            const wrapData = await utilCtrl.getLatestAction("fio.oracle", -1);
-            console.log(wrapData)
-            const dataLen = Object.keys(wrapData).length;
-            if (dataLen != 0) {
-                var count = 0;
-                for (var i = 0; i < dataLen; i++) {
-                    if (wrapData[i].action_trace.act.name == "wraptokens") {// get FIO action data if wrapping action
-                        const weiQuantity = wrapData[i].action_trace.act.data.amount;
-                        const pub_address = wrapData[i].action_trace.act.data.public_address;
-                        const tx_id = wrapData[i].action_trace.trx_id;
-                        const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data);
-                        console.log("weiQuantity: ", weiQuantity)
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, wrapData[i].block_num.toString());
+            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1);
+            const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
+
+            console.log(logPrefix + `events data length : ${wrapDataArrayLength}, data:`);
+            console.log(wrapDataEvents)
+
+            if (wrapDataArrayLength > 0) {
+                console.log(logPrefix + 'Gonna parse events and start execution of wrap actions, if they are not started yet')
+                const isWrapTokensFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapTokensExecuting)
+                const isWrapDomainByETHFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting)
+                const isWrapDomainByMATICFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting)
+
+                console.log(logPrefix + 'isWrapTokensFunctionExecuting: ' + !!isWrapTokensFunctionExecuting)
+                console.log(logPrefix + 'isWrapDomainByETHFunctionExecuting: ' + !!isWrapDomainByETHFunctionExecuting)
+                console.log(logPrefix + 'isWrapDomainByMATICFunctionExecuting: ' + !!isWrapDomainByMATICFunctionExecuting)
+
+                for (let i = 0; i < wrapDataArrayLength; i++) {
+                    if (wrapDataEvents[i].action_trace.act.name === "wraptokens") {// get FIO action data if wrapping action
+                        const weiQuantity = wrapDataEvents[i].action_trace.act.data.amount;
+                        const pub_address = wrapDataEvents[i].action_trace.act.data.public_address;
+                        const tx_id = wrapDataEvents[i].action_trace.trx_id;
+                        const wrapText = tx_id + ' ' + JSON.stringify(wrapDataEvents[i].action_trace.act.data);
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.FIO,
@@ -214,7 +230,7 @@ class FIOCtrl {
                                 chain: "FIO",
                                 contract: "fio.oracle",
                                 action: "wraptokens",
-                                transaction: wrapData[i]
+                                transaction: wrapDataEvents[i]
                             }
                         });
                         addLogMessage({
@@ -223,33 +239,14 @@ class FIOCtrl {
                             addTimestamp: false
                         });
 
-                        if (count == 0) {
-                            ethCtrl.wrapFioToken(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                        if (!isWrapTokensFunctionExecuting) {
+                            ethCtrl.wrapFioToken(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
-                        count++;
-                    }
-                }
-            }
-        } catch (err) {
-            handleServerError(err, 'FIO, getLatestWrapAction');
-        }
-    }
 
-    async getLatestDomainWrapAction(req,res) {
-        console.log('Get latest Domain Wrap actions: start')
-        try {
-            const wrapData = await utilCtrl.getLatestWrapDomainAction("fio.oracle", -1);
-            const dataLen = Object.keys(wrapData).length;
-            if (dataLen != 0) {
-                var count = 0;
-                var polyCount = 0;
-                for (var i = 0; i < dataLen; i++) {
-
-                    if (wrapData[i].action_trace.act.name == "wrapdomain" && wrapData[i].action_trace.act.data.chain_code == "ETH") {// get FIO action data if wrapping action
-                        const pub_address = wrapData[i].action_trace.act.data.public_address;
-                        const tx_id = wrapData[i].action_trace.trx_id;
-                        const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data);
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, wrapData[i].block_num.toString());
+                    } else if (wrapDataEvents[i].action_trace.act.name === "wrapdomain" && wrapDataEvents[i].action_trace.act.data.chain_code === "ETH") { // get FIO action data if wrapping domain on ETH chain
+                        const pub_address = wrapDataEvents[i].action_trace.act.data.public_address;
+                        const tx_id = wrapDataEvents[i].action_trace.trx_id;
+                        const wrapText = tx_id + ' ' + JSON.stringify(wrapDataEvents[i].action_trace.act.data);
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.FIO,
@@ -257,7 +254,7 @@ class FIOCtrl {
                                 chain: "FIO",
                                 contract: "fio.oracle",
                                 action: "wrapdomain ETH",
-                                transaction: wrapData[i]
+                                transaction: wrapDataEvents[i]
                             }
                         });
                         addLogMessage({
@@ -266,15 +263,14 @@ class FIOCtrl {
                             addTimestamp: false
                         });
 
-                        if (count == 0) {
-                            await ethCtrl.wrapDomainFunction(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                        if (!isWrapDomainByETHFunctionExecuting) {
+                            ethCtrl.wrapDomainFunction(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
-                        count++;
-                    } else if (wrapData[i].action_trace.act.name === "wrapdomain" && wrapData[i].action_trace.act.data.chain_code === "MATIC") {
-                        const pub_address = wrapData[i].action_trace.act.data.public_address;
-                        const tx_id = wrapData[i].action_trace.trx_id;
-                        const wrapText = tx_id + ' ' + JSON.stringify(wrapData[i].action_trace.act.data);
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, wrapData[i].block_num.toString());
+
+                    } else if (wrapDataEvents[i].action_trace.act.name === "wrapdomain" && wrapDataEvents[i].action_trace.act.data.chain_code === "MATIC") {
+                        const pub_address = wrapDataEvents[i].action_trace.act.data.public_address;
+                        const tx_id = wrapDataEvents[i].action_trace.trx_id;
+                        const wrapText = tx_id + ' ' + JSON.stringify(wrapDataEvents[i].action_trace.act.data);
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.FIO,
@@ -282,7 +278,7 @@ class FIOCtrl {
                                 chain: "FIO",
                                 contract: "fio.oracle",
                                 action: "wrapdomain MATIC",
-                                transaction: wrapData[i]
+                                transaction: wrapDataEvents[i]
                             }
                         });
                         addLogMessage({
@@ -291,32 +287,42 @@ class FIOCtrl {
                             addTimestamp: false
                         });
 
-                        if (polyCount === 0) {
-                            await polygonCtrl.wrapFioDomain(tx_id, wrapData[i].action_trace.act.data);//excute first wrap action
+                        if (!isWrapDomainByMATICFunctionExecuting) {
+                            polygonCtrl.wrapFioDomain(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
-                        polyCount++;
                     }
+
+                    updateBlockNumberFIO(wrapDataEvents[i].block_num.toString());
                 }
             }
         } catch (err) {
-            handleServerError(err, 'FIO, getLatestDomainWrapAction');
+            handleServerError(err, 'FIO, getLatestWrapAction');
         }
-        console.log('Get latest Domain Wrap actions: all necessary actions were completed successfully')
+        console.log(logPrefix + 'End');
     }
 
-    async unwrapTokens() {
-        const logPrefix = `FIO, unwrapFioTokens --> `
+    async handleUnprocessedUnwrapTokensActions() {
+        const logPrefix = `FIO, handleUnprocessedUnwrapTokensActions --> `
         console.log(logPrefix + 'Executing');
         try {
-            const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
+            const lastInChainBlockNumber = await web3.eth.getBlockNumber()
+            const lastProceededBlockNumber = getLastProceededBlockNumberOnEthereumChain();
+            const minAllowedBlockNumber = parseFloat(lastInChainBlockNumber + '') - parseFloat(process.env.BLOCKS_RANGE_LIMIT_ETH);
+
+            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1;
+
             await fioTokenContractOnEthChain.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
                 // filter: {id: 1},
-                fromBlock: lastBlockNumber,
-                toBlock: 'latest' // todo: use infura limitation here
+                fromBlock: fromBlockNumber,
+                toBlock: lastInChainBlockNumber
             }, (error, events) => {
                 if (!error) {
                     let eventsObject=JSON.parse(JSON.stringify(events));
                     let eventsKeysArray = Object.keys(eventsObject)
+
+                    console.log(logPrefix + 'events list:');
+                    console.log(events)
+
                     if (eventsKeysArray.length > 0) {
                         for (let i = 0; i < eventsKeysArray.length; i++) {
                             const txId = eventsObject[eventsKeysArray[i]].transactionHash;
@@ -328,13 +334,13 @@ class FIOCtrl {
                                 message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(eventsObject[eventsKeysArray[i]]),
                             });
 
-                            config.oracleCache.set( "ethBlockNumber", eventsObject[eventsKeysArray[i]].blockNumber+1, 10000 );
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, eventsObject[eventsKeysArray[i]].blockNumber.toString());
+                            updateBlockNumberETH(eventsObject[eventsKeysArray[i]].blockNumber.toString());
+
                             unwrapTokensFromEthToFioChain(txId, amount, fioAddress);//execute unwrap action using transaction_id and amount
                         }
                     }
                 } else {
-                    console.log(logPrefix + `requesting past unwrap events from ${lastBlockNumber} ETH Block Number Error:`);
+                    console.log(logPrefix + `requesting past unwrap events from ${fromBlockNumber} ETH Block Number Error:`);
                     console.log(error)
                     addLogMessage({
                         filePath: LOG_FILES_PATH_NAMES.ETH,
@@ -390,22 +396,29 @@ class FIOCtrl {
         }
     }
 
-    async unwrapPolygonDomainFunction() {
-        const logPrefix = `FIO, unwrapPolygonDomainFunction --> `
+    async handleUnprocessedUnwrapDomainActionsOnPolygon() {
+        const logPrefix = `FIO, handleUnprocessedUnwrapDomainActionsOnPolygon --> `
         console.log(logPrefix + 'Executing');
         try {
-            const lastBlockNumber = config.oracleCache.get("polygonBlockNumber");
+            const lastInChainBlockNumber = await polyWeb3.eth.getBlockNumber()
+            const lastProceededBlockNumber = getLastProceededBlockNumberOnPolygonChain();
+            const minAllowedBlockNumber = parseFloat(lastInChainBlockNumber + '') - parseFloat(process.env.BLOCKS_RANGE_LIMIT_POLY);
+
+            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1;
+
             fioPolygonNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
                 // filter: {id: 1},
-                fromBlock: lastBlockNumber,
-                toBlock: 'latest'
+                fromBlock: fromBlockNumber,
+                toBlock: lastInChainBlockNumber
             }, async (error, events) => {
-                if (!error){
+                if (!error) {
                     const obj=JSON.parse(JSON.stringify(events));
                     const array = Object.keys(obj)
-                    console.log('events: ', events);
-                    if (array.length != 0) {
-                        for (var i = 0; i < array.length; i++) {
+                    console.log(logPrefix + 'events list:');
+                    console.log(events)
+
+                    if (array.length > 0) {
+                        for (let i = 0; i < array.length; i++) {
                             const txId = obj[array[i]].transactionHash;
                             const fioAddress = obj[array[i]].returnValues.fioaddress;
                             const domain = obj[array[i]].returnValues.domain;
@@ -415,14 +428,14 @@ class FIOCtrl {
                                 message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(obj[array[i]]),
                             });
 
-                            config.oracleCache.set( "polygonBlockNumber", obj[array[i]].blockNumber+1, 10000 );
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, obj[array[i]].blockNumber.toString());
-                            unwrapDomainFromPolygonToFioChain(txId, domain, fioAddress);//execute unwrap action using transaction_id and amount
+                            updateBlockNumberMATIC(obj[array[i]].blockNumber.toString());
+
+                            unwrapDomainFromPolygonToFioChain(txId, domain, fioAddress); //execute unwrap action using transaction_id and amount
                         }
                     }
                 }
                 else {
-                    console.log(logPrefix + `requesting past unwrap events from ${lastBlockNumber} MATIC Block Number Error:`);
+                    console.log(logPrefix + `requesting past unwrap events from ${fromBlockNumber} MATIC Block Number Error:`);
                     console.log(error)
                     addLogMessage({
                         filePath: LOG_FILES_PATH_NAMES.MATIC,

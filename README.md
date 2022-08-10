@@ -40,6 +40,8 @@ POLYGON_INFURA=           # The Polygon chain Infura API URL
 FIO_NFT_POLYGON_CONTRACT=     # The Polygon address of the erc721 NFT contract
 ETH_TESTNET_CHAIN_NAME=   # The Ethereum testnet chain name
 POLYGON_TESTNET_CHAIN_NAME=   # The Polygon testnet chain name
+BLOCKS_RANGE_LIMIT_ETH=       # The limitation for Block numbers used for ETH chain to make pastEvents contract call
+BLOCKS_RANGE_LIMIT_POLY=       # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
 ```
 
 ## Installation

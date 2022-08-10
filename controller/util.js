@@ -1,31 +1,21 @@
 require('dotenv').config();
 import config from '../config/config';
-
 const { curly } = require('node-libcurl')
+
+import { getLastProceededBlockNumberOnFioChain } from "./helpers";
 
 class UtilCtrl {
     constructor(){
     }
-    async getLatestAction(accountName, pos) {
-      const lastNumber = config.oracleCache.get("lastBlockNumber");
-      var offset = parseInt(process.env.POLLOFFSET);
-      var data = await this.getActions(accountName, pos, offset);
+    async getUnprocessedActionsOnFioChain(accountName, pos) {
+      const lastNumber = getLastProceededBlockNumberOnFioChain();
+      let offset = parseInt(process.env.POLLOFFSET);
+      let data = await this.getActions(accountName, pos, offset);
       while(data.length > 0 && data[0].block_num > lastNumber) {
         offset -= 10;
         data = await this.getActions(accountName, pos, offset);
       }
-      var realData = Array();
-      for(var i = 0; i < data.length; i++) {
-        if (data[i].block_num > lastNumber) {
-          realData.push(data[i]);
-        }
-        const len = realData.length;
-        if( len > 0) {
-          // todo: i think we should also update blockNumberFIO.log here
-          config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
-        }
-      }
-      return realData;
+      return data.filter(elem => elem.block_num > lastNumber)
     }
 
     async getLatestWrapDomainAction(accountName, pos) {
@@ -43,7 +33,6 @@ class UtilCtrl {
         }
         const len = realData.length;
         if( len > 0) {
-          // todo: i think we should also update blockNumberFIO.log here
           config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
         }
       }
@@ -59,14 +48,15 @@ class UtilCtrl {
         });
         if (data.statusCode === 200) {
           const dataLen = Object.keys(data.data.actions).length;
-          var array = Array();
-          for (var i = 0; i < dataLen; i++) {
+          let array = Array();
+          for (let i = 0; i < dataLen; i++) {
             array.push(data.data.actions[i]);
           }
           return array;
         }
         // return [];
     }
+
     async getBalance(accountName) {
       const data = await curly.post(process.env.FIO_SERVER_URL_ACTION+'v1/chain/get_account', {
         postFields: JSON.stringify({ "account_name": accountName}),

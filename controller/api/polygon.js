@@ -8,7 +8,7 @@ const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
 const fs = require('fs');
 
-import { LOG_FILES_PATH_NAMES } from "../constants";
+import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 class PolyCtrl {
     constructor() {
@@ -19,6 +19,10 @@ class PolyCtrl {
         const logPrefix = `MATIC, wrapFioDomain, FIO tx_id: ${txIdOnFioChain} --> `
         console.log(logPrefix + 'Executing wrapFioDomain, data to wrap:');
         console.log(wrapData)
+
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting))
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, true, 0);
+
         try {
             const domainName = wrapData.fio_domain;
             const gasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
@@ -136,15 +140,21 @@ class PolyCtrl {
                         fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, csvContent)
                         console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapDomainTransaction} log file was successfully updated.`)
                     } else {
+                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
+
                         fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, "")
                         console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
                         return 0;
                     }
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
                 } else {
+                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
+
                     console.log(logPrefix + "Invalid Address");
                 }
             } catch (error) {
+                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
+
                 console.log(logPrefix + error.stack);
                 addLogMessage({
                     filePath: LOG_FILES_PATH_NAMES.MATIC,
@@ -152,6 +162,8 @@ class PolyCtrl {
                 });
             }
         } catch (err) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
+
             handleServerError(err, 'Polygon, wrapDomainFunction')
         }
     }
