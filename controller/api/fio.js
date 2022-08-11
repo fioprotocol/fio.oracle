@@ -309,7 +309,7 @@ class FIOCtrl {
             const lastProceededBlockNumber = getLastProceededBlockNumberOnEthereumChain();
             const minAllowedBlockNumber = parseFloat(lastInChainBlockNumber + '') - parseFloat(process.env.BLOCKS_RANGE_LIMIT_ETH);
 
-            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1;
+            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1; // if oracle will be absent for a long time, it could skip approval for a lot of actions
 
             await fioTokenContractOnEthChain.getPastEvents('unwrapped',{ // get unwrap event from ETH using blocknumber
                 // filter: {id: 1},
@@ -404,7 +404,7 @@ class FIOCtrl {
             const lastProceededBlockNumber = getLastProceededBlockNumberOnPolygonChain();
             const minAllowedBlockNumber = parseFloat(lastInChainBlockNumber + '') - parseFloat(process.env.BLOCKS_RANGE_LIMIT_POLY);
 
-            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1;
+            const fromBlockNumber = minAllowedBlockNumber > lastProceededBlockNumber + 1 ? minAllowedBlockNumber : lastProceededBlockNumber + 1; // if oracle will be absent for a long time, it could skip approval for a lot of actions
 
             fioPolygonNftContract.getPastEvents('unwrapped',{ // get unwrapp event from ETH using blocknumber
                 // filter: {id: 1},

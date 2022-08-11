@@ -57,7 +57,7 @@ class EthCtrl {
             console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
             console.log('gasLimit = ' + gasLimit)
 
-            // we shouldn't await it to do not block the rest of the actions
+            // we shouldn't await it to do not block the rest of the actions flow
             this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
                     console.log(logPrefix + error.stack)

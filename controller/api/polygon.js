@@ -1,6 +1,6 @@
 require('dotenv').config();
 import Web3 from "web3";
-import Common from "ethereumjs-common";
+import Common, { CustomChain } from '@ethereumjs/common';
 import config from "../../config/config";
 import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
 import {addLogMessage, convertGweiToWei, convertWeiToEth, convertWeiToGwei, handleServerError} from "../helpers";
@@ -28,10 +28,8 @@ class PolyCtrl {
             const gasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
             const gasMode = process.env.USEGASAPI;
 
-            // { chain: process.env.MODE === 'testnet' ? process.env.POLYGON_TESTNET_CHAIN_NAME : 'polygon' }
+            const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
 
-            const customChainParams = { name: 'matic-mumbai', chainId: 80001, networkId: 80001 }
-            const common = Common.forCustomChain('goerli', customChainParams, 'istanbul');
             let gasPrice = 0;
             if ((gasMode === "1" && gasPriceSuggestions.status > 0) || (gasMode === "0" && parseInt(process.env.PGASPRICE) <= 0)) {
                 console.log(logPrefix + 'using gasPrice value from the api:');
