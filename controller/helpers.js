@@ -1,20 +1,18 @@
 import fs from "fs";
+import Web3 from 'web3';
 import config from "../config/config";
-
-export const logDir = "controller/api/logs/"; //log events and errors on FIO side
-
-const serverErrLogsPathname = logDir + "Error.log"; //store the error startup and else unexpected errors error
+import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
 
 // function to handle all unexpected request errors (like bad internet connection or invalid response) and add them into Error.log file
 export const handleServerError = async (err, additionalMessage = null) => {
     if (additionalMessage) console.log(additionalMessage+ ': ')
     console.log(err.stack)
 
-    prepareLogDirectory(logDir, false);
-    await prepareLogFile({ filePath: serverErrLogsPathname }, false);
+    prepareLogDirectory(LOG_DIRECTORY_PATH_NAME, false);
+    await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors }, false);
 
     addLogMessage({
-        filePath: serverErrLogsPathname,
+        filePath: LOG_FILES_PATH_NAMES.oracleErrors,
         message: (additionalMessage ?  (additionalMessage + ': ') : '') + err.stack,
     });
 }
@@ -35,39 +33,34 @@ export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => 
 
 export const prepareLogFile = async ({
     filePath,
-    blockName = null,
     fetchLastBlockNumber = null,
 }, withLogsInConsole = true) => {
     if (fs.existsSync(filePath)) { //check file exist
         if (withLogsInConsole) console.log(`The file ${filePath} exists.`);
-        if (blockName) {
-            // todo: this could be improved to compare: lastBlockNumberInChain - lastProcessedBlockNumber <= InfuraApiPlanLimitation (or whatever else limitation value),
-            //  and set proper value to cache. InfuraApiPlanLimitation could be managed by .env
-            // const lastProcessedBlockNumber = fs.readFileSync(filePath, 'utf8');
-            // config.oracleCache.set( blockName, parseInt(lastProcessedBlockNumber), 10000 );
+        if (fetchLastBlockNumber) {
+            const lastProcessedBlockNumber = fs.readFileSync(filePath, 'utf8');
 
-            // permanent fix (always use the latest block from the chain), to avoid BD-3541 (Blockheight too far in the past error)
-            let lastBlockNumberInChain;
-            if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
-            fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
-                if (err) {
-                    return console.log(err);
-                }
-                if (withLogsInConsole) console.log(`The file ${filePath} was saved!`);
-            });
-            config.oracleCache.set(blockName, lastBlockNumberInChain, 10000)
+            if (!lastProcessedBlockNumber) {
+                let lastBlockNumberInChain;
+                if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
+                fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
+                    if (err) {
+                        return console.log(err);
+                    }
+                    if (withLogsInConsole) console.log(`The file ${filePath} was saved!`);
+                });
+            }
         }
     } else {
         if (withLogsInConsole) console.log(`The file ${filePath} does not exist.`);
         let lastBlockNumberInChain;
-        if (fetchLastBlockNumber && blockName) lastBlockNumberInChain = await fetchLastBlockNumber();
+        if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
         fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
             if (err) {
                 return console.log(err);
             }
             if (withLogsInConsole) console.log(`The file ${filePath} was saved!`);
         });
-        if (blockName && lastBlockNumberInChain) config.oracleCache.set(blockName, lastBlockNumberInChain, 10000);
     }
 }
 
@@ -87,3 +80,36 @@ export const addLogMessage = ({
         fs.appendFileSync(filePath, (addTimestamp ? (timestampTitle + timeStamp + ' ') : '') + message +'\r\n');
     }
 }
+
+export const convertWeiToGwei = (weiValue) => {
+    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, 'gwei'))
+}
+
+export const convertGweiToWei = (gweiValue) => {
+    return parseFloat(Web3.utils.toWei(gweiValue, 'gwei'));
+}
+
+export const convertWeiToEth = (weiValue) => {
+    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, "ether"));
+}
+
+export const updateBlockNumberFIO = (blockNumber) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
+}
+export const updateBlockNumberETH = (blockNumber) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, blockNumber);
+}
+export const updateBlockNumberMATIC = (blockNumber) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, blockNumber);
+}
+
+export const getLastProceededBlockNumberOnFioChain = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
+}
+export const getLastProceededBlockNumberOnEthereumChain = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, 'utf8'));
+}
+export const getLastProceededBlockNumberOnPolygonChain = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, 'utf8'));
+}
+
