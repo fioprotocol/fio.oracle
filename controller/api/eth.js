@@ -23,7 +23,7 @@ class EthCtrl {
     }
 
     async wrapFioToken(txIdOnFioChain, wrapData) {
-        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain} --> `
+        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain}, amount: ${wrapData.amount / 1000000000} FIO --> `
         console.log(logPrefix + 'Executing wrapFioToken, data to wrap:');
         console.log(wrapData)
 
@@ -73,7 +73,7 @@ class EthCtrl {
 
             const registeredOraclesPublicKeys = await this.fioContract.methods.getOracles().call();
             if(registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
-                let transactionCount = 0;
+                let isTransactionProceededSuccessfully = false;
                 try {
                     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
                     const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
@@ -85,10 +85,10 @@ class EthCtrl {
                             console.log(response);
                         });
                     if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                        console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}`)
+                        console.log(logPrefix + `requesting wrap action of ${quantity/1000000000} FIO tokens to ${wrapData.public_address}`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
                         let wrapABI = wrapTokensFunction.encodeABI();
-                        const nonce = ((await this.web3.eth.getTransactionCount(oraclePublicKey)) || 0) + 1; //calculate nonce value for transaction
+                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
                         const ethTransaction = new Tx(
                             {
                                 gasPrice: this.web3.utils.toHex(gasPrice),
@@ -112,7 +112,7 @@ class EthCtrl {
                         await this.web3.eth //excute the sign transaction using public key and private key of oracle
                             .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                             .on('transactionHash', (hash) => {
-                                console.log(logPrefix + 'transaction has been signed and send into the chain.')
+                                console.log(logPrefix + 'transaction has been signed and sent into the chain.')
                                 console.log('TxHash: ', hash);
                             })
                             .on('receipt', (receipt) => {
@@ -121,7 +121,7 @@ class EthCtrl {
                                     filePath: LOG_FILES_PATH_NAMES.ETH,
                                     message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens receipt' + ' ' + JSON.stringify(receipt),
                                 });
-                                transactionCount++;
+                                isTransactionProceededSuccessfully = true;
                             })
                             .on('error', (error, receipt) => {
                                 console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
@@ -129,7 +129,8 @@ class EthCtrl {
                                 if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'it looks like the transaction ended out of gas.')
                             });
 
-                        if (transactionCount === 0) {
+                        if (!isTransactionProceededSuccessfully) {
+                            console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapTokensTransactionError}`)
                             const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
                             fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransactionError, wrapText); // store issued transaction to log by line-break
                         }
