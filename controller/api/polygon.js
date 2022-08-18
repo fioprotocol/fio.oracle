@@ -16,7 +16,7 @@ class PolyCtrl {
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, config.FIO_NFT_POLYGON_CONTRACT);
     }
     async wrapFioDomain(txIdOnFioChain, wrapData) { // excute wrap action
-        const logPrefix = `MATIC, wrapFioDomain, FIO tx_id: ${txIdOnFioChain} --> `
+        const logPrefix = `MATIC, wrapFioDomain, FIO tx_id: ${txIdOnFioChain}, domain: ${wrapData.fio_domain} --> `
         console.log(logPrefix + 'Executing wrapFioDomain, data to wrap:');
         console.log(wrapData)
 
@@ -65,7 +65,7 @@ class PolyCtrl {
                 }
             })
 
-            let transactionCount = 0;
+            let isTransactionProceededSuccessfully = false;
             try {
                 const pubKey = process.env.POLYGON_ORACLE_PUBLIC;
                 const signKey = process.env.POLYGON_ORACLE_PRIVATE;
@@ -81,7 +81,7 @@ class PolyCtrl {
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)
                     const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                     let wrapABI = wrapDomainFunction.encodeABI();
-                    const nonce = (await this.web3.eth.getTransactionCount(pubKey) || 0) + 1;//calculate nonce value for transaction
+                    const nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate nonce value for transaction
                     const polygonTransaction = new Tx(
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
@@ -109,7 +109,7 @@ class PolyCtrl {
                                     filePath: LOG_FILES_PATH_NAMES.MATIC,
                                     message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt),
                                 });
-                                transactionCount++;
+                                isTransactionProceededSuccessfully = true;
                             })
                             .on('error', (error, receipt) => {
                                 console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
@@ -120,7 +120,8 @@ class PolyCtrl {
                         console.log(logPrefix + e.stack);
                     }
 
-                    if (transactionCount === 0) {
+                    if (!isTransactionProceededSuccessfully) {
+                        console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapDomainTransactionError}`)
                         const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
                         fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransactionError, wrapText); // store issued transaction to log by line-break
                     }
