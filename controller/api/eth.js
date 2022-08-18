@@ -88,7 +88,7 @@ class EthCtrl {
                         console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
                         let wrapABI = wrapTokensFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
+                        const nonce = ((await this.web3.eth.getTransactionCount(oraclePublicKey)) || 0) + 1; //calculate nonce value for transaction
                         const ethTransaction = new Tx(
                             {
                                 gasPrice: this.web3.utils.toHex(gasPrice),
@@ -97,7 +97,6 @@ class EthCtrl {
                                 data: wrapABI,
                                 from: oraclePublicKey,
                                 nonce: this.web3.utils.toHex(nonce),
-                                // nonce: web3.utils.toHex(0)
                             },
                             { chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' }
                         );
