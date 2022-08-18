@@ -81,7 +81,7 @@ class PolyCtrl {
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)
                     const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                     let wrapABI = wrapDomainFunction.encodeABI();
-                    const nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate nonce value for transaction
+                    const nonce = (await this.web3.eth.getTransactionCount(pubKey) || 0) + 1;//calculate nonce value for transaction
                     const polygonTransaction = new Tx(
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
@@ -90,7 +90,6 @@ class PolyCtrl {
                             data: wrapABI,
                             from: pubKey,
                             nonce: this.web3.utils.toHex(nonce),
-                            // nonce: web3.utils.toHex(0)
                         },
                         {common}
                     );
