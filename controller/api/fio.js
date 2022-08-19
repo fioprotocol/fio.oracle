@@ -209,9 +209,9 @@ class FIOCtrl {
 
             if (wrapDataArrayLength > 0) {
                 console.log(logPrefix + 'Gonna parse events and start execution of wrap actions, if they are not started yet')
-                const isWrapTokensFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapTokensExecuting)
-                const isWrapDomainByETHFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting)
-                const isWrapDomainByMATICFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting)
+                let isWrapTokensFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapTokensExecuting)
+                let isWrapDomainByETHFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting)
+                let isWrapDomainByMATICFunctionExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting)
 
                 console.log(logPrefix + 'isWrapTokensFunctionExecuting: ' + !!isWrapTokensFunctionExecuting)
                 console.log(logPrefix + 'isWrapDomainByETHFunctionExecuting: ' + !!isWrapDomainByETHFunctionExecuting)
@@ -240,6 +240,7 @@ class FIOCtrl {
                         });
 
                         if (!isWrapTokensFunctionExecuting) {
+                            isWrapTokensFunctionExecuting = true
                             ethCtrl.wrapFioToken(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
 
@@ -264,6 +265,7 @@ class FIOCtrl {
                         });
 
                         if (!isWrapDomainByETHFunctionExecuting) {
+                            isWrapDomainByETHFunctionExecuting = true;
                             ethCtrl.wrapDomainFunction(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
 
@@ -288,6 +290,7 @@ class FIOCtrl {
                         });
 
                         if (!isWrapDomainByMATICFunctionExecuting) {
+                            isWrapDomainByMATICFunctionExecuting = true;
                             polygonCtrl.wrapFioDomain(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
                     }
