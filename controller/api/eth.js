@@ -15,6 +15,8 @@ const fs = require('fs');
 
 const { TextEncoder, TextDecoder } = require('text-encoding');
 
+const fioDecimals = 1000000000;
+
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(process.env.ETHINFURA);
@@ -23,7 +25,7 @@ class EthCtrl {
     }
 
     async wrapFioToken(txIdOnFioChain, wrapData) {
-        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain}, amount: ${wrapData.amount / 1000000000} FIO --> `
+        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain}, amount: ${wrapData.amount / fioDecimals} FIO --> `
         console.log(logPrefix + 'Executing wrapFioToken, data to wrap:');
         console.log(wrapData)
 
@@ -72,7 +74,7 @@ class EthCtrl {
 
 
             const registeredOraclesPublicKeys = await this.fioContract.methods.getOracles().call();
-            if(registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
+            if (registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
                 let isTransactionProceededSuccessfully = false;
                 try {
                     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
@@ -85,10 +87,12 @@ class EthCtrl {
                             console.log(response);
                         });
                     if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                        console.log(logPrefix + `requesting wrap action of ${quantity/1000000000} FIO tokens to ${wrapData.public_address}`)
+                        console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
                         let wrapABI = wrapTokensFunction.encodeABI();
                         const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
+                        console.log(logPrefix + 'nonce number: ' + nonce)
+
                         const ethTransaction = new Tx(
                             {
                                 gasPrice: this.web3.utils.toHex(gasPrice),
@@ -126,7 +130,7 @@ class EthCtrl {
                             .on('error', (error, receipt) => {
                                 console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
 
-                                if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'it looks like the transaction ended out of gas.')
+                                if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
                             });
 
                         if (!isTransactionProceededSuccessfully) {
@@ -149,10 +153,10 @@ class EthCtrl {
                         } else {
                             fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction, "")
                             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
-                            console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}: successfully completed`)
+                            console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}: successfully completed`)
                             return 0;
                         }
-                        console.log(logPrefix + `requesting wrap action of ${quantity} FIO tokens to ${wrapData.public_address}: successfully completed`)
+                        console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}: successfully completed`)
                     } else {
                         config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
                         console.log(logPrefix + "Invalid Address");
@@ -166,6 +170,8 @@ class EthCtrl {
                         message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error,
                     });
                 }
+            } else {
+                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
             }
         } catch (err) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);

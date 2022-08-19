@@ -1,5 +1,3 @@
-import {re} from "mathjs";
-
 require('dotenv').config();
 import Web3 from 'web3';
 const cors = require("cors");
@@ -11,7 +9,7 @@ import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
 import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
-import config from "../config/config";
+import fetch from "node-fetch";
 
 class MainCtrl {
     async start(app) {
@@ -20,6 +18,7 @@ class MainCtrl {
             this.web3 = new Web3(process.env.ETHINFURA);
             this.polyWeb3 = new Web3(process.env.POLYGON_INFURA);
 
+            // Check oracle addresses balances on ETH and Polygon chains
             await this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
                 if (error) {
                     console.log(logPrefix + error.stack)
@@ -27,7 +26,6 @@ class MainCtrl {
                     console.log(logPrefix + `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`)
                 }
             })
-
             await this.polyWeb3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, result) => {
                 if (error) {
                     console.log(logPrefix + error.stack)
@@ -36,6 +34,17 @@ class MainCtrl {
                 }
             })
 
+            // Check is ETH_API_URL and POLYGON_API_URL variables are valid
+            const gasMode = process.env.USEGASAPI;
+            if (gasMode === "1") {
+                const ethGasPriceSuggestions = await (await fetch(process.env.ETH_API_URL)).json();
+                if (ethGasPriceSuggestions.status !== "1") throw new Error('Please, check "ETH_API_URL" variable: ' + JSON.stringify(ethGasPriceSuggestions))
+                const polyGasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
+                if (polyGasPriceSuggestions.status !== "1") throw new Error('Please, check "POLYGON_API_URL" variable: ' + JSON.stringify(polyGasPriceSuggestions))
+
+            }
+
+            // Prepare logs files
             prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction });
@@ -60,6 +69,7 @@ class MainCtrl {
             });
             console.log(logPrefix + 'blocks folders are ready');
 
+            // Start Jobs
             // ethCtrl.getContract();
             setInterval(fioCtrl.handleUnprocessedWrapActions, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
             setInterval(fioCtrl.handleUnprocessedUnwrapTokensActions, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
@@ -72,7 +82,7 @@ class MainCtrl {
             console.log(logPrefix + `Mode: ${process.env.MODE}`)
         } catch (err) {
             handleServerError(err, logPrefix);
-            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME');
+            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME, ETH_API_URL, POLYGON_API_URL');
         }
     }
 

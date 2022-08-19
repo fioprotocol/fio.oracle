@@ -114,7 +114,7 @@ class PolyCtrl {
                             .on('error', (error, receipt) => {
                                 console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
 
-                                if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'it looks like the transaction ended out of gas.')
+                                if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value.')
                             });
                     } catch(e) {
                         console.log(logPrefix + e.stack);
