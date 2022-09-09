@@ -2,7 +2,13 @@ require('dotenv').config();
 import Web3 from 'web3';
 const cors = require("cors");
 
-import { convertWeiToEth, handleServerError, prepareLogDirectory, prepareLogFile } from "./helpers";
+import {
+    convertNativeFioIntoFio,
+    convertWeiToEth,
+    handleServerError,
+    prepareLogDirectory,
+    prepareLogFile
+} from "./helpers";
 
 const route = require("express").Router();
 import fioRoute from './routes/fio';

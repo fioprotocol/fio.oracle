@@ -4,7 +4,14 @@ require('dotenv').config();
 import Web3 from "web3";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json";
-import {addLogMessage, convertGweiToWei, convertWeiToEth, convertWeiToGwei, handleServerError} from "../helpers";
+import {
+    addLogMessage,
+    convertGweiToWei,
+    convertNativeFioIntoFio,
+    convertWeiToEth,
+    convertWeiToGwei,
+    handleServerError
+} from "../helpers";
 import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 // todo: 'ethereumjs-tx' has been deprecated, update to @ethereumjs/tx
@@ -15,8 +22,6 @@ const fs = require('fs');
 
 const { TextEncoder, TextDecoder } = require('text-encoding');
 
-const fioDecimals = 1000000000;
-
 class EthCtrl {
     constructor() {
         this.web3 = new Web3(process.env.ETHINFURA);
@@ -25,7 +30,7 @@ class EthCtrl {
     }
 
     async wrapFioToken(txIdOnFioChain, wrapData) {
-        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain}, amount: ${wrapData.amount / fioDecimals} FIO --> `
+        const logPrefix = `ETH, wrapFioToken, FIO tx_id: ${txIdOnFioChain}, amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO --> `
         console.log(logPrefix + 'Executing wrapFioToken, data to wrap:');
         console.log(wrapData)
 
@@ -87,7 +92,7 @@ class EthCtrl {
                             console.log(response);
                         });
                     if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                        console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}`)
+                        console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
                         let wrapABI = wrapTokensFunction.encodeABI();
                         const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
@@ -153,10 +158,10 @@ class EthCtrl {
                         } else {
                             fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction, "")
                             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
-                            console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}: successfully completed`)
+                            console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: successfully completed`)
                             return 0;
                         }
-                        console.log(logPrefix + `requesting wrap action of ${quantity / fioDecimals} FIO tokens to ${wrapData.public_address}: successfully completed`)
+                        console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: successfully completed`)
                     } else {
                         config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
                         console.log(logPrefix + "Invalid Address");
