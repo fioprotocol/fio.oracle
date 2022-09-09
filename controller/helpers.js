@@ -113,3 +113,8 @@ export const getLastProceededBlockNumberOnPolygonChain = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, 'utf8'));
 }
 
+export const convertNativeFioIntoFio = (nativeFioValue) => {
+    const fioDecimals = 1000000000;
+    return parseInt(nativeFioValue + '') / fioDecimals;
+}
+

@@ -18,4 +18,6 @@ export const ORACLE_CACHE_KEYS = {
     isWrapTokensExecuting: 'isWrapTokensFunctionExecuting',
     isWrapDomainByETHExecuting: 'isWrapDomainByETHFunctionExecuting',
     isWrapDomainByMATICExecuting: 'isWrapDomainByMATICFunctionExecuting',
+    isUnwrapDomainsOnPolygonExecuting: 'isUnwrapDomainsOnPolygonExecuting',
+    isUnwrapTokensOnEthExecuting: 'isUnwrapTokensOnEthExecuting',
 }
