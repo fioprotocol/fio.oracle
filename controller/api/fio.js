@@ -402,6 +402,8 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, unwrapFunction');
         }
+        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting, false, 0);
+
         console.log(logPrefix + 'all necessary actions were completed successfully')
     }
 
@@ -542,6 +544,8 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, unwrapPolygonDomainFunction');
         }
+        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting, false, 0);
+
         console.log(logPrefix + 'all necessary actions were completed successfully');
     }
 }
