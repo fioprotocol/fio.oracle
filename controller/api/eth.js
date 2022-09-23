@@ -85,12 +85,17 @@ class EthCtrl {
                     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
                     const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
 
+                    // Commented this out. It was throwing an uncaught exception so I added the .catch, but still throws an error. 
+                    // We have changed how to check consensus.
                     // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
-                    this.fioContract.methods.getApproval(txIdOnFioChain).call()
-                        .then((response) => {
-                            console.log(logPrefix + 'Oracles Approvals:');
-                            console.log(response);
-                        });
+                    // this.fioContract.methods.getApproval(txIdOnFioChain).call()
+                    //     .then((response) => {
+                    //         console.log(logPrefix + 'Oracles Approvals:');
+                    //         console.log(response);
+                    //     }).catch(err => {
+                    //         console.log ('Error: ', err);
+                    //     });
+
                     if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
                         console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
@@ -105,7 +110,7 @@ class EthCtrl {
                                 to: process.env.FIO_TOKEN_ETH_CONTRACT,
                                 data: wrapABI,
                                 from: oraclePublicKey,
-                                nonce: this.web3.utils.toHex(nonce),
+                                nonce: this.web3.utils.toHex(nonce)
                             },
                             { chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' }
                         );
@@ -208,6 +213,7 @@ class EthCtrl {
             try {
                 const pubKey = process.env.ETH_ORACLE_PUBLIC;
                 const signKey = process.env.ETH_ORACLE_PRIVATE;
+                // TODO: Seeing some unexpected errors in logs. This may need an .catch(err => { ...
                 this.fioNftContract.methods.getApproval(tx_id).call()
                     .then((response) => {
                         console.log(response);
