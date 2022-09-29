@@ -339,7 +339,7 @@ class FIOCtrl {
             };
 
             const getUnprocessedActionsLogs = async () => {
-                const lastInChainBlockNumber = await web3.eth.getBlockNumber()
+                const lastInChainBlockNumber = await web3.eth.getBlockNumber();
                 const lastProcessedBlockNumber = getLastProceededBlockNumberOnEthereumChain();
 
                 if (lastProcessedBlockNumber > lastInChainBlockNumber)
@@ -349,7 +349,7 @@ class FIOCtrl {
 
                 let fromBlockNumber = lastProcessedBlockNumber + 1;
 
-                console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`)
+                console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`);
 
                 let result = [];
                 let maxCheckedBlockNumber = 0;
@@ -363,6 +363,7 @@ class FIOCtrl {
                             : maxAllowedBlockNumber;
 
                     maxCheckedBlockNumber = toBlockNumber;
+                    updateBlockNumberETH(maxCheckedBlockNumber.toString());
 
                     result = [
                         ...result,
@@ -371,8 +372,6 @@ class FIOCtrl {
 
                     fromBlockNumber = toBlockNumber + 1;
                 }
-
-                updateBlockNumberETH(maxCheckedBlockNumber.toString());
 
                 console.log(logPrefix + `events list:`);
                 console.log(result);
@@ -508,6 +507,7 @@ class FIOCtrl {
                             : maxAllowedBlockNumber;
 
                     maxCheckedBlockNumber = toBlockNumber;
+                    updateBlockNumberMATIC(maxCheckedBlockNumber.toString());
 
                     result = [
                         ...result,
@@ -516,8 +516,6 @@ class FIOCtrl {
 
                     fromBlockNumber = toBlockNumber + 1;
                 }
-
-                updateBlockNumberMATIC(maxCheckedBlockNumber.toString());
 
                 console.log(logPrefix + `events list:`);
                 console.log(result);
