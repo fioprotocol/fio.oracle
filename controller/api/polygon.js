@@ -52,6 +52,7 @@ class PolyCtrl {
             console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
             console.log('gasLimit = ' + gasLimit)
 
+            
             // we shouldn't await it to do not block the rest of the actions
             this.web3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
@@ -70,12 +71,13 @@ class PolyCtrl {
                 const pubKey = process.env.POLYGON_ORACLE_PUBLIC;
                 const signKey = process.env.POLYGON_ORACLE_PRIVATE;
 
+                //Commented this out. It was throwing an uncaught exception.
                 // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
-                this.fioNftContract.methods.getApproval(txIdOnFioChain).call()
-                    .then((response) => {
-                        console.log(logPrefix + 'Oracles Approvals:');
-                        console.log(response);
-                    });
+                //this.fioNftContract.methods.getApproval(txIdOnFioChain).call()
+                //    .then((response) => {
+                //        console.log(logPrefix + 'Oracles Approvals:');
+                //        console.log(response);
+                //    });
 
                 if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "MATIC") { //check validation if the address is ERC20 address
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)

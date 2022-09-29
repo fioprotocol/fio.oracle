@@ -208,16 +208,16 @@ class EthCtrl {
             } else if (gasMode == "0"||(gasMode == "1" && info.status === "0")){
                 gasPrice = parseInt(process.env.TGASPRICE);
             }
-            this.fioNftContract.methods.getApproval(tx_id).call();
+            //this.fioNftContract.methods.getApproval(tx_id).call();
             var transactionCount = 0;
             try {
                 const pubKey = process.env.ETH_ORACLE_PUBLIC;
                 const signKey = process.env.ETH_ORACLE_PRIVATE;
                 // TODO: Seeing some unexpected errors in logs. This may need an .catch(err => { ...
-                this.fioNftContract.methods.getApproval(tx_id).call()
-                    .then((response) => {
-                        console.log(response);
-                    });
+                //this.fioNftContract.methods.getApproval(tx_id).call()
+                //    .then((response) => {
+                //        console.log(response);
+                //    });
                 if(this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
                     const wrapFunc = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, tx_id);
                     let wrapABI = wrapFunc.encodeABI();
