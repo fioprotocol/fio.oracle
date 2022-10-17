@@ -63,7 +63,7 @@ class MainCtrl {
             console.log(logPrefix + 'logs folders are ready');
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-                fetchLastBlockNumber: utilCtrl.getInfo
+                fetchLastBlockNumber: utilCtrl.getFioChainInfo
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberETH,
