@@ -199,6 +199,14 @@ class FIOCtrl {
 
     async handleUnprocessedWrapActions(req, res) {
         const logPrefix = 'Get latest Wrap (tokens and domains) actions on FIO chain --> ';
+
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
+        }
+
         console.log(logPrefix + 'Start');
         try {
             const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1);
@@ -305,12 +313,15 @@ class FIOCtrl {
     }
 
     async handleUnprocessedUnwrapTokensActions() {
-        const isJobRunning = config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting)
-        if (isJobRunning) return;
-
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
-
         const logPrefix = `FIO, handleUnprocessedUnwrapTokensActions --> `
+
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting)) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
+        }
+
         console.log(logPrefix + 'Executing');
 
         try {
@@ -449,12 +460,15 @@ class FIOCtrl {
     }
 
     async handleUnprocessedUnwrapDomainActionsOnPolygon() {
-        const isJobRunning = config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting)
-        if (isJobRunning) return;
-
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
-
         const logPrefix = `FIO, handleUnprocessedUnwrapDomainActionsOnPolygon --> `
+
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting)) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
+        }
+
         console.log(logPrefix + 'Executing');
 
         try {

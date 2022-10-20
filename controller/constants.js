@@ -17,6 +17,7 @@ export const LOG_FILES_PATH_NAMES = {
 }
 
 export const ORACLE_CACHE_KEYS = {
+    isUnprocessedWrapActionsExecuting: 'isUnprocessedWrapActionsExecuting',
     isWrapTokensExecuting: 'isWrapTokensFunctionExecuting',
     isWrapDomainByETHExecuting: 'isWrapDomainByETHFunctionExecuting',
     isWrapDomainByMATICExecuting: 'isWrapDomainByMATICFunctionExecuting',
