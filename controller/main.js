@@ -55,6 +55,8 @@ class MainCtrl {
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });

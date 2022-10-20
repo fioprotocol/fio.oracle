@@ -12,6 +12,8 @@ export const LOG_FILES_PATH_NAMES = {
     oracleErrors: LOG_DIRECTORY_PATH_NAME + "Error.log", //store the error startup and else unexpected errors error
     wrapDomainTransaction: LOG_DIRECTORY_PATH_NAME + "DomainWrapTransaction.log",
     wrapDomainTransactionError: LOG_DIRECTORY_PATH_NAME + "DomainWrapErrTransaction.log",
+    wrapDomainByEthTransaction: LOG_DIRECTORY_PATH_NAME + "DomainWrapEthTransaction.log",
+    wrapDomainByEthTransactionError: LOG_DIRECTORY_PATH_NAME + "DomainWrapEthErrTransaction.log",
 }
 
 export const ORACLE_CACHE_KEYS = {

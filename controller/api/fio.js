@@ -266,7 +266,7 @@ class FIOCtrl {
 
                         if (!isWrapDomainByETHFunctionExecuting) {
                             isWrapDomainByETHFunctionExecuting = true;
-                            ethCtrl.wrapDomainFunction(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
+                            ethCtrl.wrapFioDomain(tx_id, wrapDataEvents[i].action_trace.act.data); // execute first wrap action, it will trigger further wrap actions from the log file recursively
                         }
 
                     } else if (wrapDataEvents[i].action_trace.act.name === "wrapdomain" && wrapDataEvents[i].action_trace.act.data.chain_code === "MATIC") {
