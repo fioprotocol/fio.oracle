@@ -17,6 +17,15 @@ export const handleServerError = async (err, additionalMessage = null) => {
     });
 }
 
+// function to handle all unexpected chains transactions errors and add them into Error.log file
+export const handleChainError = ({logMessage, consoleMessage}) => {
+    console.log(consoleMessage);
+    addLogMessage({
+        filePath: LOG_FILES_PATH_NAMES.oracleErrors,
+        message: logMessage,
+    });
+}
+
 export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => {
     if (fs.existsSync(directoryPath)) { //check if the log path exists
         if (withLogsInConsole) console.log("The log directory exists.");

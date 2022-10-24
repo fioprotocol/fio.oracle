@@ -15,7 +15,7 @@ import fioNftABI from "../../config/ABI/FIONFT.json"
 import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
 import {
     addLogMessage, convertNativeFioIntoFio, getLastProceededBlockNumberOnEthereumChain,
-    getLastProceededBlockNumberOnPolygonChain,
+    getLastProceededBlockNumberOnPolygonChain, handleChainError,
     handleServerError, updateBlockNumberETH,
     updateBlockNumberFIO, updateBlockNumberMATIC
 } from "../helpers";
@@ -339,10 +339,10 @@ class FIOCtrl {
                             return events;
                         } else {
                             console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ETH Error:`);
-                            console.log(error)
-                            addLogMessage({
-                                filePath: LOG_FILES_PATH_NAMES.ETH,
-                                message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + error,
+
+                            handleChainError({
+                                logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + error,
+                                consoleMessage: error
                             });
                         }
                     },
@@ -398,9 +398,6 @@ class FIOCtrl {
                     const fioAddress = item.returnValues.fioaddress;
                     const amount = parseInt(item.returnValues.amount);
 
-                    console.log(amount)
-                    console.log(typeof amount)
-
                     addLogMessage({
                         filePath: LOG_FILES_PATH_NAMES.ETH,
                         message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + JSON.stringify(item),
@@ -447,10 +444,9 @@ class FIOCtrl {
                         }
                     }
                 } else {
-                    // console.log(error)
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.ETH,
-                        message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error,
+                    handleChainError({
+                        logMessage: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error,
+                        consoleMessage: error
                     });
                 }
             })
@@ -486,10 +482,10 @@ class FIOCtrl {
                             return events;
                         } else {
                             console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} MATIC Error:`);
-                            console.log(error)
-                            addLogMessage({
-                                filePath: LOG_FILES_PATH_NAMES.MATIC,
-                                message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + error,
+
+                            handleChainError({
+                                logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + error,
+                                consoleMessage: error
                             });
                         }
                     },

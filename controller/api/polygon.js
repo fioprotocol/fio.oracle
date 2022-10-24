@@ -3,7 +3,14 @@ import Web3 from "web3";
 import Common, { CustomChain } from '@ethereumjs/common';
 import config from "../../config/config";
 import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
-import {addLogMessage, convertGweiToWei, convertWeiToEth, convertWeiToGwei, handleServerError} from "../helpers";
+import {
+    addLogMessage,
+    convertGweiToWei,
+    convertWeiToEth,
+    convertWeiToGwei,
+    handleChainError,
+    handleServerError
+} from "../helpers";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
 const fs = require('fs');
@@ -52,7 +59,7 @@ class PolyCtrl {
             console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
             console.log('gasLimit = ' + gasLimit)
 
-            
+
             // we shouldn't await it to do not block the rest of the actions
             this.web3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
@@ -155,10 +162,9 @@ class PolyCtrl {
             } catch (error) {
                 config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
 
-                console.log(logPrefix + error.stack);
-                addLogMessage({
-                    filePath: LOG_FILES_PATH_NAMES.MATIC,
-                    message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
+                handleChainError({
+                    logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
+                    consoleMessage: logPrefix + error.stack
                 });
             }
         } catch (err) {

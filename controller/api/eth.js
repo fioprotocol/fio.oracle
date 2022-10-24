@@ -10,6 +10,7 @@ import {
     convertNativeFioIntoFio,
     convertWeiToEth,
     convertWeiToGwei,
+    handleChainError,
     handleServerError
 } from "../helpers";
 import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
@@ -173,10 +174,9 @@ class EthCtrl {
                 } catch (error) {
                     config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
 
-                    console.log(logPrefix + error.stack);
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.ETH,
-                        message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error,
+                    handleChainError({
+                        logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error,
+                        consoleMessage: logPrefix + error.stack
                     });
                 }
             } else {
@@ -321,10 +321,9 @@ class EthCtrl {
                 } catch (error) {
                     config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
 
-                    console.log(logPrefix + error.stack);
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.ETH,
-                        message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + error,
+                    handleChainError({
+                        logMessage: 'ETH' +' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + error,
+                        consoleMessage: logPrefix + error.stack
                     });
                 }
             } else {
