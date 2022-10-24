@@ -127,3 +127,13 @@ export const convertNativeFioIntoFio = (nativeFioValue) => {
     return parseInt(nativeFioValue + '') / fioDecimals;
 }
 
+export const checkHttpResponseStatus = async (response, additionalErrorMessage = null) => {
+    if (response.ok) {
+        // response.status >= 200 && response.status < 300
+        return response;
+    } else {
+        if (additionalErrorMessage) console.log(additionalErrorMessage)
+        const errorBody = await response.text();
+        throw new Error(errorBody);
+    }
+}
