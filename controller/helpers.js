@@ -105,21 +105,27 @@ export const convertWeiToEth = (weiValue) => {
 export const updateBlockNumberFIO = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
 }
-export const updateBlockNumberETH = (blockNumber) => {
-    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, blockNumber);
+export const updateBlockNumberForTokensUnwrappingOnETH = (blockNumber) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, blockNumber);
+}
+export const updateBlockNumberForDomainsUnwrappingOnETH = (blockNumber) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, blockNumber);
 }
 export const updateBlockNumberMATIC = (blockNumber) => {
-    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, blockNumber);
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, blockNumber);
 }
 
 export const getLastProceededBlockNumberOnFioChain = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
 }
-export const getLastProceededBlockNumberOnEthereumChain = () => {
-    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, 'utf8'));
+export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, 'utf8'));
 }
-export const getLastProceededBlockNumberOnPolygonChain = () => {
-    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberMATIC, 'utf8'));
+export const getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, 'utf8'));
+}
+export const getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, 'utf8'));
 }
 
 export const convertNativeFioIntoFio = (nativeFioValue) => {
@@ -136,4 +142,39 @@ export const checkHttpResponseStatus = async (response, additionalErrorMessage =
         const errorBody = await response.text();
         throw new Error(errorBody);
     }
+}
+
+export const handleUpdatePendingWrapItemsQueue = ({
+    action,
+    logFilePath,
+    logPrefix,
+    jobIsRunningCacheKey,
+}) => {
+    let csvContent = fs.readFileSync(logFilePath).toString().split('\r\n'); // read file and convert to array by line break
+    csvContent.shift(); // remove the first element from array
+
+    if (csvContent.length > 0 && csvContent[0] !== '') {
+        const nextTransactionIdToProceed = csvContent[0].split(' ')[0];
+        const nextTransactionData = JSON.parse(csvContent[0].split(' ')[1]);
+
+        const newLogFileDataToSave = csvContent.join('\r\n'); // convert array back to string
+        fs.writeFileSync(logFilePath, newLogFileDataToSave);
+        console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
+        console.log(logPrefix + `preparing to execute next wrap transaction from ${logFilePath} log file for FIO tx_id: ${nextTransactionIdToProceed}`);
+        action(nextTransactionIdToProceed, nextTransactionData);
+    } else {
+        fs.writeFileSync(logFilePath, "");
+        config.oracleCache.set(jobIsRunningCacheKey, false, 0);
+    }
+}
+
+export const handleLogFailedWrapItem = ({
+    logPrefix,
+    txIdOnFioChain,
+    wrapData,
+    errorLogFilePath,
+}) => {
+    console.log(logPrefix + `something went wrong, storing transaction data into ${errorLogFilePath}`)
+    const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
+    fs.writeFileSync(errorLogFilePath, wrapText); // store issued transaction to log by line-break
 }

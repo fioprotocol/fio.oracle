@@ -8,8 +8,8 @@ import {
     convertGweiToWei,
     convertWeiToEth,
     convertWeiToGwei,
-    handleChainError,
-    handleServerError
+    handleChainError, handleLogFailedWrapItem,
+    handleServerError, handleUpdatePendingWrapItemsQueue
 } from "../helpers";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
@@ -105,7 +105,7 @@ class PolyCtrl {
                     const privateKey = Buffer.from(signKey, 'hex');
                     polygonTransaction.sign(privateKey);
                     const serializedTx = polygonTransaction.serialize();
-                    try{
+                    try {
                         await this.web3.eth//excute the sign transaction using public key and private key of oracle
                             .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                             .on('transactionHash', (hash) => {
@@ -129,44 +129,34 @@ class PolyCtrl {
                         console.log(logPrefix + e.stack);
                     }
 
-                    if (!isTransactionProceededSuccessfully) {
-                        console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapDomainTransactionError}`)
-                        const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransactionError, wrapText); // store issued transaction to log by line-break
-                    }
-                    let csvContent = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction).toString().split('\r\n'); // read file and convert to array by line break
-                    csvContent.shift(); // remove the first element from array
-                    let nextFioWrapDomainTransactionIdToProceed;
-                    let newData;
-                    if (csvContent.length > 0 && csvContent[0] !== '') { //check if the queue is empty
-                        nextFioWrapDomainTransactionIdToProceed = csvContent[0].split(' ')[0];
-                        newData = JSON.parse(csvContent[0].split(' ')[1]);
-                        console.log(logPrefix + `preparing to execute next wrap domain transaction from ${LOG_FILES_PATH_NAMES.wrapDomainTransaction} log file for FIO tx_id: ${nextFioWrapDomainTransactionIdToProceed}`)
-                        this.wrapFioDomain(nextFioWrapDomainTransactionIdToProceed, newData); //excuete next transaction from transaction log
-                        csvContent = csvContent.join('\r\n'); // convert array back to string
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, csvContent)
-                        console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapDomainTransaction} log file was successfully updated.`)
-                    } else {
-                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
 
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, "")
-                        console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
-                        return 0;
-                    }
-                    console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
+                    if (isTransactionProceededSuccessfully)
+                        console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`);
                 } else {
-                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
-
                     console.log(logPrefix + "Invalid Address");
                 }
             } catch (error) {
-                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
-
                 handleChainError({
                     logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
                     consoleMessage: logPrefix + error.stack
                 });
             }
+
+            if (!isTransactionProceededSuccessfully) {
+                handleLogFailedWrapItem({
+                    logPrefix,
+                    errorLogFilePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError,
+                    txIdOnFioChain,
+                    wrapData
+                })
+            }
+
+            handleUpdatePendingWrapItemsQueue({
+                action: this.wrapFioDomain.bind(this),
+                logPrefix,
+                logFilePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction,
+                jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting
+            })
         } catch (err) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
 

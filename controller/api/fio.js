@@ -14,10 +14,17 @@ import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json"
 import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
 import {
-    addLogMessage, convertNativeFioIntoFio, getLastProceededBlockNumberOnEthereumChain,
-    getLastProceededBlockNumberOnPolygonChain, handleChainError,
-    handleServerError, updateBlockNumberETH,
-    updateBlockNumberFIO, updateBlockNumberMATIC
+    addLogMessage,
+    convertNativeFioIntoFio,
+    getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
+    getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
+    getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+    handleChainError,
+    handleServerError,
+    updateBlockNumberForTokensUnwrappingOnETH,
+    updateBlockNumberFIO,
+    updateBlockNumberMATIC,
+    updateBlockNumberForDomainsUnwrappingOnETH
 } from "../helpers";
 
 const web3 = new Web3(process.env.ETHINFURA);
@@ -107,11 +114,93 @@ const unwrapTokensFromEthToFioChain = async (obt_id, fioAmount, fioAddress) => {
         })
         console.log(logPrefix + 'End')
     } catch (err) {
-        handleServerError(err, 'FIO, unwrapTokens');
+        handleServerError(err, 'FIO, unwrapTokensFromEthToFioChain');
     }
 }
 
-// execute unwrap action using eth transaction data and amount
+// todo: this was written when wrapping domains on ETH chain wasn't implemented so need to double check all the params, before using
+const unwrapDomainFromEthToFioChain = async (obt_id, domain, fioAddress) => {
+    const logPrefix = `FIO, unwrapDomainFromEthToFioChain --> fioAddress :  ${fioAddress}, fioDomain: ${domain}, obt_id: ${obt_id} `
+    console.log(logPrefix + 'Start');
+    try {
+        let contract = 'fio.oracle',
+            actionName = 'unwrapdomain', //action name
+            oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
+            oraclePublicKey = process.env.FIO_ORACLE_PUBLIC_KEY,
+            oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+            obtId = obt_id;
+        const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
+        const fioLastBlockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+            body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
+            method: 'POST'
+        })).json()
+
+        const chainId = fioChainInfo.chain_id;
+        const currentDate = new Date();
+        const timePlusTen = currentDate.getTime() + 10000;
+        const timeInISOString = (new Date(timePlusTen)).toISOString();
+        const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
+
+        const transaction = {
+            expiration,
+            ref_block_num: fioLastBlockInfo.block_num & 0xffff,
+            ref_block_prefix: fioLastBlockInfo.ref_block_prefix,
+            actions: [{
+                account: contract,
+                name: actionName,
+                authorization: [{
+                    actor: oracleAccount,
+                    permission: 'active',
+                }],
+                data: {
+                    fio_address: fioAddress,
+                    domain: domain,
+                    obt_id: obtId,
+                    actor: oracleAccount
+                },
+            }]
+        };
+        const abiMap = new Map();
+        const tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+            body: `{"account_name": "fio.oracle"}`,
+            method: 'POST'
+        })).json()
+        abiMap.set('fio.oracle', tokenRawAbi)
+
+        const privateKeys = [oraclePrivateKey];
+
+        const tx = await Fio.prepareTransaction({
+            transaction,
+            chainId,
+            privateKeys,
+            abiMap,
+            textDecoder: new TextDecoder(),
+            textEncoder: new TextEncoder()
+        });
+
+        const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transactoin for unwrap
+            body: JSON.stringify(tx),
+            method: 'POST',
+        });
+        const transactionResult = await pushResult.json()
+
+        console.log(logPrefix + `${(transactionResult.type || transactionResult.error) ? 'Error' : 'Result'}:`);
+        console.log(transactionResult)
+        addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.FIO,
+            message: {
+                chain: "FIO",
+                contract: "fio.oracle",
+                action: "unwrapdomains",
+                transaction: transactionResult
+            }
+        })
+        console.log(logPrefix + 'End')
+    } catch (err) {
+        handleServerError(err, 'FIO, unwrapDomainFromEthToFioChain');
+    }
+}
+
 const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) => {
     const logPrefix = `FIO, unwrapDomainFromPolygonToFioChain --> fioAddress :  ${fioAddress}, fioDomain: ${fioDomain} `
     console.log(logPrefix + 'Start');
@@ -152,14 +241,14 @@ const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) 
                 },
             }]
         };
-        var abiMap = new Map();
-        var tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+        let abiMap = new Map();
+        let tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
             body: `{"account_name": "fio.oracle"}`,
             method: 'POST'
         })).json()
         abiMap.set('fio.oracle', tokenRawAbi);
 
-        var privateKeys = [oraclePrivateKey];
+        const privateKeys = [oraclePrivateKey];
 
         const tx = await Fio.prepareTransaction({
             transaction,
@@ -190,14 +279,14 @@ const unwrapDomainFromPolygonToFioChain = async (obt_id, fioDomain, fioAddress) 
         });
         console.log(logPrefix + 'End')
     } catch (err) {
-        handleServerError(err, 'FIO, unwrapDomain');
+        handleServerError(err, 'FIO, unwrapDomainFromPolygonToFioChain');
     }
 }
 
 class FIOCtrl {
     constructor() {}
 
-    async handleUnprocessedWrapActions(req, res) {
+    async handleUnprocessedWrapActionsOnFioChain(req, res) {
         const logPrefix = 'Get latest Wrap (tokens and domains) actions on FIO chain --> ';
 
         if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
@@ -307,12 +396,13 @@ class FIOCtrl {
                 }
             }
         } catch (err) {
-            handleServerError(err, 'FIO, getLatestWrapAction');
+            handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
         }
+        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
         console.log(logPrefix + 'End');
     }
 
-    async handleUnprocessedUnwrapTokensActions() {
+    async handleUnprocessedUnwrapTokensOnEthChainActions() {
         const logPrefix = `FIO, handleUnprocessedUnwrapTokensActions --> `
 
         if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting)) {
@@ -351,7 +441,7 @@ class FIOCtrl {
 
             const getUnprocessedActionsLogs = async () => {
                 const lastInChainBlockNumber = await web3.eth.getBlockNumber();
-                const lastProcessedBlockNumber = getLastProceededBlockNumberOnEthereumChain();
+                const lastProcessedBlockNumber = getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping();
 
                 if (lastProcessedBlockNumber > lastInChainBlockNumber)
                     throw new Error(
@@ -374,7 +464,7 @@ class FIOCtrl {
                             : maxAllowedBlockNumber;
 
                     maxCheckedBlockNumber = toBlockNumber;
-                    updateBlockNumberETH(maxCheckedBlockNumber.toString());
+                    updateBlockNumberForTokensUnwrappingOnETH(maxCheckedBlockNumber.toString());
 
                     result = [
                         ...result,
@@ -407,52 +497,114 @@ class FIOCtrl {
                 })
             }
         } catch (err) {
-            handleServerError(err, 'FIO, unwrapFunction');
+            handleServerError(err, 'FIO, handleUnprocessedUnwrapTokensOnEthChainActions');
         }
         config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting, false, 0);
 
         console.log(logPrefix + 'all necessary actions were completed successfully')
     }
 
-    async unwrapDomainFunction() {
-        try {
-            const lastBlockNumber = config.oracleCache.get("ethBlockNumber");
+    async handleUnprocessedUnwrapDomainOnEthChainActions() {
+        const logPrefix = `FIO, handleUnprocessedUnwrapDomainActions on ETH --> `
 
-            fioNftContract.getPastEvents('unwrapped', { // get unwrapp event from ETH using blocknumber
-                // filter: {id: 1},
-                fromBlock: lastBlockNumber,
-                toBlock: 'latest' // todo: use infura limitation here
-            }, async (error, events) => {
-                if (!error) {
-                    var obj = JSON.parse(JSON.stringify(events));
-                    var array = Object.keys(obj)
-                    console.log('events: ', events);
-                    if (array.length != 0) {
-                        for (var i = 0; i < array.length; i++) {
-                            const txId = obj[array[i]].transactionHash;
-                            const fioAddress = obj[array[i]].returnValues.fioaddress;
-                            const domain = obj[array[i]].returnValues.domain;
-
-                            addLogMessage({
-                                filePath: LOG_FILES_PATH_NAMES.ETH,
-                                message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(obj[array[i]]),
-                            });
-
-                            config.oracleCache.set("ethBlockNumber", obj[array[i]].blockNumber + 1, 10000);
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberETH, obj[array[i]].blockNumber.toString());
-                            unwrapDomainFromPolygonToFioChain(txId, domain, fioAddress);//execute unwrap action using transaction_id and amount
-                        }
-                    }
-                } else {
-                    handleChainError({
-                        logMessage: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwraptokens' + ' ' + error,
-                        consoleMessage: error
-                    });
-                }
-            })
-        } catch (err) {
-            handleServerError(err, 'FIO, unwrapDomainFunction');
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapDomainsOnEthExecuting)) {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnEthExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
         }
+
+        console.log(logPrefix + 'Executing');
+
+        try {
+            const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_ETH);
+
+            const getEthActionsLogs = async (from, to) => {
+                return await fioNftContract.getPastEvents(
+                    'unwrapped',
+                    {
+                        fromBlock: from,
+                        toBlock: to,
+                    },
+                    async (error, events) => {
+                        if (!error) {
+                            return events;
+                        } else {
+                            console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ETH Error:`);
+
+                            handleChainError({
+                                logMessage: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + error,
+                                consoleMessage: error
+                            });
+                        }
+                    },
+                );
+            };
+
+            const getUnprocessedActionsLogs = async () => {
+                const lastInChainBlockNumber = await web3.eth.getBlockNumber();
+                const lastProcessedBlockNumber = getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping();
+
+                if (lastProcessedBlockNumber > lastInChainBlockNumber)
+                    throw new Error(
+                        logPrefix + `Wrong start blockNumber, pls check stored value.`,
+                    );
+
+                let fromBlockNumber = lastProcessedBlockNumber + 1;
+
+                console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`);
+
+                let result = [];
+                let maxCheckedBlockNumber = 0;
+
+                while (fromBlockNumber <= lastInChainBlockNumber) {
+                    const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
+
+                    const toBlockNumber =
+                        maxAllowedBlockNumber > lastInChainBlockNumber
+                            ? lastInChainBlockNumber
+                            : maxAllowedBlockNumber;
+
+                    maxCheckedBlockNumber = toBlockNumber;
+                    updateBlockNumberForDomainsUnwrappingOnETH(maxCheckedBlockNumber.toString());
+
+                    result = [
+                        ...result,
+                        ...(await getEthActionsLogs(fromBlockNumber, toBlockNumber)),
+                    ];
+
+                    fromBlockNumber = toBlockNumber + 1;
+                }
+
+                console.log(logPrefix + `events list:`);
+                console.log(result);
+                console.log(logPrefix + `events list length: ${result.length}`);
+                return result;
+            };
+
+            const data = await getUnprocessedActionsLogs();
+
+            if (data.length > 0) {
+                data.forEach((item, i) => {
+                    const txId = item.transactionHash;
+                    const fioAddress = item.returnValues.fioaddress;
+                    const domain = item.returnValues.domain;
+
+                    addLogMessage({
+                        filePath: LOG_FILES_PATH_NAMES.ETH,
+                        message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + JSON.stringify(item),
+                    })
+
+                    unwrapDomainFromEthToFioChain(txId, domain, fioAddress);//execute unwrap action using transaction_id and amount
+                })
+            }
+        } catch (err) {
+            handleServerError(err, 'FIO, handleUnprocessedUnwrapDomainOnEthChainActions');
+        }
+
+        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnEthExecuting, false, 0);
+
+        console.log(logPrefix + 'all necessary actions were completed successfully');
     }
 
     async handleUnprocessedUnwrapDomainActionsOnPolygon() {
@@ -494,7 +646,7 @@ class FIOCtrl {
 
             const getUnprocessedActionsLogs = async () => {
                 const lastInChainBlockNumber = await polyWeb3.eth.getBlockNumber()
-                const lastProcessedBlockNumber = getLastProceededBlockNumberOnPolygonChain();
+                const lastProcessedBlockNumber = getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
                 if (lastProcessedBlockNumber > lastInChainBlockNumber)
                     throw new Error(
@@ -550,7 +702,7 @@ class FIOCtrl {
                 })
             }
         } catch (err) {
-            handleServerError(err, 'FIO, unwrapPolygonDomainFunction');
+            handleServerError(err, 'FIO, handleUnprocessedUnwrapDomainActionsOnPolygon');
         }
         config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting, false, 0);
 

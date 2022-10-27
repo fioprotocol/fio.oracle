@@ -10,8 +10,8 @@ import {
     convertNativeFioIntoFio,
     convertWeiToEth,
     convertWeiToGwei,
-    handleChainError,
-    handleServerError
+    handleChainError, handleLogFailedWrapItem,
+    handleServerError, handleUpdatePendingWrapItemsQueue
 } from "../helpers";
 import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
@@ -79,8 +79,10 @@ class EthCtrl {
             })
 
             const registeredOraclesPublicKeys = await this.fioContract.methods.getOracles().call();
+
             if (registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
                 let isTransactionProceededSuccessfully = false;
+
                 try {
                     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
                     const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
@@ -143,42 +145,33 @@ class EthCtrl {
                                 if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
                             });
 
-                        if (!isTransactionProceededSuccessfully) {
-                            console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapTokensTransactionError}`)
-                            const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransactionError, wrapText); // store issued transaction to log by line-break
-                        }
-                        let csvContent = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction).toString().split('\r\n'); // read file and convert to array by line break
-                        csvContent.shift(); // remove the first element from array
-                        let nextFioWrapTokensTransactionIdToProceed;
-                        let nextFioWrapTokensTransactionData;
-                        if (csvContent.length > 0 && csvContent[0] !== '') { //check if the queue is empty
-                            nextFioWrapTokensTransactionIdToProceed = csvContent[0].split(' ')[0];
-                            nextFioWrapTokensTransactionData = JSON.parse(csvContent[0].split(' ')[1]);
-                            console.log(logPrefix + `preparing to execute next wrap transaction from ${LOG_FILES_PATH_NAMES.wrapTokensTransaction} log file for FIO tx_id: ${nextFioWrapTokensTransactionIdToProceed}`);
-                            this.wrapFioToken(nextFioWrapTokensTransactionIdToProceed, nextFioWrapTokensTransactionData); //execute next transaction from transaction log
-                            csvContent = csvContent.join('\r\n'); // convert array back to string
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction, csvContent)
-                            console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapTokensTransaction} log file was successfully updated.`)
-                        } else {
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapTokensTransaction, "")
-                            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
-                            console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: successfully completed`)
-                            return 0;
-                        }
-                        console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: successfully completed`)
+                        if (isTransactionProceededSuccessfully)
+                            console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: Successfully completed`);
                     } else {
-                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
                         console.log(logPrefix + "Invalid Address");
                     }
                 } catch (error) {
-                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
-
                     handleChainError({
                         logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error,
                         consoleMessage: logPrefix + error.stack
                     });
                 }
+
+                if (!isTransactionProceededSuccessfully) {
+                    handleLogFailedWrapItem({
+                        logPrefix,
+                        errorLogFilePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError,
+                        txIdOnFioChain,
+                        wrapData
+                    })
+                }
+
+                handleUpdatePendingWrapItemsQueue({
+                    action: this.wrapFioToken.bind(this),
+                    logPrefix,
+                    logFilePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction,
+                    jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapTokensExecuting
+                })
             } else {
                 config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
             }
@@ -290,42 +283,32 @@ class EthCtrl {
                                 if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
                             });
 
-                        if (!isTransactionProceededSuccessfully) {
-                            console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError}`)
-                            const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError, wrapText); // store issued transaction to log by line-break
-                        }
-                        let csvContent = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction).toString().split('\r\n'); // read file and convert to array by line break
-                        csvContent.shift(); // remove the first element from array
-                        let nextFioWrapDomainTransactionIdToProceed;
-                        let nextFioWrapDomainTransactionData;
-                        if (csvContent.length > 0 && csvContent[0] !== '') { //check if the queue is empty
-                            nextFioWrapDomainTransactionIdToProceed = csvContent[0].split(' ')[0];
-                            nextFioWrapDomainTransactionData = JSON.parse(csvContent[0].split(' ')[1]);
-                            console.log(logPrefix + `preparing to execute next wrap domain transaction from ${LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction} log file for FIO tx_id: ${nextFioWrapDomainTransactionIdToProceed}`);
-                            this.wrapFioDomain(nextFioWrapDomainTransactionIdToProceed, nextFioWrapDomainTransactionData); //execute next transaction from transaction log
-                            csvContent = csvContent.join('\r\n'); // convert array back to string
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction, csvContent)
-                            console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction} log file was successfully updated.`)
-                        } else {
-                            fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction, "")
-                            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
-                            console.log(logPrefix + `Successfully completed.`)
-                            return 0;
-                        }
-                        console.log(logPrefix + `Successfully completed.`)
+                        if (isTransactionProceededSuccessfully) console.log(logPrefix + `Successfully completed.`)
                     } else {
-                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
-                        console.log(logPrefix + "Invalid Address");
+                        console.log(logPrefix + `Invalid Address`);
                     }
                 } catch (error) {
-                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
-
                     handleChainError({
                         logMessage: 'ETH' +' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + error,
                         consoleMessage: logPrefix + error.stack
                     });
                 }
+
+                if (!isTransactionProceededSuccessfully) {
+                    handleLogFailedWrapItem({
+                        logPrefix,
+                        errorLogFilePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError,
+                        txIdOnFioChain,
+                        wrapData
+                    })
+                }
+
+                handleUpdatePendingWrapItemsQueue({
+                    action: this.wrapFioDomain.bind(this),
+                    logPrefix,
+                    logFilePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction,
+                    jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting
+                })
             } else {
                 config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
             }

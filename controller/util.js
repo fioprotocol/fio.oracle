@@ -7,7 +7,6 @@ import {checkHttpResponseStatus, getLastProceededBlockNumberOnFioChain} from "./
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 
-//todo: switch curly onto fetch
 class UtilCtrl {
     constructor(){
     }
