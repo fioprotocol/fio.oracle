@@ -2,148 +2,157 @@ require('dotenv').config();
 
 import fetch from "node-fetch";
 import config from '../config/config';
-const { curly } = require('node-libcurl')
 
-import { getLastProceededBlockNumberOnFioChain } from "./helpers";
+import {checkHttpResponseStatus, getLastProceededBlockNumberOnFioChain} from "./helpers";
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 
-//todo: switch curly onto fetch
 class UtilCtrl {
     constructor(){
     }
-    async getUnprocessedActionsOnFioChain(accountName, pos) {
-      const lastNumber = getLastProceededBlockNumberOnFioChain();
-      let offset = parseInt(process.env.POLLOFFSET);
-      let data = await this.getActions(accountName, pos, offset);
-      while(data.length > 0 && data[0].block_num > lastNumber) {
-        offset -= 10;
-        data = await this.getActions(accountName, pos, offset);
-      }
-      return data.filter(elem => elem.block_num > lastNumber)
+
+    async getLastIrreversibleBlockOnFioChain() {
+        const fioChainInfoResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_info')
+
+        await checkHttpResponseStatus(fioChainInfoResponse, 'Getting FIO chain info went wrong.');
+
+        const fioChainInfo = await fioChainInfoResponse.json();
+
+        let lastBlockNum = 0;
+        if (fioChainInfo.last_irreversible_block_num) lastBlockNum = fioChainInfo.last_irreversible_block_num;
+
+        return lastBlockNum;
     }
 
-    async getLatestWrapDomainAction(accountName, pos) {
-      const lastNumber = config.oracleCache.get("lastBlockNumber");
-      var offset = parseInt(process.env.POLLOFFSET);
-      var data = await this.getActions(accountName, pos, offset);
-      while(data.length > 0 && data[0].block_num > lastNumber) {
-        offset -= 10;
-        data = await this.getActions(accountName, pos, offset);
-      }
-      var realData = Array();
-      for(var i = 0; i < data.length; i++) {
-        if (data[i].block_num > lastNumber) {
-          realData.push(data[i]);
+    async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix) {
+        const lastNumber = getLastProceededBlockNumberOnFioChain();
+
+        console.log(logPrefix + `start Block umber = ${lastNumber + 1}, end Block Number: ${pos}`)
+
+        let offset = parseInt(process.env.POLLOFFSET);
+        let data = await this.getActions(accountName, pos, offset);
+        while(data.length > 0 && data[0].block_num > lastNumber) {
+            offset -= 10;
+            data = await this.getActions(accountName, pos, offset);
         }
-        const len = realData.length;
-        if( len > 0) {
-          config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
-        }
-      }
-      return realData;
+        return data.filter(elem => elem.block_num > lastNumber)
     }
 
     async getActions(accountName, pos, offset) {
-        const data = await curly.post(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
-          postFields: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
-          httpHeader: [
-            'Content-Type: application/x-www-form-urlencoded',
-          ],
+        const actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
+            body: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
+            method: 'POST'
         });
-        if (data.statusCode === 200) {
-          const dataLen = Object.keys(data.data.actions).length;
-          let array = Array();
-          for (let i = 0; i < dataLen; i++) {
-            array.push(data.data.actions[i]);
-          }
-          return array;
+        await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        const actionsHistory = await actionsHistoryResponse.json();
+
+        let result = [];
+        for (let i = 0; i < actionsHistory.actions.length; i++) {
+            result.push(actionsHistory.actions[i]);
         }
-        // return [];
+        return result;
+    }
+
+    async getLatestWrapDomainAction(accountName, pos) {
+        const lastNumber = config.oracleCache.get("lastBlockNumber");
+        let offset = parseInt(process.env.POLLOFFSET);
+        let data = await this.getActions(accountName, pos, offset);
+        while(data.length > 0 && data[0].block_num > lastNumber) {
+            offset -= 10;
+            data = await this.getActions(accountName, pos, offset);
+        }
+        const realData = [];
+        for(let i = 0; i < data.length; i++) {
+            if (data[i].block_num > lastNumber) {
+                realData.push(data[i]);
+            }
+            const len = realData.length;
+            if( len > 0) {
+                config.oracleCache.set("lastBlockNumber", realData[len-1].block_num)
+            }
+        }
+        return realData;
     }
 
     async getBalance(accountName) {
-      const data = await curly.post(fioHttpEndpoint+'v1/chain/get_account', {
-        postFields: JSON.stringify({ "account_name": accountName}),
-        httpHeader: [
-          'Content-Type: application/x-www-form-urlencoded',
-        ],
-      });
-      let balanceAmount = 0;
-      if (data.statusCode === 200) {
-        const permission = data.data.permissions;
+        const accountDataResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_account', {
+            body: JSON.stringify({ "account_name": accountName}),
+            method: 'POST'
+        });
+        await checkHttpResponseStatus(accountDataResponse, 'Getting account information went wrong.');
+        const accountData = await accountDataResponse.json();
+
+        const permission = accountData.permissions;
         const keyData = permission[0].required_auth.keys;
         const pubKey = keyData[0].key;
-        const balanceData = await curly.post(fioHttpEndpoint+'v1/chain/get_fio_balance', {
-          postFields: JSON.stringify({ "fio_public_key": pubKey}),
-          httpHeader: [
-            'Content-Type: application/x-www-form-urlencoded',
-          ],
+
+        const balanceDataResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_fio_balance', {
+            body: JSON.stringify({ "fio_public_key": pubKey}),
+            method: 'POST'
         });
-        if(balanceData.statusCode === 200) {
-          balanceAmount = balanceData.data.balance;
-        }
-      }
-      return balanceAmount;
+        await checkHttpResponseStatus(balanceDataResponse, 'Getting account balance information went wrong.');
+        const balanceData = await balanceDataResponse.json();
+        return balanceData.balance;
     }
+
     async getOracleFee() {
-      const data = await curly.post(fioHttpEndpoint+'v1/chain/get_oracle_fees', {
-        httpHeader: [
-          'Content-Type: application/x-www-form-urlencoded',
-        ],
-      });
-      if(data.statusCode === 200) {
-        const fee = data.data.oracle_fees[1].fee_amount;
-        if (fee > 0) { console.log(true); return true; }
-        else { console.log(false); return false; }
-      }
+        const getOracleFeesResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_oracle_fees');
+
+        await checkHttpResponseStatus(getOracleFeesResponse, 'Getting oracle fees info went wrong.');
+
+        const oracleFees = await getOracleFeesResponse.json();
+
+        const fee = oracleFees.oracle_fees[1].fee_amount;
+        if (fee > 0) {
+            console.log(true);
+            return true;
+        } else {
+            console.log(false);
+            return false;
+        }
     }
+
     async getFIOAddress(accountName) {
-      const data = await curly.post(fioHttpEndpoint+'v1/chain/get_account', {
-        postFields: JSON.stringify({ "account_name": accountName}),
-        httpHeader: [
-          'Content-Type: application/x-www-form-urlencoded',
-        ],
-      });
-      if (data.statusCode === 200) {
-        const permission = data.data.permissions;
+        const accountDataResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_account', {
+            body: JSON.stringify({ "account_name": accountName}),
+            method: 'POST'
+        })
+
+        await checkHttpResponseStatus(accountDataResponse, 'Getting account information went wrong.')
+
+        const accountData = await accountDataResponse.json()
+
+        const permission = accountData.permissions;
         const keyData = permission[0].required_auth.keys;
         const pubKey = keyData[0].key;
-        var fio_address = "";
-        const addressData = await curly.post(fioHttpEndpoint+'v1/chain/get_fio_addresses', {
-          postFields: JSON.stringify({ "fio_public_key": pubKey}),
-          httpHeader: [
-            'Content-Type: application/x-www-form-urlencoded',
-          ],
-        });
-        if (addressData.statusCode === 200) {
-          const addresses = addressData.data.fio_addresses;
-          fio_address = addresses[0].fio_address;
-        }
-      }
-      return fio_address;
+        let fio_address = "";
+
+        const addressDataResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_fio_addresses', {
+            body: JSON.stringify({ "fio_public_key": pubKey}),
+            method: 'POST'
+        })
+
+        await checkHttpResponseStatus(addressDataResponse, 'Getting address information went wrong.')
+
+        const addressData = await addressDataResponse.json()
+
+        const addresses = addressData.fio_addresses;
+        fio_address = addresses[0].fio_address;
+
+        return fio_address;
     }
+
     async availCheck(fioName) {
-      const response = await curly.post(fioHttpEndpoint+'v1/chain/avail_check', {
-        postFields: JSON.stringify({ "fio_name": fioName}),
-        httpHeader: [
-          'Content-Type: application/x-www-form-urlencoded',
-        ],
-      });
-      var registered = 0;
-      if (response.statusCode === 200) {
-        registered = response.data.is_registered;
-      }
-      return registered;
-    }
+        const availCheckResponse = await fetch(fioHttpEndpoint + 'v1/chain/avail_check', {
+            body: JSON.stringify({ "fio_name": fioName}),
+            method: 'POST'
+        })
 
-    async getFioChainInfo() {
-      const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json()
+        await checkHttpResponseStatus(availCheckResponse, 'Checking available FIO name went wrong.')
 
-      let lastBlockNum = 0;
-      if (fioChainInfo.last_irreversible_block_num) lastBlockNum = fioChainInfo.last_irreversible_block_num;
+        const data = await availCheckResponse.json()
 
-      return lastBlockNum;
+        return  !!(data && data.is_registered);
     }
 }
 export default new UtilCtrl();

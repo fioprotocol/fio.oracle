@@ -3,7 +3,14 @@ import Web3 from "web3";
 import Common, { CustomChain } from '@ethereumjs/common';
 import config from "../../config/config";
 import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
-import {addLogMessage, convertGweiToWei, convertWeiToEth, convertWeiToGwei, handleServerError} from "../helpers";
+import {
+    addLogMessage, calculateAverageGasPrice, calculateHighGasPrice,
+    convertGweiToWei,
+    convertWeiToEth,
+    convertWeiToGwei, getEthGasPriceSuggestion, getPolygonGasPriceSuggestion,
+    handleChainError, handleLogFailedWrapItem,
+    handleServerError, handleUpdatePendingWrapItemsQueue
+} from "../helpers";
 const Tx = require('ethereumjs-tx').Transaction;
 const fetch = require('node-fetch');
 const fs = require('fs');
@@ -25,22 +32,22 @@ class PolyCtrl {
 
         try {
             const domainName = wrapData.fio_domain;
-            const gasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
-            const gasMode = process.env.USEGASAPI;
-
             const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
 
+            const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
+
+            const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
             let gasPrice = 0;
-            if ((gasMode === "1" && gasPriceSuggestions.status > 0) || (gasMode === "0" && parseInt(process.env.PGASPRICE) <= 0)) {
+            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
                 console.log(logPrefix + 'using gasPrice value from the api:');
                 if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.ProposeGasPrice);
+                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
                 } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.SafeGasPrice);
+                    gasPrice = gasPriceSuggestion;
                 } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.FastGasPrice);
+                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
                 }
-            } else if (gasMode === "0" || (gasMode === "1" && gasPriceSuggestions.status === "0")) {
+            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
                 console.log(logPrefix + 'using gasPrice value from the .env:');
                 gasPrice = convertGweiToWei(process.env.PGASPRICE);
             }
@@ -52,7 +59,7 @@ class PolyCtrl {
             console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
             console.log('gasLimit = ' + gasLimit)
 
-            
+
             // we shouldn't await it to do not block the rest of the actions
             this.web3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
@@ -83,7 +90,7 @@ class PolyCtrl {
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)
                     const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                     let wrapABI = wrapDomainFunction.encodeABI();
-                    const nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate nonce value for transaction
+                    const nonce = await this.web3.eth.getTransactionCount(pubKey, 'pending');//calculate nonce value for transaction
                     const polygonTransaction = new Tx(
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),
@@ -98,7 +105,7 @@ class PolyCtrl {
                     const privateKey = Buffer.from(signKey, 'hex');
                     polygonTransaction.sign(privateKey);
                     const serializedTx = polygonTransaction.serialize();
-                    try{
+                    try {
                         await this.web3.eth//excute the sign transaction using public key and private key of oracle
                             .sendSignedTransaction('0x' + serializedTx.toString('hex'))
                             .on('transactionHash', (hash) => {
@@ -122,45 +129,34 @@ class PolyCtrl {
                         console.log(logPrefix + e.stack);
                     }
 
-                    if (!isTransactionProceededSuccessfully) {
-                        console.log(logPrefix + `something went wrong, storing transaction data into ${LOG_FILES_PATH_NAMES.wrapDomainTransactionError}`)
-                        const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransactionError, wrapText); // store issued transaction to log by line-break
-                    }
-                    let csvContent = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction).toString().split('\r\n'); // read file and convert to array by line break
-                    csvContent.shift(); // remove the first element from array
-                    let nextFioWrapDomainTransactionIdToProceed;
-                    let newData;
-                    if (csvContent.length > 0 && csvContent[0] !== '') { //check if the queue is empty
-                        nextFioWrapDomainTransactionIdToProceed = csvContent[0].split(' ')[0];
-                        newData = JSON.parse(csvContent[0].split(' ')[1]);
-                        console.log(logPrefix + `preparing to execute next wrap domain transaction from ${LOG_FILES_PATH_NAMES.wrapDomainTransaction} log file for FIO tx_id: ${nextFioWrapDomainTransactionIdToProceed}`)
-                        this.wrapFioDomain(nextFioWrapDomainTransactionIdToProceed, newData); //excuete next transaction from transaction log
-                        csvContent = csvContent.join('\r\n'); // convert array back to string
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, csvContent)
-                        console.log(logPrefix + `${LOG_FILES_PATH_NAMES.wrapDomainTransaction} log file was successfully updated.`)
-                    } else {
-                        config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
 
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.wrapDomainTransaction, "")
-                        console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
-                        return 0;
-                    }
-                    console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`)
+                    if (isTransactionProceededSuccessfully)
+                        console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}: successfully completed`);
                 } else {
-                    config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
-
                     console.log(logPrefix + "Invalid Address");
                 }
             } catch (error) {
-                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
-
-                console.log(logPrefix + error.stack);
-                addLogMessage({
-                    filePath: LOG_FILES_PATH_NAMES.MATIC,
-                    message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
+                handleChainError({
+                    logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
+                    consoleMessage: logPrefix + error.stack
                 });
             }
+
+            if (!isTransactionProceededSuccessfully) {
+                handleLogFailedWrapItem({
+                    logPrefix,
+                    errorLogFilePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError,
+                    txIdOnFioChain,
+                    wrapData
+                })
+            }
+
+            handleUpdatePendingWrapItemsQueue({
+                action: this.wrapFioDomain.bind(this),
+                logPrefix,
+                logFilePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction,
+                jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting
+            })
         } catch (err) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByMATICExecuting, false, 0);
 
