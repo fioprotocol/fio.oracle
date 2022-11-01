@@ -11,7 +11,7 @@ class UtilCtrl {
     constructor(){
     }
 
-    async getFioChainInfo() {
+    async getLastIrreversibleBlockOnFioChain() {
         const fioChainInfoResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_info')
 
         await checkHttpResponseStatus(fioChainInfoResponse, 'Getting FIO chain info went wrong.');
@@ -24,15 +24,18 @@ class UtilCtrl {
         return lastBlockNum;
     }
 
-    async getUnprocessedActionsOnFioChain(accountName, pos) {
-      const lastNumber = getLastProceededBlockNumberOnFioChain();
-      let offset = parseInt(process.env.POLLOFFSET);
-      let data = await this.getActions(accountName, pos, offset);
-      while(data.length > 0 && data[0].block_num > lastNumber) {
-        offset -= 10;
-        data = await this.getActions(accountName, pos, offset);
-      }
-      return data.filter(elem => elem.block_num > lastNumber)
+    async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix) {
+        const lastNumber = getLastProceededBlockNumberOnFioChain();
+
+        console.log(logPrefix + `start Block umber = ${lastNumber + 1}, end Block Number: ${pos}`)
+
+        let offset = parseInt(process.env.POLLOFFSET);
+        let data = await this.getActions(accountName, pos, offset);
+        while(data.length > 0 && data[0].block_num > lastNumber) {
+            offset -= 10;
+            data = await this.getActions(accountName, pos, offset);
+        }
+        return data.filter(elem => elem.block_num > lastNumber)
     }
 
     async getActions(accountName, pos, offset) {

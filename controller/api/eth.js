@@ -1,15 +1,17 @@
-import config from "../../config/config";
-
 require('dotenv').config();
+import { Transaction } from '@ethereumjs/tx'
 import Web3 from "web3";
+const fetch = require('node-fetch');
+const fs = require('fs');
+import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
 import fioNftABI from "../../config/ABI/FIONFT.json";
 import {
-    addLogMessage,
+    addLogMessage, calculateAverageGasPrice, calculateHighGasPrice,
     convertGweiToWei,
     convertNativeFioIntoFio,
     convertWeiToEth,
-    convertWeiToGwei,
+    convertWeiToGwei, getEthGasPriceSuggestion,
     handleChainError, handleLogFailedWrapItem,
     handleServerError, handleUpdatePendingWrapItemsQueue
 } from "../helpers";
@@ -17,9 +19,6 @@ import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 // todo: 'ethereumjs-tx' has been deprecated, update to @ethereumjs/tx
 const Tx = require('ethereumjs-tx').Transaction;
-
-const fetch = require('node-fetch');
-const fs = require('fs');
 
 const { TextEncoder, TextDecoder } = require('text-encoding');
 
@@ -40,20 +39,20 @@ class EthCtrl {
 
         try {
             const quantity = wrapData.amount;
-            const gasPriceSuggestions = await (await fetch(process.env.ETH_API_URL)).json();
+            const gasPriceSuggestion = await getEthGasPriceSuggestion();
 
             const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
             let gasPrice = 0;
-            if ((isUsingGasApi && gasPriceSuggestions.status === "1") || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
+            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
                 console.log(logPrefix + 'using gasPrice value from the api:');
                 if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.ProposeGasPrice);
+                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
                 } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.SafeGasPrice);
+                    gasPrice = gasPriceSuggestion;
                 } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.FastGasPrice);
+                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
                 }
-            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestions.status === "0")){
+            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
                 console.log(logPrefix + 'using gasPrice value from the .env:');
                 gasPrice = convertGweiToWei(process.env.TGASPRICE);
             }
@@ -87,8 +86,6 @@ class EthCtrl {
                     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
                     const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
 
-                    // Commented this out. It was throwing an uncaught exception so I added the .catch, but still throws an error.
-                    // We have changed how to check consensus.
                     // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
                     // this.fioContract.methods.getApproval(txIdOnFioChain).call()
                     //     .then((response) => {
@@ -102,7 +99,8 @@ class EthCtrl {
                         console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to "${wrapData.public_address}"`)
                         const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
                         let wrapABI = wrapTokensFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
+                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending');
+                        //calculate nonce value for transaction
                         console.log(logPrefix + 'nonce number: ' + nonce)
 
                         const ethTransaction = new Tx(
@@ -190,20 +188,20 @@ class EthCtrl {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, true, 0);
 
         try {
-            const gasPriceSuggestions = await (await fetch(process.env.ETH_API_URL)).json();
+            const gasPriceSuggestion = await getEthGasPriceSuggestion();
 
             const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
             let gasPrice = 0;
-            if ((isUsingGasApi && gasPriceSuggestions.status === "1") || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
+            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
                 console.log(logPrefix + 'using gasPrice value from the api:');
                 if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.ProposeGasPrice);
+                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
                 } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.SafeGasPrice);
+                    gasPrice = gasPriceSuggestion;
                 } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.FastGasPrice);
+                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
                 }
-            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestions.status === "0")){
+            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
                 console.log(logPrefix + 'using gasPrice value from the .env:');
                 gasPrice = convertGweiToWei(process.env.TGASPRICE);
             }
@@ -239,7 +237,7 @@ class EthCtrl {
                         console.log(logPrefix + `requesting wrap action of domain: "${wrapData.fio_domain}", to "${wrapData.public_address}"`)
                         const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                         let wrapABI = wrapDomainFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey); //calculate nonce value for transaction
+                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending'); //calculate nonce value for transaction
                         console.log(logPrefix + 'nonce number: ' + nonce)
 
                         const ethTransaction = new Tx(

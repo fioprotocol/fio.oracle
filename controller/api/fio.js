@@ -1,11 +1,9 @@
-import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
+require('dotenv').config();
 
-const fs = require('fs');
 import Web3 from "web3";
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
 const fetch = require('node-fetch');
-require('dotenv').config();
 import utilCtrl from '../util';
 import ethCtrl from '../api/eth';
 import polygonCtrl from '../api/polygon';
@@ -26,6 +24,7 @@ import {
     updateBlockNumberMATIC,
     updateBlockNumberForDomainsUnwrappingOnETH
 } from "../helpers";
+import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polyWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -287,7 +286,7 @@ class FIOCtrl {
     constructor() {}
 
     async handleUnprocessedWrapActionsOnFioChain(req, res) {
-        const logPrefix = 'Get latest Wrap (tokens and domains) actions on FIO chain --> ';
+        const logPrefix = 'FIO, Get latest Wrap (tokens and domains) actions on FIO chain --> ';
 
         if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
@@ -298,7 +297,8 @@ class FIOCtrl {
 
         console.log(logPrefix + 'Start');
         try {
-            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1);
+            const lastIrreversibleBlockOnFioChain = await utilCtrl.getLastIrreversibleBlockOnFioChain();
+            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix);
             const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
 
             console.log(logPrefix + `events data length : ${wrapDataArrayLength}, data:`);
@@ -428,10 +428,11 @@ class FIOCtrl {
                         if (!error) {
                             return events;
                         } else {
+                            // also this error will be caught in the catch block
                             console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ETH Error:`);
 
                             handleChainError({
-                                logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + error,
+                                logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'unwraptokens' + ' ' + 'getPastEvents' + ' ' + error,
                                 consoleMessage: error
                             });
                         }
@@ -530,10 +531,11 @@ class FIOCtrl {
                         if (!error) {
                             return events;
                         } else {
+                            // also this error will be caught in the catch block
                             console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ETH Error:`);
 
                             handleChainError({
-                                logMessage: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + error,
+                                logMessage: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + 'getPastEvents' + ' ' + error,
                                 consoleMessage: error
                             });
                         }
@@ -633,10 +635,11 @@ class FIOCtrl {
                         if (!error) {
                             return events;
                         } else {
+                            // also this error will be caught in the catch block
                             console.log(logPrefix + `requesting past unwrap events, Blocks Numbers from ${from} to ${to} MATIC Error:`);
 
                             handleChainError({
-                                logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + error,
+                                logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'unwrapdomains' + ' ' + 'getPastEvents' + ' ' + error,
                                 consoleMessage: error
                             });
                         }

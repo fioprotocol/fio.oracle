@@ -4,10 +4,10 @@ import Common, { CustomChain } from '@ethereumjs/common';
 import config from "../../config/config";
 import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
 import {
-    addLogMessage,
+    addLogMessage, calculateAverageGasPrice, calculateHighGasPrice,
     convertGweiToWei,
     convertWeiToEth,
-    convertWeiToGwei,
+    convertWeiToGwei, getEthGasPriceSuggestion, getPolygonGasPriceSuggestion,
     handleChainError, handleLogFailedWrapItem,
     handleServerError, handleUpdatePendingWrapItemsQueue
 } from "../helpers";
@@ -32,22 +32,22 @@ class PolyCtrl {
 
         try {
             const domainName = wrapData.fio_domain;
-            const gasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
-            const gasMode = process.env.USEGASAPI;
-
             const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
 
+            const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
+
+            const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
             let gasPrice = 0;
-            if ((gasMode === "1" && gasPriceSuggestions.status > 0) || (gasMode === "0" && parseInt(process.env.PGASPRICE) <= 0)) {
+            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
                 console.log(logPrefix + 'using gasPrice value from the api:');
                 if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.ProposeGasPrice);
+                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
                 } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.SafeGasPrice);
+                    gasPrice = gasPriceSuggestion;
                 } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = convertGweiToWei(gasPriceSuggestions.result.FastGasPrice);
+                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
                 }
-            } else if (gasMode === "0" || (gasMode === "1" && gasPriceSuggestions.status === "0")) {
+            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
                 console.log(logPrefix + 'using gasPrice value from the .env:');
                 gasPrice = convertGweiToWei(process.env.PGASPRICE);
             }
@@ -90,7 +90,7 @@ class PolyCtrl {
                     console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)
                     const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                     let wrapABI = wrapDomainFunction.encodeABI();
-                    const nonce = await this.web3.eth.getTransactionCount(pubKey);//calculate nonce value for transaction
+                    const nonce = await this.web3.eth.getTransactionCount(pubKey, 'pending');//calculate nonce value for transaction
                     const polygonTransaction = new Tx(
                         {
                             gasPrice: this.web3.utils.toHex(gasPrice),

@@ -2,6 +2,11 @@ import fs from "fs";
 import Web3 from 'web3';
 import config from "../config/config";
 import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
+import fetch from "node-fetch";
+
+export const replaceNewLines = (stringValue, replaceChar = ', ') => {
+    return  stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
+}
 
 // function to handle all unexpected request errors (like bad internet connection or invalid response) and add them into Error.log file
 export const handleServerError = async (err, additionalMessage = null) => {
@@ -13,7 +18,7 @@ export const handleServerError = async (err, additionalMessage = null) => {
 
     addLogMessage({
         filePath: LOG_FILES_PATH_NAMES.oracleErrors,
-        message: (additionalMessage ?  (additionalMessage + ': ') : '') + err.stack,
+        message: replaceNewLines((additionalMessage ?  (additionalMessage + ': ') : '') + err.stack),
     });
 }
 
@@ -22,7 +27,7 @@ export const handleChainError = ({logMessage, consoleMessage}) => {
     console.log(consoleMessage);
     addLogMessage({
         filePath: LOG_FILES_PATH_NAMES.oracleErrors,
-        message: logMessage,
+        message: replaceNewLines(logMessage),
     });
 }
 
@@ -177,4 +182,55 @@ export const handleLogFailedWrapItem = ({
     console.log(logPrefix + `something went wrong, storing transaction data into ${errorLogFilePath}`)
     const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
     fs.writeFileSync(errorLogFilePath, wrapText); // store issued transaction to log by line-break
+}
+
+// base gas price value + 10%
+export const calculateAverageGasPrice = (val) => {
+    return Math.ceil(val + val * 0.1);
+}
+// base gas price value + 20%
+export const calculateHighGasPrice = (val) => {
+    return Math.ceil(val + val * 0.2);
+}
+
+// ETH gas price suggestion in WEI
+export const getEthGasPriceSuggestion = async () => {
+    const gasPriceSuggestion = await (await fetch(process.env.ETHINFURA, {
+        body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "eth_gasPrice",
+            params: [],
+            id:1
+        }),
+        method: 'POST',
+    })).json();
+
+    let value = null;
+
+    if (gasPriceSuggestion && gasPriceSuggestion.result) {
+        value = parseInt(gasPriceSuggestion.result);
+    }
+
+    return value;
+}
+
+// POLYGON gas price suggestion in WEI
+export const getPolygonGasPriceSuggestion = async () => {
+    const gasPriceSuggestion = await (await fetch(process.env.POLYGON_INFURA, {
+        body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "eth_gasPrice",
+            params: [],
+            id:1
+        }),
+        method: 'POST',
+    })).json();
+
+    let value = null;
+
+    if (gasPriceSuggestion && gasPriceSuggestion.result) {
+        value = parseInt(gasPriceSuggestion.result);
+    }
+
+    return value;
 }
