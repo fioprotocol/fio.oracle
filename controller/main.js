@@ -3,11 +3,10 @@ import Web3 from 'web3';
 const cors = require("cors");
 
 import {
-    convertNativeFioIntoFio,
-    convertWeiToEth,
+    convertWeiToEth, convertWeiToGwei, getEthGasPriceSuggestion, getPolygonGasPriceSuggestion,
     handleServerError,
     prepareLogDirectory,
-    prepareLogFile
+    prepareLogFile,
 } from "./helpers";
 
 const route = require("express").Router();
@@ -15,11 +14,11 @@ import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
 import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
-import fetch from "node-fetch";
 
 class MainCtrl {
     async start(app) {
         const logPrefix = `Startup --> `;
+
         try {
             this.web3 = new Web3(process.env.ETHINFURA);
             this.polyWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -40,13 +39,15 @@ class MainCtrl {
                 }
             })
 
-            // Check is ETH_API_URL and POLYGON_API_URL variables are valid
-            const gasMode = process.env.USEGASAPI;
-            if (gasMode === "1") {
-                const ethGasPriceSuggestions = await (await fetch(process.env.ETH_API_URL)).json();
-                if (ethGasPriceSuggestions.status !== "1") throw new Error('Please, check "ETH_API_URL" variable: ' + JSON.stringify(ethGasPriceSuggestions))
-                const polyGasPriceSuggestions = await (await fetch(process.env.POLYGON_API_URL)).json();
-                if (polyGasPriceSuggestions.status !== "1") throw new Error('Please, check "POLYGON_API_URL" variable: ' + JSON.stringify(polyGasPriceSuggestions))
+            // Check is ETHINFURA and POLYGON_INFURA variables are valid
+            const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
+            if (isUsingGasApi) {
+                const ethGasPriceSuggestion = await getEthGasPriceSuggestion();
+                console.log(convertWeiToGwei(ethGasPriceSuggestion), 'GWEI - safe gas price for ETH')
+                if (!ethGasPriceSuggestion) throw new Error('Please, check "ETHINFURA" variable: ' + JSON.stringify(ethGasPriceSuggestion))
+                const polyGasPriceSuggestion = await getPolygonGasPriceSuggestion();
+                console.log(convertWeiToGwei(polyGasPriceSuggestion), 'GWEI - safe gas price for Polygon')
+                if (!polyGasPriceSuggestion) throw new Error('Please, check "POLYGON_INFURA" variable: ' + JSON.stringify(polyGasPriceSuggestion))
 
             }
 
@@ -55,6 +56,8 @@ class MainCtrl {
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError });
+            // await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction });
+            // await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
@@ -63,24 +66,28 @@ class MainCtrl {
             console.log(logPrefix + 'logs folders are ready');
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-                fetchLastBlockNumber: utilCtrl.getFioChainInfo
+                fetchLastBlockNumber: utilCtrl.getLastIrreversibleBlockOnFioChain
             });
             await prepareLogFile({
-                filePath: LOG_FILES_PATH_NAMES.blockNumberETH,
+                filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
                 fetchLastBlockNumber: this.web3.eth.getBlockNumber
             });
+            // await prepareLogFile({
+            //     filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
+            //     fetchLastBlockNumber: this.web3.eth.getBlockNumber
+            // });
             await prepareLogFile({
-                filePath: LOG_FILES_PATH_NAMES.blockNumberMATIC,
+                filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
             console.log(logPrefix + 'blocks folders are ready');
 
             // Start Jobs
             // ethCtrl.getContract();
-            setInterval(fioCtrl.handleUnprocessedWrapActions, parseInt(process.env.POLLTIME)); //excute wrap action every 60 seconds
-            setInterval(fioCtrl.handleUnprocessedUnwrapTokensActions, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            // setInterval(fioCtrl.unwrapDomainFunction, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            setInterval(fioCtrl.handleUnprocessedUnwrapDomainActionsOnPolygon, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(process.env.POLLTIME)); //execute wrap FIO tokens and domains action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapTokensOnEthChainActions, parseInt(process.env.POLLTIME)); //execute unwrap tokens action every 60 seconds
+            // setInterval(fioCtrl.handleUnprocessedUnwrapDomainOnEthChainActions, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapDomainActionsOnPolygon, parseInt(process.env.POLLTIME)); //execute unwrap domains action every 60 seconds
 
             this.initRoutes(app);
 
@@ -88,7 +95,7 @@ class MainCtrl {
             console.log(logPrefix + `Mode: ${process.env.MODE}`)
         } catch (err) {
             handleServerError(err, logPrefix);
-            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME, ETH_API_URL, POLYGON_API_URL');
+            throw new Error('In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME');
         }
     }
 
