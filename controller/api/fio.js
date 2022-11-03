@@ -295,14 +295,14 @@ class FIOCtrl {
             return
         }
 
-        console.log(logPrefix + 'Start');
+        //console.log(logPrefix + 'Start');
         try {
             const lastIrreversibleBlockOnFioChain = await utilCtrl.getLastIrreversibleBlockOnFioChain();
             const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix);
             const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
 
-            console.log(logPrefix + `events data length : ${wrapDataArrayLength}, data:`);
-            console.log(wrapDataEvents)
+            //console.log(logPrefix + `events data length : ${wrapDataArrayLength}, data:`);
+            //console.log(wrapDataEvents)
 
             if (wrapDataArrayLength > 0) {
                 console.log(logPrefix + 'Gonna parse events and start execution of wrap actions, if they are not started yet')
@@ -399,7 +399,7 @@ class FIOCtrl {
             handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
         }
         config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
-        console.log(logPrefix + 'End');
+        //console.log(logPrefix + 'End');
     }
 
     async handleUnprocessedUnwrapTokensOnEthChainActions() {
@@ -412,7 +412,7 @@ class FIOCtrl {
             return
         }
 
-        console.log(logPrefix + 'Executing');
+        //console.log(logPrefix + 'Executing');
 
         try {
             const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_ETH);
@@ -475,9 +475,9 @@ class FIOCtrl {
                     fromBlockNumber = toBlockNumber + 1;
                 }
 
-                console.log(logPrefix + `events list:`);
-                console.log(result);
-                console.log(logPrefix + `events list length: ${result.length}`);
+                //console.log(logPrefix + `events list:`);
+                //console.log(result);
+                //console.log(logPrefix + `events list length: ${result.length}`);
                 return result;
             };
 
@@ -502,7 +502,7 @@ class FIOCtrl {
         }
         config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapTokensOnEthExecuting, false, 0);
 
-        console.log(logPrefix + 'all necessary actions were completed successfully')
+        //console.log(logPrefix + 'all necessary actions were completed successfully')
     }
 
     async handleUnprocessedUnwrapDomainOnEthChainActions() {
@@ -619,7 +619,7 @@ class FIOCtrl {
             return
         }
 
-        console.log(logPrefix + 'Executing');
+        //console.log(logPrefix + 'Executing');
 
         try {
             const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_POLY);
@@ -682,9 +682,9 @@ class FIOCtrl {
                     fromBlockNumber = toBlockNumber + 1;
                 }
 
-                console.log(logPrefix + `events list:`);
-                console.log(result);
-                console.log(logPrefix + `events list length: ${result.length}`);
+                //console.log(logPrefix + `events list:`);
+                //console.log(result);
+                //console.log(logPrefix + `events list length: ${result.length}`);
                 return result;
             };
 
@@ -709,7 +709,7 @@ class FIOCtrl {
         }
         config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapDomainsOnPolygonExecuting, false, 0);
 
-        console.log(logPrefix + 'all necessary actions were completed successfully');
+        //console.log(logPrefix + 'all necessary actions were completed successfully');
     }
 }
 
