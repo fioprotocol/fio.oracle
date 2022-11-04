@@ -1,8 +1,9 @@
-const express = require('express')
-const app = express();
-const bodyParser = require('body-parser')
+import express from 'express';
+import bodyParser from 'body-parser';
 import conf from './config/config';
 import mainCtrl from './controller/main';
+
+const app = express();
 app.use(
   express.urlencoded({
     extended: true

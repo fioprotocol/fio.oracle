@@ -1,7 +1,7 @@
 require('dotenv').config();
 import { Transaction } from '@ethereumjs/tx'
+import { Common } from '@ethereumjs/common'
 import Web3 from "web3";
-const fetch = require('node-fetch');
 const fs = require('fs');
 import config from "../../config/config";
 import fioABI from '../../config/ABI/FIO.json';
@@ -13,14 +13,9 @@ import {
     convertWeiToEth,
     convertWeiToGwei, getEthGasPriceSuggestion,
     handleChainError, handleLogFailedWrapItem,
-    handleServerError, handleUpdatePendingWrapItemsQueue
+    handleServerError, handleUpdatePendingWrapItemsQueue, isOracleEthAddressValid
 } from "../helpers";
 import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
-
-// todo: 'ethereumjs-tx' has been deprecated, update to @ethereumjs/tx
-const Tx = require('ethereumjs-tx').Transaction;
-
-const { TextEncoder, TextDecoder } = require('text-encoding');
 
 class EthCtrl {
     constructor() {
@@ -29,16 +24,28 @@ class EthCtrl {
         this.fioNftContract = new this.web3.eth.Contract(fioNftABI, process.env.FIO_NFT_ETH_CONTRACT);
     }
 
-    async wrapFioToken(txIdOnFioChain, wrapData) {
-        const logPrefix = `ETH, wrapFioToken, FIO tx_id: "${txIdOnFioChain}", amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO --> `
-        console.log(logPrefix + 'Executing wrapFioToken, data to wrap:');
-        console.log(wrapData)
+    // It handles both wrap actions (domain and tokens) on ETH chain, this is designed to prevent nonce collisions,
+    // when asynchronous jobs make transactions with same nonce value from one address (oracle public address),
+    // so it causes "replacing already existing transaction in the chain".
+    async handleWrap() {
+        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting))
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
 
-        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapTokensExecuting))
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        const transactionToProceed = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapEthTransactionQueue).toString().split('\r\n')[0];
+        if (transactionToProceed === '') {
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
+            return;
+        }
+
+        const txIdOnFioChain = transactionToProceed.split(' ')[0];
+        const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
+
+        const isWrappingTokens = !!wrapData.amount;
+
+        const logPrefix = `ETH, handleWrap, FIO tx_id: "${txIdOnFioChain}", ${isWrappingTokens ? `amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO` : `domain: "${wrapData.fio_domain}"`}, public_address: "${wrapData.public_address}": --> `
+        console.log(logPrefix + 'Executing handleWrap.');
 
         try {
-            const quantity = wrapData.amount;
             const gasPriceSuggestion = await getEthGasPriceSuggestion();
 
             const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
@@ -61,13 +68,12 @@ class EthCtrl {
 
             const gasLimit = parseFloat(process.env.TGASLIMIT);
 
-            console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
-            console.log('gasLimit = ' + gasLimit)
+            console.log(logPrefix + `gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
 
             // we shouldn't await it to do not block the rest of the actions flow
             this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
-                    console.log(logPrefix + error.stack)
+                    console.log(logPrefix + 'getBalance: ' + error.stack)
                 } else {
                     if (convertWeiToEth(oracleBalance) < ((convertWeiToEth(gasLimit * gasPrice)) * 5)) {
                         const timeStamp = new Date().toISOString();
@@ -77,9 +83,9 @@ class EthCtrl {
                 }
             })
 
-            const registeredOraclesPublicKeys = await this.fioContract.methods.getOracles().call();
+            const isOracleAddressValid = await isOracleEthAddressValid();
 
-            if (registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
+            if (isOracleAddressValid) {
                 let isTransactionProceededSuccessfully = false;
 
                 try {
@@ -96,14 +102,17 @@ class EthCtrl {
                     //     });
 
                     if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                        console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to "${wrapData.public_address}"`)
-                        const wrapTokensFunction = this.fioContract.methods.wrap(wrapData.public_address, quantity, txIdOnFioChain);
-                        let wrapABI = wrapTokensFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending');
-                        //calculate nonce value for transaction
-                        console.log(logPrefix + 'nonce number: ' + nonce)
+                        console.log(logPrefix + `preparing wrap action.`)
+                        const wrapFunction = isWrappingTokens ?
+                            this.fioContract.methods.wrap(wrapData.public_address, wrapData.amount, txIdOnFioChain)
+                            : this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
 
-                        const ethTransaction = new Tx(
+                        let wrapABI = wrapFunction.encodeABI();
+                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending');
+
+                        const common = new Common({ chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' })
+
+                        const ethTransaction = Transaction.fromTxData(
                             {
                                 gasPrice: this.web3.utils.toHex(gasPrice),
                                 gasLimit: this.web3.utils.toHex(gasLimit),
@@ -112,45 +121,51 @@ class EthCtrl {
                                 from: oraclePublicKey,
                                 nonce: this.web3.utils.toHex(nonce)
                             },
-                            { chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' }
+                            { common }
                         );
+
+                        const submitLogData = {
+                            gasPrice,
+                            gasLimit,
+                            to: isWrappingTokens ? process.env.FIO_TOKEN_ETH_CONTRACT : process.env.FIO_NFT_ETH_CONTRACT,
+                            from: oraclePublicKey,
+                            nonce,
+                        }
+                        if (isWrappingTokens) {
+                            submitLogData.amount = wrapData.amount;
+                        } else submitLogData.domain = wrapData.fio_domain;
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.ETH,
-                            message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + gasLimit + ', amount: ' + quantity + ', to: ' + process.env.FIO_TOKEN_ETH_CONTRACT + ', from: ' + oraclePublicKey + '}',
+                            message: `ETH ${isWrappingTokens ? 'fio.erc20 wraptokens submit' : 'fio.erc721 wrapdomain submit'} ${JSON.stringify(submitLogData)}`,
                         });
 
                         const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-                        ethTransaction.sign(privateKey);
-                        const serializedTx = ethTransaction.serialize();
-                        await this.web3.eth //excute the sign transaction using public key and private key of oracle
-                            .sendSignedTransaction('0x' + serializedTx.toString('hex'))
+                        const serializedTx = ethTransaction.sign(privateKey).serialize().toString('hex');
+                        await this.web3.eth // execute the sign transaction using public key and private key of oracle
+                            .sendSignedTransaction('0x' + serializedTx)
                             .on('transactionHash', (hash) => {
-                                console.log(logPrefix + 'transaction has been signed and sent into the chain.')
-                                console.log('TxHash: ', hash);
+                                console.log(logPrefix + `transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${nonce}`);
                             })
                             .on('receipt', (receipt) => {
-                                console.log(logPrefix + "completed");
+                                console.log(logPrefix + "transaction has been successfully completed in the chain.");
                                 addLogMessage({
                                     filePath: LOG_FILES_PATH_NAMES.ETH,
-                                    message: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens receipt' + ' ' + JSON.stringify(receipt),
+                                    message: `ETH ${isWrappingTokens ? 'fio.erc20 wraptokens receipt' : 'fio.erc721 wrapdomain receipt'} ${JSON.stringify(receipt)}`,
                                 });
                                 isTransactionProceededSuccessfully = true;
                             })
                             .on('error', (error, receipt) => {
-                                console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
+                                console.log(logPrefix + 'transaction has been failed in the chain.') //error message will be logged by catch block
 
                                 if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
                             });
-
-                        if (isTransactionProceededSuccessfully)
-                            console.log(logPrefix + `requesting wrap action of ${convertNativeFioIntoFio(quantity)} FIO tokens to ${wrapData.public_address}: Successfully completed`);
                     } else {
                         console.log(logPrefix + "Invalid Address");
                     }
                 } catch (error) {
                     handleChainError({
-                        logMessage: 'ETH' + ' ' + 'fio.erc20' + ' ' + 'wraptokens' + ' ' + error,
+                        logMessage: `ETH ${isWrappingTokens ? 'fio.erc20 wraptokens' : 'fio.erc721 wrapdomain'} ` + error,
                         consoleMessage: logPrefix + error.stack
                     });
                 }
@@ -158,164 +173,26 @@ class EthCtrl {
                 if (!isTransactionProceededSuccessfully) {
                     handleLogFailedWrapItem({
                         logPrefix,
-                        errorLogFilePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError,
-                        txIdOnFioChain,
+                        errorLogFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionErrorQueue,
+                        txId: txIdOnFioChain,
                         wrapData
                     })
                 }
 
                 handleUpdatePendingWrapItemsQueue({
-                    action: this.wrapFioToken.bind(this),
+                    action: this.handleWrap.bind(this),
                     logPrefix,
-                    logFilePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction,
-                    jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapTokensExecuting
+                    logFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
+                    jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting
                 })
             } else {
-                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
+                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
             }
         } catch (err) {
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapTokensExecuting, false, 0);
-            handleServerError(err, 'ETH, wrapFioToken');
+            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
+            handleServerError(err, 'ETH, handleWrap');
         }
     }
-
-    async wrapFioDomain(txIdOnFioChain, wrapData) {
-        const logPrefix = `ETH, wrapFioDomain, FIO tx_id: "${txIdOnFioChain}", domain: "${wrapData.fio_domain}" --> `
-        console.log(logPrefix + 'Executing wrapFioDomain, data to wrap:');
-        console.log(wrapData)
-
-        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting))
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, true, 0);
-
-        try {
-            const gasPriceSuggestion = await getEthGasPriceSuggestion();
-
-            const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-            let gasPrice = 0;
-            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
-                console.log(logPrefix + 'using gasPrice value from the api:');
-                if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-                } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = gasPriceSuggestion;
-                } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-                }
-            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-                console.log(logPrefix + 'using gasPrice value from the .env:');
-                gasPrice = convertGweiToWei(process.env.TGASPRICE);
-            }
-
-            if (!gasPrice) throw new Error(logPrefix + 'Cannot set valid Gas Price value');
-
-            const gasLimit = parseFloat(process.env.TGASLIMIT);
-
-            console.log('gasPrice = ' + gasPrice + ` (${convertWeiToGwei(gasPrice)} GWEI)`)
-            console.log('gasLimit = ' + gasLimit)
-
-            // we shouldn't await it to do not block the rest of the actions flow
-            this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
-                if (error) {
-                    console.log(logPrefix + error.stack)
-                } else {
-                    if (convertWeiToEth(oracleBalance) < ((convertWeiToEth(gasLimit * gasPrice)) * 5)) {
-                        const timeStamp = new Date().toISOString();
-                        console.log(logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.oracleErrors, timeStamp + ' ' + logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
-                    }
-                }
-            })
-
-            const registeredOraclesPublicKeys = await this.fioContract.methods.getOracles().call();
-            if (registeredOraclesPublicKeys.includes(process.env.ETH_ORACLE_PUBLIC)) {
-                let isTransactionProceededSuccessfully = false;
-                try {
-                    const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
-                    const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
-
-                    if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC721 address
-                        console.log(logPrefix + `requesting wrap action of domain: "${wrapData.fio_domain}", to "${wrapData.public_address}"`)
-                        const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
-                        let wrapABI = wrapDomainFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending'); //calculate nonce value for transaction
-                        console.log(logPrefix + 'nonce number: ' + nonce)
-
-                        const ethTransaction = new Tx(
-                            {
-                                gasPrice: this.web3.utils.toHex(gasPrice),
-                                gasLimit: this.web3.utils.toHex(gasLimit),
-                                to: process.env.FIO_NFT_ETH_CONTRACT,
-                                data: wrapABI,
-                                from: oraclePublicKey,
-                                nonce: this.web3.utils.toHex(nonce)
-                            },
-                            { chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' }
-                        );
-
-                        addLogMessage({
-                            filePath: LOG_FILES_PATH_NAMES.ETH,
-                            message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + gasLimit + ', domain: ' + wrapData.fio_domain + ', to: ' + process.env.FIO_NFT_ETH_CONTRACT + ', from: ' + oraclePublicKey + '}',
-                        });
-
-                        const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-                        ethTransaction.sign(privateKey);
-                        const serializedTx = ethTransaction.serialize();
-
-                        await this.web3.eth //excute the sign transaction using public key and private key of oracle
-                            .sendSignedTransaction('0x' + serializedTx.toString('hex'))
-                            .on('transactionHash', (hash) => {
-                                console.log(logPrefix + 'transaction has been signed and sent into the chain.')
-                                console.log('TxHash: ', hash);
-                            })
-                            .on('receipt', (receipt) => {
-                                console.log(logPrefix + "completed");
-                                addLogMessage({
-                                    filePath: LOG_FILES_PATH_NAMES.ETH,
-                                    message: 'ETH' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt),
-                                });
-                                isTransactionProceededSuccessfully = true;
-                            })
-                            .on('error', (error, receipt) => {
-                                console.log(logPrefix + 'transaction has been failed.') //error message will be logged by catch block
-
-                                if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
-                            });
-
-                        if (isTransactionProceededSuccessfully) console.log(logPrefix + `Successfully completed.`)
-                    } else {
-                        console.log(logPrefix + `Invalid Address`);
-                    }
-                } catch (error) {
-                    handleChainError({
-                        logMessage: 'ETH' +' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + error,
-                        consoleMessage: logPrefix + error.stack
-                    });
-                }
-
-                if (!isTransactionProceededSuccessfully) {
-                    handleLogFailedWrapItem({
-                        logPrefix,
-                        errorLogFilePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError,
-                        txIdOnFioChain,
-                        wrapData
-                    })
-                }
-
-                handleUpdatePendingWrapItemsQueue({
-                    action: this.wrapFioDomain.bind(this),
-                    logPrefix,
-                    logFilePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction,
-                    jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting
-                })
-            } else {
-                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
-            }
-        } catch (err) {
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapDomainByETHExecuting, false, 0);
-            handleServerError(err, 'ETH, wrapFioDomain');
-        }
-    }
-
 }
 
 export default new EthCtrl();
