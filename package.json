@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/js",
     "dev": "cross-env nodemon -r esm server.js",
-    "oracle": "node scripts/oracle.js"
+    "oracle": "node scripts/oracle.js",
+    "tryagain": "node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly"
   },
   "author": "",
   "license": "ISC",
