@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/js",
     "dev": "cross-env nodemon -r esm server.js",
-    "oracle": "node scripts/oracle.js"
+    "oracle": "node scripts/oracle.js",
+    "tryagain": "node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly"
   },
   "author": "",
   "license": "ISC",
@@ -18,7 +19,8 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.14.0",
-    "@ethereumjs/common": "^2.6.5",
+    "@ethereumjs/common": "3.0.1",
+    "@ethereumjs/tx": "4.0.1",
     "@fioprotocol/fiojs": "^1.0.1",
     "@fioprotocol/fiosdk": "github:fioprotocol/fiosdk_typescript#release/1.8.x",
     "body-parser": "^1.19.0",
@@ -26,7 +28,6 @@
     "dotenv": "^8.2.0",
     "dotenv-safe": "^8.2.0",
     "esm": "^3.2.25",
-    "ethereumjs-tx": "^2.1.2",
     "ethers": "^5.1.4",
     "express": "^4.17.1",
     "fs": "^0.0.1-security",

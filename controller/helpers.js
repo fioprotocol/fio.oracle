@@ -3,6 +3,9 @@ import Web3 from 'web3';
 import config from "../config/config";
 import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
 import fetch from "node-fetch";
+import fioABI from "../config/ABI/FIO.json";
+import fioNftABI from "../config/ABI/FIONFT.json";
+import fioMaticNftABI from "../config/ABI/FIOMATICNFT.json";
 
 export const replaceNewLines = (stringValue, replaceChar = ', ') => {
     return  stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -159,15 +162,12 @@ export const handleUpdatePendingWrapItemsQueue = ({
     csvContent.shift(); // remove the first element from array
 
     if (csvContent.length > 0 && csvContent[0] !== '') {
-        const nextTransactionIdToProceed = csvContent[0].split(' ')[0];
-        const nextTransactionData = JSON.parse(csvContent[0].split(' ')[1]);
-
         const newLogFileDataToSave = csvContent.join('\r\n'); // convert array back to string
         fs.writeFileSync(logFilePath, newLogFileDataToSave);
         console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
-        console.log(logPrefix + `preparing to execute next wrap transaction from ${logFilePath} log file for FIO tx_id: ${nextTransactionIdToProceed}`);
-        action(nextTransactionIdToProceed, nextTransactionData);
+        action();
     } else {
+        console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
         fs.writeFileSync(logFilePath, "");
         config.oracleCache.set(jobIsRunningCacheKey, false, 0);
     }
@@ -175,13 +175,13 @@ export const handleUpdatePendingWrapItemsQueue = ({
 
 export const handleLogFailedWrapItem = ({
     logPrefix,
-    txIdOnFioChain,
+    txId,
     wrapData,
     errorLogFilePath,
 }) => {
     console.log(logPrefix + `something went wrong, storing transaction data into ${errorLogFilePath}`)
-    const wrapText = txIdOnFioChain + ' ' + JSON.stringify(wrapData) + '\r\n';
-    fs.writeFileSync(errorLogFilePath, wrapText); // store issued transaction to log by line-break
+    const wrapText = txId + ' ' + JSON.stringify(wrapData) + '\r\n';
+    fs.appendFileSync(errorLogFilePath, wrapText) // store issued transaction to errored log file queue by line-break
 }
 
 // base gas price value + 10%
@@ -233,4 +233,38 @@ export const getPolygonGasPriceSuggestion = async () => {
     }
 
     return value;
+}
+
+export const isOracleEthAddressValid = async (isTokens = true) => {
+    const web3 = new Web3(process.env.ETHINFURA);
+    const contract = new web3.eth.Contract(isTokens ? fioABI : fioNftABI, isTokens ? process.env.FIO_TOKEN_ETH_CONTRACT : process.env.FIO_NFT_ETH_CONTRACT);
+
+    const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
+
+    return !!(registeredOraclesPublicKeys.map(registeredOracle => registeredOracle.toLowerCase()).includes(process.env.ETH_ORACLE_PUBLIC.toLowerCase()))
+}
+
+export const isOraclePolygonAddressValid = async () => {
+    const web3 = new Web3(process.env.POLYGON_INFURA);
+    const contract = new web3.eth.Contract(fioMaticNftABI, process.env.FIO_NFT_POLYGON_CONTRACT);
+
+    const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
+
+    return !!(registeredOraclesPublicKeys.map(registeredOracle => registeredOracle.toLowerCase()).includes(process.env.POLYGON_ORACLE_PUBLIC.toLowerCase()))
+}
+
+const checkEthBlockNumbers = async () => {
+    const web3 = new Web3(process.env.ETHINFURA);
+    const promise1 = new Promise(async (resolve) => {
+        resolve(await web3.eth.getBlockNumber());
+    })
+    const promise2 = new Promise(async (resolve) => {
+        resolve((await web3.eth.getBlock('latest')).number);
+    })
+    const promise3 = new Promise(async (resolve) => {
+        resolve((await web3.eth.getBlock('pending')).number);
+    })
+
+    const res = await Promise.all([promise1, promise2, promise3])
+    console.log(JSON.stringify(res))
 }

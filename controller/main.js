@@ -1,15 +1,20 @@
+import {re} from "mathjs";
+
 require('dotenv').config();
 import Web3 from 'web3';
 const cors = require("cors");
+const route = require("express").Router();
 
 import {
-    convertWeiToEth, convertWeiToGwei, getEthGasPriceSuggestion, getPolygonGasPriceSuggestion,
+    convertWeiToEth,
+    convertWeiToGwei,
+    getEthGasPriceSuggestion,
+    getPolygonGasPriceSuggestion,
     handleServerError,
     prepareLogDirectory,
     prepareLogFile,
 } from "./helpers";
 
-const route = require("express").Router();
 import fioRoute from './routes/fio';
 import fioCtrl from './api/fio';
 import utilCtrl from './util';
@@ -51,15 +56,17 @@ class MainCtrl {
 
             }
 
-            // Prepare logs files
+            // Prepare logs file
             prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
-            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransaction });
-            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainTransactionError });
-            // await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransaction });
-            // await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapDomainByEthTransactionError });
-            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransaction });
-            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapTokensTransactionError });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionErrorQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionErrorQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionErrorQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue });
+            await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionErrorQueue });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
             await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
@@ -72,22 +79,25 @@ class MainCtrl {
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
                 fetchLastBlockNumber: this.web3.eth.getBlockNumber
             });
-            // await prepareLogFile({
-            //     filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-            //     fetchLastBlockNumber: this.web3.eth.getBlockNumber
-            // });
+            await prepareLogFile({
+                filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
+                fetchLastBlockNumber: this.web3.eth.getBlockNumber
+            });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
             console.log(logPrefix + 'blocks folders are ready');
 
-            // Start Jobs
-            // ethCtrl.getContract();
+            // Start Jobs asynchronously immediately
+            fioCtrl.handleUnprocessedWrapActionsOnFioChain();
+            fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions();
+            fioCtrl.handleUnprocessedUnwrapActionsOnPolygon();
+
+            // Start Jobs interval
             setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(process.env.POLLTIME)); //execute wrap FIO tokens and domains action every 60 seconds
-            setInterval(fioCtrl.handleUnprocessedUnwrapTokensOnEthChainActions, parseInt(process.env.POLLTIME)); //execute unwrap tokens action every 60 seconds
-            // setInterval(fioCtrl.handleUnprocessedUnwrapDomainOnEthChainActions, parseInt(process.env.POLLTIME)); //excute unwrap action every 60 seconds
-            setInterval(fioCtrl.handleUnprocessedUnwrapDomainActionsOnPolygon, parseInt(process.env.POLLTIME)); //execute unwrap domains action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions, parseInt(process.env.POLLTIME)); //execute unwrap tokens and domains action every 60 seconds
+            setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(process.env.POLLTIME)); //execute unwrap domains action every 60 seconds
 
             this.initRoutes(app);
 
