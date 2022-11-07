@@ -35,7 +35,7 @@ class UtilCtrl {
             offset -= 10;
             data = await this.getActions(accountName, pos, offset);
         }
-        return data.filter(elem => elem.block_num > lastNumber)
+        return data.filter(elem => (elem.block_num > lastNumber))
     }
 
     async getActions(accountName, pos, offset) {
@@ -47,9 +47,7 @@ class UtilCtrl {
         const actionsHistory = await actionsHistoryResponse.json();
 
         let result = [];
-        for (let i = 0; i < actionsHistory.actions.length; i++) {
-            result.push(actionsHistory.actions[i]);
-        }
+        if (actionsHistory.actions.length) result = actionsHistory.actions.filter(elem => elem.block_num <= actionsHistory.last_irreversible_block)
         return result;
     }
 
