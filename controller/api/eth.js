@@ -186,7 +186,7 @@ class EthCtrl {
                     jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting
                 })
             } else {
-                console.log(logPrefix + 'Oracle data is not walid, pls check .env and contract abi.');
+                console.log(logPrefix + 'Oracle data is not valid, pls check .env and contract abi.');
                 config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
             }
         } catch (err) {
