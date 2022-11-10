@@ -166,7 +166,7 @@ class PolyCtrl {
                     logFilePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
                     jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting
                 })
-                console.log(logPrefix + 'Oracle data is not walid, pls check .env and contract abi.')
+                console.log(logPrefix + 'Oracle data is not valid, pls check .env and contract abi.')
             } else config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
         } catch (err) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
