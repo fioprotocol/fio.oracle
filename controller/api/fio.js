@@ -1,7 +1,6 @@
-import fs from "fs";
-
 require('dotenv').config();
 
+import fs from "fs";
 import Web3 from "web3";
 const { Fio } = require('@fioprotocol/fiojs');
 const { TextEncoder, TextDecoder } = require('text-encoding');
