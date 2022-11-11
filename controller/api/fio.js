@@ -57,7 +57,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
     console.log(logPrefix + 'Start');
     try {
         let contract = 'fio.oracle',
-            actionName = 'unwraptokens', //action name
+            actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
             oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
             oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
             amount = parseInt(unwrapData.amount),
@@ -127,6 +127,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
             isTransactionProceededSuccessfully = true;
             console.log(logPrefix + `Completed:`)
         } else console.log(logPrefix + `Error:`)
+        console.log(transactionResult)
 
         addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.FIO,
