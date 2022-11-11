@@ -1,18 +1,19 @@
-import fs from "fs";
-import Web3 from 'web3';
-import config from "../config/config";
-import {LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME} from "./constants";
-import fetch from "node-fetch";
-import fioABI from "../config/ABI/FIO.json";
-import fioNftABI from "../config/ABI/FIONFT.json";
-import fioMaticNftABI from "../config/ABI/FIOMATICNFT.json";
+const fs = require("fs");
+const Web3 = require("web3");
+const fetch = require("node-fetch");
 
-export const replaceNewLines = (stringValue, replaceChar = ', ') => {
+const { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } = require("./constants");
+const fioABI = require("../config/ABI/FIO.json");
+const fioNftABI = require("../config/ABI/FIONFT.json");
+const fioMaticNftABI = require("../config/ABI/FIOMATICNFT.json");
+const config = require("../config/config");
+
+const replaceNewLines = (stringValue, replaceChar = ', ') => {
     return  stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
 }
 
 // function to handle all unexpected request errors (like bad internet connection or invalid response) and add them into Error.log file
-export const handleServerError = async (err, additionalMessage = null) => {
+const handleServerError = async (err, additionalMessage = null) => {
     if (additionalMessage) console.log(additionalMessage+ ': ')
     console.log(err.stack)
 
@@ -26,7 +27,7 @@ export const handleServerError = async (err, additionalMessage = null) => {
 }
 
 // function to handle all unexpected chains transactions errors and add them into Error.log file
-export const handleChainError = ({logMessage, consoleMessage}) => {
+const handleChainError = ({logMessage, consoleMessage}) => {
     console.log(consoleMessage);
     addLogMessage({
         filePath: LOG_FILES_PATH_NAMES.oracleErrors,
@@ -34,7 +35,7 @@ export const handleChainError = ({logMessage, consoleMessage}) => {
     });
 }
 
-export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => {
+const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => {
     if (fs.existsSync(directoryPath)) { //check if the log path exists
         if (withLogsInConsole) console.log("The log directory exists.");
     } else {
@@ -48,7 +49,7 @@ export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => 
     }
 }
 
-export const prepareLogFile = async ({
+const prepareLogFile = async ({
     filePath,
     fetchLastBlockNumber = null,
 }, withLogsInConsole = true) => {
@@ -81,7 +82,7 @@ export const prepareLogFile = async ({
     }
 }
 
-export const addLogMessage = ({
+const addLogMessage = ({
     filePath,
     timestampTitle = '',
     addTimestamp = true,
@@ -98,50 +99,50 @@ export const addLogMessage = ({
     }
 }
 
-export const convertWeiToGwei = (weiValue) => {
+const convertWeiToGwei = (weiValue) => {
     return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, 'gwei'))
 }
 
-export const convertGweiToWei = (gweiValue) => {
+const convertGweiToWei = (gweiValue) => {
     return parseFloat(Web3.utils.toWei(gweiValue, 'gwei'));
 }
 
-export const convertWeiToEth = (weiValue) => {
+const convertWeiToEth = (weiValue) => {
     return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, "ether"));
 }
 
-export const updateBlockNumberFIO = (blockNumber) => {
+const updateBlockNumberFIO = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
 }
-export const updateBlockNumberForTokensUnwrappingOnETH = (blockNumber) => {
+const updateBlockNumberForTokensUnwrappingOnETH = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, blockNumber);
 }
-export const updateBlockNumberForDomainsUnwrappingOnETH = (blockNumber) => {
+const updateBlockNumberForDomainsUnwrappingOnETH = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, blockNumber);
 }
-export const updateBlockNumberMATIC = (blockNumber) => {
+const updateBlockNumberMATIC = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, blockNumber);
 }
 
-export const getLastProceededBlockNumberOnFioChain = () => {
+const getLastProceededBlockNumberOnFioChain = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
 }
-export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
+const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, 'utf8'));
 }
-export const getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping = () => {
+const getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, 'utf8'));
 }
-export const getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping = () => {
+const getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, 'utf8'));
 }
 
-export const convertNativeFioIntoFio = (nativeFioValue) => {
+const convertNativeFioIntoFio = (nativeFioValue) => {
     const fioDecimals = 1000000000;
     return parseInt(nativeFioValue + '') / fioDecimals;
 }
 
-export const checkHttpResponseStatus = async (response, additionalErrorMessage = null) => {
+const checkHttpResponseStatus = async (response, additionalErrorMessage = null) => {
     if (response.ok) {
         // response.status >= 200 && response.status < 300
         return response;
@@ -152,7 +153,7 @@ export const checkHttpResponseStatus = async (response, additionalErrorMessage =
     }
 }
 
-export const handleUpdatePendingWrapItemsQueue = ({
+const handleUpdatePendingWrapItemsQueue = ({
     action,
     logFilePath,
     logPrefix,
@@ -173,7 +174,7 @@ export const handleUpdatePendingWrapItemsQueue = ({
     }
 }
 
-export const handleLogFailedWrapItem = ({
+const handleLogFailedWrapItem = ({
     logPrefix,
     txId,
     wrapData,
@@ -185,16 +186,16 @@ export const handleLogFailedWrapItem = ({
 }
 
 // base gas price value + 10%
-export const calculateAverageGasPrice = (val) => {
+const calculateAverageGasPrice = (val) => {
     return Math.ceil(val + val * 0.1);
 }
 // base gas price value + 20%
-export const calculateHighGasPrice = (val) => {
+const calculateHighGasPrice = (val) => {
     return Math.ceil(val + val * 0.2);
 }
 
 // ETH gas price suggestion in WEI
-export const getEthGasPriceSuggestion = async () => {
+const getEthGasPriceSuggestion = async () => {
     const gasPriceSuggestion = await (await fetch(process.env.ETHINFURA, {
         body: JSON.stringify({
             jsonrpc: "2.0",
@@ -215,7 +216,7 @@ export const getEthGasPriceSuggestion = async () => {
 }
 
 // POLYGON gas price suggestion in WEI
-export const getPolygonGasPriceSuggestion = async () => {
+const getPolygonGasPriceSuggestion = async () => {
     const gasPriceSuggestion = await (await fetch(process.env.POLYGON_INFURA, {
         body: JSON.stringify({
             jsonrpc: "2.0",
@@ -235,7 +236,7 @@ export const getPolygonGasPriceSuggestion = async () => {
     return value;
 }
 
-export const isOracleEthAddressValid = async (isTokens = true) => {
+const isOracleEthAddressValid = async (isTokens = true) => {
     const web3 = new Web3(process.env.ETHINFURA);
     const contract = new web3.eth.Contract(isTokens ? fioABI : fioNftABI, isTokens ? process.env.FIO_TOKEN_ETH_CONTRACT : process.env.FIO_NFT_ETH_CONTRACT);
 
@@ -244,7 +245,7 @@ export const isOracleEthAddressValid = async (isTokens = true) => {
     return !!(registeredOraclesPublicKeys.map(registeredOracle => registeredOracle.toLowerCase()).includes(process.env.ETH_ORACLE_PUBLIC.toLowerCase()))
 }
 
-export const isOraclePolygonAddressValid = async () => {
+const isOraclePolygonAddressValid = async () => {
     const web3 = new Web3(process.env.POLYGON_INFURA);
     const contract = new web3.eth.Contract(fioMaticNftABI, process.env.FIO_NFT_POLYGON_CONTRACT);
 
@@ -267,4 +268,35 @@ const checkEthBlockNumbers = async () => {
 
     const res = await Promise.all([promise1, promise2, promise3])
     console.log(JSON.stringify(res))
+}
+
+module.exports = {
+    isOraclePolygonAddressValid,
+    isOracleEthAddressValid,
+    getPolygonGasPriceSuggestion,
+    getEthGasPriceSuggestion,
+    calculateHighGasPrice,
+    calculateAverageGasPrice,
+    handleLogFailedWrapItem,
+    handleUpdatePendingWrapItemsQueue,
+    checkHttpResponseStatus,
+    convertNativeFioIntoFio,
+    getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+    getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
+    getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
+    getLastProceededBlockNumberOnFioChain,
+    updateBlockNumberMATIC,
+    updateBlockNumberForDomainsUnwrappingOnETH,
+    updateBlockNumberForTokensUnwrappingOnETH,
+    updateBlockNumberFIO,
+    convertWeiToEth,
+    convertGweiToWei,
+    convertWeiToGwei,
+    addLogMessage,
+    prepareLogFile,
+    prepareLogDirectory,
+    handleChainError,
+    handleServerError,
+    replaceNewLines,
+    checkEthBlockNumbers,
 }

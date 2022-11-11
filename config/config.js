@@ -1,10 +1,11 @@
 require('dotenv').config();
-import { join } from 'path';
-import { config as load } from 'dotenv-safe';
-import conf_mainnet from "./config-mainnet";
-import conf_testnet from "./config-testnet";
+const { config: load } = require( "dotenv-safe" );
+const { join } = require( "path" );
 const NodeCache = require( "node-cache" );
 const oracleCache = new NodeCache();
+
+const conf_mainnet = require("./config-mainnet");
+const conf_testnet = require("./config-testnet");
 
 load({
   example: join(process.cwd(), '.env'),
@@ -22,7 +23,7 @@ if (
 
 console.log('Uses ' + mode + ' configuration.');
 
-export default {
+module.exports = {
   mode,
   ...config,
   oracleCache,
