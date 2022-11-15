@@ -376,6 +376,7 @@ class FIOCtrl {
 
         try {
             const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_ETH);
+            const blocksOffset = parseInt(process.env.BLOCKS_OFFSET_ETH) || 0;
 
             const getEthActionsLogs = async (from, to, isTokens = false) => {
                 return await (isTokens ? fioTokenContractOnEthChain : fioNftContract).getPastEvents(
@@ -401,7 +402,7 @@ class FIOCtrl {
             };
 
             const getUnprocessedActionsLogs = async (isTokens = false) => {
-                const lastInChainBlockNumber = await web3.eth.getBlockNumber();
+                const lastInChainBlockNumber = await web3.eth.getBlockNumber() - blocksOffset;
                 const lastProcessedBlockNumber = isTokens ? getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping() : getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping();
 
                 if (lastProcessedBlockNumber > lastInChainBlockNumber)
