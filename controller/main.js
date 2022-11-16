@@ -75,11 +75,13 @@ class MainCtrl {
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
-                fetchLastBlockNumber: this.web3.eth.getBlockNumber
+                fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+                offset: process.env.BLOCKS_OFFSET_ETH,
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-                fetchLastBlockNumber: this.web3.eth.getBlockNumber
+                fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+                offset: process.env.BLOCKS_OFFSET_ETH,
             });
             await prepareLogFile({
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,

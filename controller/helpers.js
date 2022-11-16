@@ -52,6 +52,7 @@ const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => {
 const prepareLogFile = async ({
     filePath,
     fetchLastBlockNumber = null,
+    offset = null,
 }, withLogsInConsole = true) => {
     if (fs.existsSync(filePath)) { //check file exist
         if (withLogsInConsole) console.log(`The file ${filePath} exists.`);
@@ -60,7 +61,10 @@ const prepareLogFile = async ({
 
             if (!lastProcessedBlockNumber) {
                 let lastBlockNumberInChain;
-                if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
+                if (fetchLastBlockNumber) {
+                    const blocksOffset = parseInt(offset) || 0;
+                    lastBlockNumberInChain = await fetchLastBlockNumber() - blocksOffset;
+                }
                 fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
                     if (err) {
                         return console.log(err);
@@ -72,7 +76,10 @@ const prepareLogFile = async ({
     } else {
         if (withLogsInConsole) console.log(`The file ${filePath} does not exist.`);
         let lastBlockNumberInChain;
-        if (fetchLastBlockNumber) lastBlockNumberInChain = await fetchLastBlockNumber();
+        if (fetchLastBlockNumber) {
+            const blocksOffset = parseInt(offset) || 0;
+            lastBlockNumberInChain = await fetchLastBlockNumber() - blocksOffset;
+        }
         fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
             if (err) {
                 return console.log(err);
