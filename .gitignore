@@ -13,7 +13,7 @@ yarn-debug.log*
 yarn-error.log*
 .idea
 
-.env
+.env*
 .env.example
 .env.development
 .env.test
