@@ -45,6 +45,7 @@ POLYGON_TESTNET_CHAIN_NAME=  # The Polygon testnet chain name (e.g., matic-mumba
 BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
 BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
 BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
+FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
 ```
 
 ## Installation

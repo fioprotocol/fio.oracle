@@ -27,4 +27,5 @@ module.exports = {
   mode,
   ...config,
   oracleCache,
+  FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION || 'active'
 };
