@@ -15,6 +15,7 @@ To configure your  application, create a .env file with the following parameters
 MODE=                        # testnet or mainnet
 PORT=                        # The port that the fio.oracle service will run on when started
 FIO_SERVER_URL_HISTORY=      # URL of FIO history node
+FIO_SERVER_HISTORY_VERSION=  # Version of FIO history node, (“hyperion” or “v1”, defaults to “v1”)
 FIO_SERVER_URL_ACTION=       # URL of FIO API node
 FIO_ORACLE_PUBLIC_KEY=       # The FIO public key used for approving unwrap transactions
 FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
@@ -26,6 +27,7 @@ POLYGON_ORACLE_PUBLIC=       # The POLYGON oracle public key used for signing ER
 POLYGON_ORACLE_PRIVATE=      # The POLYGON oracle private key used for signing ERC721 transactions
 POLLTIME=                    # Seconds between poll for wrap and unwrap events (60 seconds=60000)
 POLLOFFSET=                  # The number of wrap transactions to get on FIO side in each call (If you set 20, you can get 20 latest actions on FIO side)
+HYPERION_LIMIT=              # The number of actions to get from history when using hyperion version
 USEGASAPI=                   # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
 GASPRICELEVEL=               # Which price to use from the gas price API (low/average/high)
 TGASLIMIT=                   # Manual gas limit for ETH erc20
@@ -43,6 +45,7 @@ POLYGON_TESTNET_CHAIN_NAME=  # The Polygon testnet chain name (e.g., matic-mumba
 BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
 BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
 BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
+FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
 ```
 
 ## Installation

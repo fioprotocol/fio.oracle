@@ -93,7 +93,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
                 name: actionName,
                 authorization: [{
                     actor: oracleAccount,
-                    permission: 'active',
+                    permission: config.FIO_ORACLE_PERMISSION,
                 }],
                 data: transactionActionsData,
             }]
@@ -205,7 +205,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
                 name: action,
                 authorization: [{
                     actor: oracleAccount,
-                    permission: 'active',
+                    permission: config.FIO_ORACLE_PERMISSION,
                 }],
                 data: {
                     fio_address: fioAddress,

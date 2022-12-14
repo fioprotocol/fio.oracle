@@ -27,15 +27,50 @@ class UtilCtrl {
     async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix) {
         const lastNumber = getLastProceededBlockNumberOnFioChain();
 
-        console.log(logPrefix + `start Block umber = ${lastNumber + 1}, end Block Number: ${pos}`)
+        console.log(logPrefix + `start Block Number = ${lastNumber + 1}, end Block Number: ${pos}`)
 
-        let offset = parseInt(process.env.POLLOFFSET);
-        let data = await this.getActions(accountName, pos, offset);
-        while(data.length > 0 && data[0].block_num > lastNumber) {
-            offset -= 10;
+        let data = []
+        const isV2 = process.env.FIO_SERVER_HISTORY_VERSION === 'hyperion';
+        if (isV2) {
+            let hasMore = true;
+            let skip = 0;
+            const limit = parseInt(process.env.HYPERION_LIMIT) || 10
+            const lastIrreversibleBlock = await this.getLastIrreversibleBlockOnFioChain();
+
+            while (hasMore) {
+                const dataPart = await this.getActionsV2(accountName, skip, limit, lastIrreversibleBlock);
+                data = data.concat(dataPart);
+
+                hasMore = dataPart.length >= limit && dataPart[0].block_num > lastNumber
+                skip += limit;
+            }
+        } else {
+            let offset = parseInt(process.env.POLLOFFSET);
             data = await this.getActions(accountName, pos, offset);
+            while (data.length > 0 && data[0].block_num > lastNumber) {
+                offset -= 10;
+                data = await this.getActions(accountName, pos, offset);
+            }
         }
         return data.filter(elem => (elem.block_num > lastNumber))
+    }
+
+    async getActionsV2(accountName, skip, limit, lastIrreversibleBlock) {
+        const actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v2/history/get_actions?account=' + accountName + '&skip=' + skip + '&limit=' + limit)
+        await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        const actionsHistory = await actionsHistoryResponse.json();
+
+        let result = [];
+        if (actionsHistory.actions.length) {
+            result = actionsHistory.actions.filter(elem => elem.block_num <= lastIrreversibleBlock).map(elem => ({
+                ...elem,
+                action_trace: {
+                    act: elem.act,
+                    trx_id: elem.trx_id,
+                },
+            }));
+        }
+        return result;
     }
 
     async getActions(accountName, pos, offset) {
