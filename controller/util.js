@@ -41,7 +41,7 @@ class UtilCtrl {
                 const dataPart = await this.getActionsV2(accountName, skip, limit, lastIrreversibleBlock);
                 data = data.concat(dataPart);
 
-                hasMore = dataPart.length >= limit && dataPart[0].block_num > lastNumber
+                hasMore = dataPart[0].block_num > lastNumber
                 skip += limit;
             }
         } else {
