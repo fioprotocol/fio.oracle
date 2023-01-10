@@ -41,9 +41,10 @@ class UtilCtrl {
                 const dataPart = await this.getActionsV2(accountName, skip, limit, lastIrreversibleBlock);
                 data = data.concat(dataPart);
 
-                hasMore = dataPart[0].block_num > lastNumber
+                hasMore = dataPart[dataPart.length - 1].block_num > lastNumber
                 skip += limit;
             }
+            data = data.reverse();
         } else {
             let offset = parseInt(process.env.POLLOFFSET);
             data = await this.getActions(accountName, pos, offset);

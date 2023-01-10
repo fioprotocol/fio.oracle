@@ -298,11 +298,17 @@ class FIOCtrl {
             if (wrapDataArrayLength > 0) {
                 console.log(logPrefix + 'Gonna parse events and save them into the log files queue.')
 
+                const processedWrapDataArray = [];
                 wrapDataEvents.forEach(eventData => {
                     if ((eventData.action_trace.act.name === "wraptokens" || eventData.action_trace.act.name === "wrapdomain") && eventData.action_trace.act.data.chain_code === "ETH") {
                         const isWrappingTokens = eventData.action_trace.act.name === "wraptokens";
                         const tx_id = eventData.action_trace.trx_id;
                         const wrapText = tx_id + ' ' + JSON.stringify(eventData.action_trace.act.data);
+                        if (processedWrapDataArray.includes(tx_id)) {
+                            return;
+                        } else {
+                            processedWrapDataArray.push(tx_id);
+                        }
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.FIO,
@@ -322,6 +328,11 @@ class FIOCtrl {
                     } else if (eventData.action_trace.act.name === "wrapdomain" && eventData.action_trace.act.data.chain_code === "MATIC") {
                         const tx_id = eventData.action_trace.trx_id;
                         const wrapText = tx_id + ' ' + JSON.stringify(eventData.action_trace.act.data);
+                        if (processedWrapDataArray.includes(tx_id)) {
+                            return;
+                        } else {
+                            processedWrapDataArray.push(tx_id);
+                        }
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.FIO,
