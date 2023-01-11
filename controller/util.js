@@ -46,7 +46,7 @@ class UtilCtrl {
             }
             data = data.reverse();
         } else {
-            let offset = parseInt(process.env.POLLOFFSET);
+            let offset = parseInt(process.env.POLLOFFSET) || -10;
             data = await this.getActions(accountName, pos, offset);
             while (data.length > 0 && data[0].block_num > lastNumber) {
                 offset -= 10;
@@ -89,7 +89,7 @@ class UtilCtrl {
 
     async getLatestWrapDomainAction(accountName, pos) {
         const lastNumber = config.oracleCache.get("lastBlockNumber");
-        let offset = parseInt(process.env.POLLOFFSET);
+        let offset = parseInt(process.env.POLLOFFSET) || -10;
         let data = await this.getActions(accountName, pos, offset);
         while(data.length > 0 && data[0].block_num > lastNumber) {
             offset -= 10;
