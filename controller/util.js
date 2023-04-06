@@ -46,7 +46,7 @@ class UtilCtrl {
             }
             data = data.reverse();
         } else {
-            let offset = parseInt(process.env.POLLOFFSET);
+            let offset = parseInt(process.env.POLLOFFSET) || -10;
             data = await this.getActions(accountName, pos, offset);
             while (data.length > 0 && data[0].block_num > lastNumber) {
                 offset -= 10;
@@ -57,8 +57,16 @@ class UtilCtrl {
     }
 
     async getActionsV2(accountName, skip, limit, lastIrreversibleBlock) {
-        const actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v2/history/get_actions?account=' + accountName + '&skip=' + skip + '&limit=' + limit)
-        await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        let actionsHistoryResponse
+        try {
+            actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v2/history/get_actions?account=' + accountName + '&skip=' + skip + '&limit=' + limit)
+            await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        } catch (e) {
+            if (process.env.FIO_SERVER_URL_HISTORY_BACKUP) {
+                actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY_BACKUP + 'v2/history/get_actions?account=' + accountName + '&skip=' + skip + '&limit=' + limit)
+                await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+            }
+        }
         const actionsHistory = await actionsHistoryResponse.json();
 
         let result = [];
@@ -75,11 +83,22 @@ class UtilCtrl {
     }
 
     async getActions(accountName, pos, offset) {
-        const actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
-            body: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
-            method: 'POST'
-        });
-        await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        let actionsHistoryResponse
+        try {
+            actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
+                body: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
+                method: 'POST'
+            });
+            await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+        } catch (e) {
+            if (process.env.FIO_SERVER_URL_HISTORY_BACKUP) {
+                actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY_BACKUP + 'v1/history/get_actions', {
+                    body: JSON.stringify({"account_name": accountName, "pos": pos, offset: offset}),
+                    method: 'POST'
+                });
+                await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
+            }
+        }
         const actionsHistory = await actionsHistoryResponse.json();
 
         let result = [];
@@ -89,7 +108,7 @@ class UtilCtrl {
 
     async getLatestWrapDomainAction(accountName, pos) {
         const lastNumber = config.oracleCache.get("lastBlockNumber");
-        let offset = parseInt(process.env.POLLOFFSET);
+        let offset = parseInt(process.env.POLLOFFSET) || -10;
         let data = await this.getActions(accountName, pos, offset);
         while(data.length > 0 && data[0].block_num > lastNumber) {
             offset -= 10;

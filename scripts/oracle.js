@@ -4,6 +4,7 @@ const {
     handleUnwrapFromPolygonToFioChain,
     handleWrapEthAction,
     handleWrapPolygonAction,
+    handleBurnNFTInPolygon,
 } = require('./oracleutils.js');
 const {LOG_FILES_PATH_NAMES} = require("../controller/constants");
 const {addLogMessage} = require("../controller/helpers");
@@ -15,20 +16,21 @@ const args = process.argv;
 
 const oracle = {
  usage:
- "Usage: npm run oracle ['wrap'|'unwrap'] ['tokens'|'domain'] [amount|domain] [fio handle or eth address] trxid ['clean'?] \n \
+ "Usage: npm run oracle ['wrap'|'unwrap'|'burn'] ['tokens'|'domain'] [amount|domain|tokenId] [fio handle or eth address] trxid ['clean'?] \n \
     Examples: \n \
         npm run oracle wrap tokens 12000000000 0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean \n \
         npm run oracle wrap domain fiohacker 0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean \n \
         npm run oracle unwrap tokens 12000000000 alice@fiotestnet ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean \n \
-        npm run oracle unwrap domain fiohacker alice@fiotestnet ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean" ,
+        npm run oracle unwrap domain fiohacker alice@fiotestnet ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean \n \
+        npm run oracle burn domain <tokenId> <trxId> clean" ,
  action: args.length > 2 ? args[2] + args[3] : 'help',
  domain: args[3] == 'domain' ? args[4] : null,
  amount: args[3] == 'tokens' ? args[4] : null,
  address: args[5],
- obtid: args[6],
+ tokenId: args[4],
+ obtid: args[2] == 'burn' ? args[5] : args[6],
  isClean: !!(args[7] && args[7] === 'clean'),
 }
-
 
 // Be aware! You can get replacing transaction error, when do not use 'clean' param, because of nonce collisions,
 // when wrap\unwrap jobs from files queue are running.
@@ -94,9 +96,22 @@ const main = async () => {
                     });
                 } else await handleUnwrapFromPolygonToFioChain({domain: oracle.domain, address: oracle.address, obtId: oracle.obtid});
                 break;
+            case 'burndomain':
+                if (oracle.isClean) {
+                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
+                        domain: oracle.domain,
+                        fioaddress: oracle.address,
+                    });
+                    addLogMessage({
+                        filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
+                        message: wrapText,
+                        addTimestamp: false
+                    });
+                } else await handleBurnNFTInPolygon({tokenId: oracle.tokenId, obtId: oracle.obtid});
+                break;
             default:
                 console.log(`\nAction ${oracle.action} not found\n`);
-                console.log(oracle.usage + '\n')
+                console.log(oracle.usage + '\n');
         }
 
     } catch (err) {
