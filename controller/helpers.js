@@ -277,6 +277,19 @@ const checkEthBlockNumbers = async () => {
     console.log(JSON.stringify(res))
 }
 
+const handleBackups = async (callback, isRetry, backupParams) => {
+    try {
+        if (isRetry && backupParams) return await callback(backupParams);
+        return await callback();
+    } catch (error) {
+        if (backupParams && !isRetry) {
+          return await handleBackups(callback, true, backupParams);
+        } else {
+          throw error;
+        }
+    }
+};
+
 module.exports = {
     isOraclePolygonAddressValid,
     isOracleEthAddressValid,
@@ -306,4 +319,5 @@ module.exports = {
     handleServerError,
     replaceNewLines,
     checkEthBlockNumbers,
+    handleBackups,
 }

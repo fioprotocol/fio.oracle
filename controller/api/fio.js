@@ -18,6 +18,7 @@ import {
     getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
     getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
     getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+    handleBackups,
     handleChainError,
     handleServerError,
     updateBlockNumberForTokensUnwrappingOnETH,
@@ -289,8 +290,8 @@ class FIOCtrl {
             return
         }
 
-        try {
-            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix);
+        const handleWrapAction = async (fioServerHistoryVersion) => {
+            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix, fioServerHistoryVersion);
             const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
 
             console.log(logPrefix + `wrap events data length : ${wrapDataArrayLength}:`);
@@ -368,6 +369,10 @@ class FIOCtrl {
             if (!isWrapOnPolygonJobExecuting) {
                 polygonCtrl.wrapFioDomain(); // execute first wrap action, it will trigger further wrap actions from the log file recursively
             }
+        }
+
+        try {
+            await handleBackups(handleWrapAction, false, process.env.FIO_SERVER_HISTORY_VERSION_BACKUP);
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
         }
