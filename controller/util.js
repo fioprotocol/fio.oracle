@@ -6,6 +6,7 @@ import config from '../config/config';
 import {checkHttpResponseStatus, getLastProceededBlockNumberOnFioChain} from "./helpers";
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
+const DEFAULT_FIO_SERVER_HISTORY_VERSION = process.env.FIO_SERVER_HISTORY_VERSION;
 
 class UtilCtrl {
     constructor(){
@@ -24,13 +25,13 @@ class UtilCtrl {
         return lastBlockNum;
     }
 
-    async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix) {
+    async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION) {
         const lastNumber = getLastProceededBlockNumberOnFioChain();
 
         console.log(logPrefix + `start Block Number = ${lastNumber + 1}, end Block Number: ${pos}`)
 
         let data = []
-        const isV2 = process.env.FIO_SERVER_HISTORY_VERSION === 'hyperion';
+        const isV2 = fioServerHistoryVersion === 'hyperion';
         if (isV2) {
             let hasMore = true;
             let skip = 0;

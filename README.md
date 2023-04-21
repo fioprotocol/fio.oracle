@@ -49,6 +49,7 @@ FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defa
 
 # Optional
 FIO_SERVER_URL_HISTORY_BACKUP= # Backup URL of FIO history node
+FIO_SERVER_HISTORY_VERSION_BACKUP= # Backup version of FIO history node, (“hyperion” or “v1”)
 ```
 
 ## Installation
