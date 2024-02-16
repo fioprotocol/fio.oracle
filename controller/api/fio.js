@@ -562,8 +562,7 @@ class FIOCtrl {
 
                 console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`)
 
-                let result = [];
-                let maxCheckedBlockNumber = 0;
+                const result = [];
 
                 while (fromBlockNumber <= lastInChainBlockNumber) {
                     const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
@@ -573,13 +572,16 @@ class FIOCtrl {
                             ? lastInChainBlockNumber
                             : maxAllowedBlockNumber;
 
-                    maxCheckedBlockNumber = toBlockNumber;
-                    updateBlockNumberMATIC(maxCheckedBlockNumber.toString());
+                    updateBlockNumberMATIC(toBlockNumber.toString());
 
-                    result = [
-                        ...result,
-                        ...(await getPolygonActionsLogs(fromBlockNumber, toBlockNumber)),
-                    ];
+                    const events = await getPolygonActionsLogs(
+                        fromBlockNumber,
+                        toBlockNumber
+                    );
+
+                    if (events && events.length) {
+                        result.push(...events);
+                    }
 
                     fromBlockNumber = toBlockNumber + 1;
                 }
