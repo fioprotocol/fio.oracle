@@ -22,7 +22,6 @@
     "@ethereumjs/common": "3.0.1",
     "@ethereumjs/tx": "4.0.1",
     "@fioprotocol/fiojs": "1.0.1",
-    "@fioprotocol/fiosdk": "github:fioprotocol/fiosdk_typescript#release/1.8.x",
     "body-parser": "1.20.1",
     "cors": "2.8.5",
     "dotenv": "8.6.0",
