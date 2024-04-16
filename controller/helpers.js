@@ -2,7 +2,13 @@ const fs = require("fs");
 const Web3 = require("web3");
 const fetch = require("node-fetch");
 
-const { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } = require("./constants");
+const { Common, CustomChain } = require('@ethereumjs/common');
+
+const {
+  LOG_FILES_PATH_NAMES,
+  LOG_DIRECTORY_PATH_NAME,
+  POLYGON_TESTNET_CHAIN_ID,
+} = require('./constants');
 const fioABI = require("../config/ABI/FIO.json");
 const fioNftABI = require("../config/ABI/FIONFT.json");
 const fioMaticNftABI = require("../config/ABI/FIOMATICNFT.json");
@@ -35,6 +41,21 @@ const handleChainError = ({logMessage, consoleMessage}) => {
     });
 }
 
+const createLogFile = ({ filePath, dataToWrite, showSuccessConsole }) => {
+    fs.writeFileSync(
+        filePath,
+        dataToWrite,
+        (err) => {
+            //create new file
+            if (err) {
+                return console.log(err);
+            }
+    
+            if (showSuccessConsole)
+              console.log(`The file ${filePath} was saved!`);
+        }
+)};
+
 const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => {
     if (fs.existsSync(directoryPath)) { //check if the log path exists
         if (withLogsInConsole) console.log("The log directory exists.");
@@ -65,11 +86,12 @@ const prepareLogFile = async ({
                     const blocksOffset = parseInt(offset) || 0;
                     lastBlockNumberInChain = await fetchLastBlockNumber() - blocksOffset;
                 }
-                fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
-                    if (err) {
-                        return console.log(err);
-                    }
-                    if (withLogsInConsole) console.log(`The file ${filePath} was saved!`);
+                createLogFile({
+                  filePath,
+                  dataToWrite: lastBlockNumberInChain
+                    ? lastBlockNumberInChain.toString()
+                    : '',
+                  showSuccessConsole: withLogsInConsole,
                 });
             }
         }
@@ -80,11 +102,12 @@ const prepareLogFile = async ({
             const blocksOffset = parseInt(offset) || 0;
             lastBlockNumberInChain = await fetchLastBlockNumber() - blocksOffset;
         }
-        fs.writeFileSync(filePath, lastBlockNumberInChain ? lastBlockNumberInChain.toString() : '', (err) => { //create new file
-            if (err) {
-                return console.log(err);
-            }
-            if (withLogsInConsole) console.log(`The file ${filePath} was saved!`);
+        createLogFile({
+          filePath,
+          dataToWrite: lastBlockNumberInChain
+            ? lastBlockNumberInChain.toString()
+            : '',
+          showSuccessConsole: withLogsInConsole,
         });
     }
 }
@@ -130,6 +153,12 @@ const updateBlockNumberForDomainsUnwrappingOnETH = (blockNumber) => {
 const updateBlockNumberMATIC = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, blockNumber);
 }
+const updateEthNonce = (nonce) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.ethNonce, nonce ? nonce.toString() : '');
+}
+const updatePolygonNonce = (nonce) => {
+    fs.writeFileSync(LOG_FILES_PATH_NAMES.polygonNonce, nonce ? nonce.toString() : '');
+};
 
 const getLastProceededBlockNumberOnFioChain = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
@@ -143,6 +172,12 @@ const getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping = () => {
 const getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, 'utf8'));
 }
+const getLastProceededEthNonce = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.ethNonce, 'utf8'));
+}
+const getLastProceededPolygonNonce = () => {
+  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.polygonNonce, 'utf8'));
+};
 
 const convertNativeFioIntoFio = (nativeFioValue) => {
     const fioDecimals = 1000000000;
@@ -290,34 +325,79 @@ const handleBackups = async (callback, isRetry, backupParams) => {
     }
 };
 
+const handlePolygonChainCommon = () => {
+    if (process.env.MODE === 'testnet') {
+      const customChainInstance = Common.custom(CustomChain.PolygonMumbai);
+      // Polygon Mumbai has been deprecated from 13th of April 2024.
+      // Using Polygon Amoy instead but it's missing on CustomChain. So chainId and networkId should be updated
+      customChainInstance._chainParams.chainId = POLYGON_TESTNET_CHAIN_ID;
+      customChainInstance._chainParams.networkId = POLYGON_TESTNET_CHAIN_ID;
+
+      return customChainInstance;
+    }
+
+    return Common.custom(CustomChain.PolygonMainnet);
+};
+
+const handlePolygonNonceValue = ({ chainNonce }) => {
+    let txNonce = chainNonce;
+    const savedNonce = getLastProceededPolygonNonce();
+
+    if (savedNonce && Number(savedNonce) === Number(chainNonce)) {
+      txNonce = txNonce++;
+    }
+
+    updatePolygonNonce(txNonce);
+
+    return txNonce;
+};
+
+const handleEthNonceValue = ({ chainNonce }) => {
+  let txNonce = chainNonce;
+  const savedNonce = getLastProceededEthNonce();
+
+  if (savedNonce && Number(savedNonce) === Number(chainNonce)) {
+    txNonce = txNonce++;
+  }
+
+  updateEthNonce(txNonce);
+
+  return txNonce;
+};
+
 module.exports = {
-    isOraclePolygonAddressValid,
-    isOracleEthAddressValid,
-    getPolygonGasPriceSuggestion,
-    getEthGasPriceSuggestion,
-    calculateHighGasPrice,
-    calculateAverageGasPrice,
-    handleLogFailedWrapItem,
-    handleUpdatePendingWrapItemsQueue,
-    checkHttpResponseStatus,
-    convertNativeFioIntoFio,
-    getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
-    getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
-    getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
-    getLastProceededBlockNumberOnFioChain,
-    updateBlockNumberMATIC,
-    updateBlockNumberForDomainsUnwrappingOnETH,
-    updateBlockNumberForTokensUnwrappingOnETH,
-    updateBlockNumberFIO,
-    convertWeiToEth,
-    convertGweiToWei,
-    convertWeiToGwei,
-    addLogMessage,
-    prepareLogFile,
-    prepareLogDirectory,
-    handleChainError,
-    handleServerError,
-    replaceNewLines,
-    checkEthBlockNumbers,
-    handleBackups,
-}
+  createLogFile,
+  isOraclePolygonAddressValid,
+  isOracleEthAddressValid,
+  getPolygonGasPriceSuggestion,
+  getEthGasPriceSuggestion,
+  calculateHighGasPrice,
+  calculateAverageGasPrice,
+  handleLogFailedWrapItem,
+  handleUpdatePendingWrapItemsQueue,
+  handleEthNonceValue,
+  handlePolygonNonceValue,
+  checkHttpResponseStatus,
+  convertNativeFioIntoFio,
+  getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+  getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
+  getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
+  getLastProceededBlockNumberOnFioChain,
+  handlePolygonChainCommon,
+  updateBlockNumberMATIC,
+  updateBlockNumberForDomainsUnwrappingOnETH,
+  updateBlockNumberForTokensUnwrappingOnETH,
+  updateBlockNumberFIO,
+  convertWeiToEth,
+  convertGweiToWei,
+  convertWeiToGwei,
+  addLogMessage,
+  prepareLogFile,
+  prepareLogDirectory,
+  handleChainError,
+  handleServerError,
+  replaceNewLines,
+  checkEthBlockNumbers,
+  handleBackups,
+  updatePolygonNonce,
+};

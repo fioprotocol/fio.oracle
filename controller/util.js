@@ -1,15 +1,45 @@
 require('dotenv').config();
 
-import fetch from "node-fetch";
-import config from '../config/config';
+const fs = require('fs');
+const fetch = require('node-fetch');
+const Web3 = require('web3');
 
-import {checkHttpResponseStatus, getLastProceededBlockNumberOnFioChain} from "./helpers";
+const config = require('../config/config');
+const { LOG_FILES_PATH_NAMES } = require('../controller/constants');
+
+const {
+  createLogFile,
+  checkHttpResponseStatus,
+  getLastProceededBlockNumberOnFioChain,
+} = require('./helpers');
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 const DEFAULT_FIO_SERVER_HISTORY_VERSION = process.env.FIO_SERVER_HISTORY_VERSION;
 
 class UtilCtrl {
     constructor(){
+    }
+
+    async getLatestEthNonce() {
+        const filePath = LOG_FILES_PATH_NAMES.ethNonce;
+        if (!fs.existsSync(filePath)) {
+          createLogFile({
+            filePath,
+            dataToWrite: '0',
+            showSuccessConsole: true,
+          });
+        }
+    }
+
+    async getLatestPolygonNonce() {
+        const filePath = LOG_FILES_PATH_NAMES.polygonNonce;
+        if (!fs.existsSync(filePath)) {
+            createLogFile({
+                filePath,
+                dataToWrite: '0',
+                showSuccessConsole: true,
+            });
+        }
     }
 
     async getLastIrreversibleBlockOnFioChain() {
@@ -209,4 +239,5 @@ class UtilCtrl {
         return  !!(data && data.is_registered);
     }
 }
-export default new UtilCtrl();
+
+module.exports = new UtilCtrl();

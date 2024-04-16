@@ -4,6 +4,8 @@ const LOG_FILES_PATH_NAMES = {
     FIO: LOG_DIRECTORY_PATH_NAME + "FIO.log", //log events and errors on FIO side
     ETH: LOG_DIRECTORY_PATH_NAME + "ETH.log", //log events and errors on ETH side
     MATIC: LOG_DIRECTORY_PATH_NAME + "MATIC.log",
+    ethNonce: LOG_DIRECTORY_PATH_NAME + "ethNonce.log", // store last used ETH nonce to aviod too low nonce issue on concurrency calls
+    polygonNonce: LOG_DIRECTORY_PATH_NAME + "polygonNonce.log", // store last used Polygon nonce to aviod too low nonce issue on concurrency calls
     blockNumberFIO: LOG_DIRECTORY_PATH_NAME + "blockNumberFIO.log", //store FIO blockNumber for the wrapAction
     blockNumberUnwrapTokensETH: LOG_DIRECTORY_PATH_NAME + "blockNumberETH.log", //store ETH blockNumber for unwrap tokens action
     blockNumberUnwrapDomainETH: LOG_DIRECTORY_PATH_NAME + "blockNumberDomainETH.log", //store ETH blockNumber for the unwrap domain action
@@ -29,8 +31,11 @@ const ORACLE_CACHE_KEYS = {
     isUnprocessedUnwrapActionsOnEthJobExecuting: 'isUnprocessedUnwrapActionsOnEthJobExecuting',
 }
 
+const POLYGON_TESTNET_CHAIN_ID = 80002;
+
 module.exports = {
-    ORACLE_CACHE_KEYS,
-    LOG_FILES_PATH_NAMES,
-    LOG_DIRECTORY_PATH_NAME,
-}
+  ORACLE_CACHE_KEYS,
+  LOG_FILES_PATH_NAMES,
+  LOG_DIRECTORY_PATH_NAME,
+  POLYGON_TESTNET_CHAIN_ID,
+};
