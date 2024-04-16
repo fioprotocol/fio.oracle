@@ -37,7 +37,7 @@
     "node-libcurl": "2.3.4",
     "redis": "3.1.2",
     "text-encoding": "0.7.0",
-    "web3": "1.8.1",
-    "web3-eth-contract": "1.8.1"
+    "web3": "1.10.2",
+    "web3-eth-contract": "1.10.2"
   }
 }
