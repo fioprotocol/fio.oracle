@@ -1,13 +1,17 @@
 const fs = require("fs");
 const Web3 = require("web3");
 const fetch = require("node-fetch");
+const { Transaction } = require('@ethereumjs/tx');
 
 const { Common, CustomChain } = require('@ethereumjs/common');
 
 const {
-  LOG_FILES_PATH_NAMES,
-  LOG_DIRECTORY_PATH_NAME,
-  POLYGON_TESTNET_CHAIN_ID,
+    ALREADY_KNOWN_TRANSACTION,
+    LOG_FILES_PATH_NAMES,
+    LOG_DIRECTORY_PATH_NAME,
+    MAX_RETRY_TRANSACTION_ATTEMPTS,
+    NONCE_TOO_LOW_ERROR,
+    POLYGON_TESTNET_CHAIN_ID,
 } = require('./constants');
 const fioABI = require("../config/ABI/FIO.json");
 const fioNftABI = require("../config/ABI/FIONFT.json");
@@ -222,7 +226,7 @@ const handleLogFailedWrapItem = ({
     wrapData,
     errorLogFilePath,
 }) => {
-    console.log(logPrefix + `something went wrong, storing transaction data into ${errorLogFilePath}`)
+    console.log(logPrefix + `Something went wrong with the current wrapping action. Storing transaction data into ${errorLogFilePath}`)
     const wrapText = txId + ' ' + JSON.stringify(wrapData) + '\r\n';
     fs.appendFileSync(errorLogFilePath, wrapText) // store issued transaction to errored log file queue by line-break
 }
@@ -365,6 +369,98 @@ const handleEthNonceValue = ({ chainNonce }) => {
   return txNonce;
 };
 
+const polygonTransaction = async ({
+    common,
+    contract,
+    gasPrice,
+    gasLimit,
+    handleSuccessedResult,
+    logPrefix = '',
+    oraclePrivateKey,
+    oraclePublicKey,
+    shouldThrowError,
+    txNonce,
+    updateNonce,
+    web3Instanstce,
+    wrapABI,
+  }) => {
+    const signAndSendTransaction = async ({
+        txNonce,
+        retryCount = 0,
+    }) => {
+        const preparedTransaction = Transaction.fromTxData(
+            {
+                gasPrice: web3Instanstce.utils.toHex(gasPrice),
+                gasLimit: web3Instanstce.utils.toHex(gasLimit),
+                to: contract,
+                data: wrapABI,
+                from: oraclePublicKey,
+                nonce: web3Instanstce.utils.toHex(txNonce),
+            },
+            { common }
+        );
+
+        const privateKey = Buffer.from(oraclePrivateKey, 'hex');
+        const serializedTx = preparedTransaction
+            .sign(privateKey)
+            .serialize()
+            .toString('hex');
+
+        try { 
+            await web3Instanstce.eth
+                .sendSignedTransaction('0x' + serializedTx)
+                .on('transactionHash', (hash) => {
+                    console.log(
+                    `Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce}`
+                    );
+                })
+                .on('receipt', (receipt) => {
+                    console.log(logPrefix + 'Transaction has been successfully completed in the chain.');
+                    if (handleSuccessedResult) {
+                        try {
+                            handleSuccessedResult && handleSuccessedResult(receipt);
+                        } catch (error) {
+                            console.log('RECEIPT ERROR', error);
+                        }
+                    }
+                })
+                .on('error', (error, receipt) => {
+                    console.log(logPrefix + 'Transaction has been failed in the chain.');
+
+                    if (receipt && receipt.blockHash && !receipt.status)
+                    console.log(logPrefix +
+                        'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value'
+                    );
+            });
+        } catch (error) {
+            console.log(logPrefix + error.stack);
+
+            const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
+            const transactionAlreadyKnown = error.message.includes(
+                ALREADY_KNOWN_TRANSACTION
+            );
+
+            if (retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS && (nonceTooLowError || transactionAlreadyKnown)) {
+                // Retry with an incremented nonce
+                console.log(`Retrying (attempt ${retryCount + 1}/${MAX_RETRY_TRANSACTION_ATTEMPTS}).`);
+
+                const incrementedNonce = txNonce + 1;
+
+                updateNonce && updateNonce(incrementedNonce);
+
+                return signAndSendTransaction({
+                    txNonce: incrementedNonce,
+                    retryCount: retryCount + 1,
+                });
+            } else {
+                if (shouldThrowError) throw error;
+            }
+        }
+    }
+    
+    await signAndSendTransaction({ txNonce });
+  }
+
 module.exports = {
   createLogFile,
   isOraclePolygonAddressValid,
@@ -399,5 +495,7 @@ module.exports = {
   replaceNewLines,
   checkEthBlockNumbers,
   handleBackups,
+  polygonTransaction,
+  updateEthNonce,
   updatePolygonNonce,
 };
