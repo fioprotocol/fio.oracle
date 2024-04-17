@@ -1,21 +1,29 @@
 require('dotenv').config();
-import Web3 from "web3";
+import Web3 from 'web3';
 const fs = require('fs');
-import { Transaction } from "@ethereumjs/tx";
-import { Common, CustomChain } from '@ethereumjs/common';
-import config from "../../config/config";
-import fioNftABI from "../../config/ABI/FIOMATICNFT.json";
+
+import config from '../../config/config';
+import fioNftABI from '../../config/ABI/FIOMATICNFT.json';
 import {
-    addLogMessage, calculateAverageGasPrice, calculateHighGasPrice,
+    addLogMessage,
+    calculateAverageGasPrice,
+    calculateHighGasPrice,
     convertGweiToWei,
     convertWeiToEth,
-    convertWeiToGwei, getPolygonGasPriceSuggestion,
-    handleChainError, handleLogFailedWrapItem,
-    handleServerError, handleUpdatePendingWrapItemsQueue, isOraclePolygonAddressValid
-} from "../helpers";
+    convertWeiToGwei,
+    getPolygonGasPriceSuggestion,
+    handleChainError,
+    handleLogFailedWrapItem,
+    handleServerError,
+    handleUpdatePendingWrapItemsQueue,
+    handlePolygonNonceValue,
+    isOraclePolygonAddressValid,
+    handlePolygonChainCommon,
+    polygonTransaction,
+    updatePolygonNonce
+} from '../helpers';
 
-
-import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
+import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants';
 
 class PolyCtrl {
     constructor() {
@@ -40,7 +48,7 @@ class PolyCtrl {
 
         try {
             const domainName = wrapData.fio_domain;
-            const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
+            const common = handlePolygonChainCommon();
 
             const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
 
@@ -99,54 +107,45 @@ class PolyCtrl {
                         console.log(logPrefix + `requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`)
                         const wrapDomainFunction = this.fioNftContract.methods.wrapnft(wrapData.public_address, wrapData.fio_domain, txIdOnFioChain);
                         let wrapABI = wrapDomainFunction.encodeABI();
-                        const nonce = await this.web3.eth.getTransactionCount(pubKey, 'pending');//calculate nonce value for transaction
-                        const polygonTransaction = Transaction.fromTxData(
-                            {
-                                gasPrice: this.web3.utils.toHex(gasPrice),
-                                gasLimit: this.web3.utils.toHex(gasLimit),
-                                to: config.FIO_NFT_POLYGON_CONTRACT,
-                                data: wrapABI,
-                                from: pubKey,
-                                nonce: this.web3.utils.toHex(nonce),
-                            },
-                            { common }
-                        );
+
+                        const chainNonce = await this.web3.eth.getTransactionCount(pubKey, 'pending');
+                        const txNonce = handlePolygonNonceValue({ chainNonce });
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.MATIC,
-                            message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain submit' + ' {gasPrice: ' + gasPrice + ', gasLimit: ' + gasLimit + ', domain: ' + wrapData.fio_domain + ', to: ' + process.env.FIO_NFT_POLYGON_CONTRACT + ', from: ' + pubKey + ', nonce: ' + nonce + '}',
+                            message: `Polygon fio.erc721 wrapdomain submit { gasPrice: ${gasPrice}, gasLimit: ${gasLimit}, domain: ${wrapData.fio_domain}, to: ${process.env.FIO_NFT_POLYGON_CONTRACT}, from: ${pubKey}, nonce: ${txNonce}}`,
                         });
 
-                        const privateKey = Buffer.from(signKey, 'hex');
-                        const serializedTx = polygonTransaction.sign(privateKey).serialize().toString('hex');
-                        try {
-                            await this.web3.eth //excute the sign transaction using public key and private key of oracle
-                                .sendSignedTransaction('0x' + serializedTx)
-                                .on('transactionHash', (hash) => {
-                                    console.log(logPrefix + `transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${nonce}`);
-                                })
-                                .on('receipt', (receipt) => {
-                                    console.log(logPrefix + "transaction has been successfully completed in the chain.");
-                                    addLogMessage({
-                                        filePath: LOG_FILES_PATH_NAMES.MATIC,
-                                        message: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomain' + ' ' + JSON.stringify(receipt),
-                                    });
-                                    isTransactionProceededSuccessfully = true;
-                                })
-                                .on('error', (error, receipt) => {
-                                    console.log(logPrefix + 'transaction has been failed in the chain.') //error message will be logged by catch block
+                        const onSussessTransaction = (receipt) => {
+                            addLogMessage({
+                                filePath: LOG_FILES_PATH_NAMES.MATIC,
+                                message: `Polygon fio.erc721 wrapdomain ${JSON.stringify(receipt)}`,
+                            });
 
-                                    if (receipt && receipt.blockHash && !receipt.status) console.log(logPrefix + 'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value.')
-                                });
-                        } catch(e) {
-                            console.log(logPrefix + e.stack);
-                        }
+                            isTransactionProceededSuccessfully = true;
+                        };
+                        
+                        await polygonTransaction({
+                          common,
+                          contract: config.FIO_NFT_POLYGON_CONTRACT,
+                          gasPrice,
+                          gasLimit,
+                          handleSuccessedResult: onSussessTransaction,
+                          logPrefix,
+                          oraclePrivateKey: signKey,
+                          oraclePublicKey: pubKey,
+                          shouldThrowError: true,
+                          txNonce,
+                          updateNonce: updatePolygonNonce,
+                          web3Instanstce: this.web3,
+                          wrapABI,
+                        });
                     } else {
                         console.log(logPrefix + "Invalid Address");
                     }
                 } catch (error) {
                     handleChainError({
-                        logMessage: 'Polygon' + ' ' + 'fio.erc721' + ' ' + 'wrapdomian' + ' ' + error,
+                        logMessage: `Polygon fio.erc721 wrapdomain ${error}`,
                         consoleMessage: logPrefix + error.stack
                     });
                 }

@@ -6,11 +6,9 @@ const {
     handleWrapPolygonAction,
     handleBurnNFTInPolygon,
 } = require('./oracleutils.js');
-const {LOG_FILES_PATH_NAMES} = require("../controller/constants");
-const {addLogMessage} = require("../controller/helpers");
-
-//console.log(process.env)
-//console.log('process.argv', process.argv);
+const { LOG_FILES_PATH_NAMES } = require("../controller/constants");
+const { addLogMessage, prepareLogFile } = require("../controller/helpers");
+const utilCtrl = require('../controller/util.js');
 
 const args = process.argv;
 
@@ -43,6 +41,11 @@ const main = async () => {
                 console.log(oracle.usage + '\n');
                 break;
             case 'wraptokens':
+                 await prepareLogFile({
+                   filePath: LOG_FILES_PATH_NAMES.ethNonce,
+                   fetchLastBlockNumber: utilCtrl.getLatestEthNonce,
+                 });
+
                 if (oracle.isClean) {
                     const wrapText = oracle.obtid + ' ' + JSON.stringify({
                         amount: oracle.amount,
@@ -57,6 +60,10 @@ const main = async () => {
                 } else await handleWrapEthAction({amount: oracle.amount, address: oracle.address, obtId: oracle.obtid});
                 break;
             case 'wrapdomain':
+                await prepareLogFile({
+                    filePath: LOG_FILES_PATH_NAMES.polygonNonce,
+                    fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+                });
                 if (oracle.isClean) {
                     const wrapText = oracle.obtid + ' ' + JSON.stringify({
                         fio_domain: oracle.domain,
@@ -97,6 +104,11 @@ const main = async () => {
                 } else await handleUnwrapFromPolygonToFioChain({domain: oracle.domain, address: oracle.address, obtId: oracle.obtid});
                 break;
             case 'burndomain':
+                await prepareLogFile({
+                  filePath: LOG_FILES_PATH_NAMES.polygonNonce,
+                  fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+                });
+                
                 if (oracle.isClean) {
                     const wrapText = oracle.obtid + ' ' + JSON.stringify({
                         domain: oracle.domain,

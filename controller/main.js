@@ -87,6 +87,14 @@ class MainCtrl {
                 filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
                 fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber
             });
+            await prepareLogFile({
+                filePath: LOG_FILES_PATH_NAMES.ethNonce,
+                fetchLastBlockNumber: utilCtrl.getLatestEthNonce,
+            });
+            await prepareLogFile({
+                filePath: LOG_FILES_PATH_NAMES.polygonNonce,
+                fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+            });
             console.log(logPrefix + 'blocks folders are ready');
 
             // Start Jobs asynchronously immediately
