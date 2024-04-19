@@ -1,10 +1,11 @@
-require('dotenv').config();
+import 'dotenv/config';
 import { Common } from '@ethereumjs/common'
-import Web3 from "web3";
-const fs = require('fs');
-import config from "../../config/config";
-import fioABI from '../../config/ABI/FIO.json';
-import fioNftABI from "../../config/ABI/FIONFT.json";
+import Web3 from 'web3';
+import fs from 'fs';
+
+import config from '../../config/config.js';
+import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import {
     addLogMessage,
     calculateAverageGasPrice,
@@ -22,8 +23,8 @@ import {
     isOracleEthAddressValid,
     polygonTransaction,
     updateEthNonce,
-} from "../helpers";
-import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
+} from '../helpers.js';
+import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
 
 class EthCtrl {
     constructor() {

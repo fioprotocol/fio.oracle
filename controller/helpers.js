@@ -1,22 +1,22 @@
-const fs = require("fs");
-const Web3 = require("web3");
-const fetch = require("node-fetch");
-const { Transaction } = require('@ethereumjs/tx');
+import fs from 'fs';
+import Web3 from 'web3';
+import fetch from 'node-fetch';
+import { Transaction } from '@ethereumjs/tx';
 
-const { Common, CustomChain } = require('@ethereumjs/common');
+import { Common, CustomChain } from '@ethereumjs/common';
 
-const {
+import {
     ALREADY_KNOWN_TRANSACTION,
     LOG_FILES_PATH_NAMES,
     LOG_DIRECTORY_PATH_NAME,
     MAX_RETRY_TRANSACTION_ATTEMPTS,
     NONCE_TOO_LOW_ERROR,
     POLYGON_TESTNET_CHAIN_ID,
-} = require('./constants');
-const fioABI = require("../config/ABI/FIO.json");
-const fioNftABI = require("../config/ABI/FIONFT.json");
-const fioMaticNftABI = require("../config/ABI/FIOMATICNFT.json");
-const config = require("../config/config");
+} from './constants.js';
+import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioMaticNftABI from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import config from '../config/config.js';
 
 const replaceNewLines = (stringValue, replaceChar = ', ') => {
     return  stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -461,7 +461,7 @@ const polygonTransaction = async ({
     await signAndSendTransaction({ txNonce });
   }
 
-module.exports = {
+export {
   createLogFile,
   isOraclePolygonAddressValid,
   isOracleEthAddressValid,

@@ -1,13 +1,15 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-const fetch = require('node-fetch');
-const Web3 = require('web3');
-const { Common } = require('@ethereumjs/common');
+import fetch from 'node-fetch';
+import Web3 from 'web3';
+import { Common } from '@ethereumjs/common';
+import { Fio } from '@fioprotocol/fiojs';
+import { TextDecoder, TextEncoder } from 'text-encoding';
 
-const fioABI = require('../config/ABI/FIO.json');
-const fioNftABI = require('../config/ABI/FIONFT.json');
-const fioNftABIonPolygon = require('../config/ABI/FIOMATICNFT.json');
-const {
+import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import {
     getEthGasPriceSuggestion,
     calculateAverageGasPrice,
     calculateHighGasPrice,
@@ -20,10 +22,9 @@ const {
     polygonTransaction,
     updateEthNonce,
     updatePolygonNonce,
-} = require('../controller/helpers');
-const config = require('../config/config');
-const { Fio } = require('@fioprotocol/fiojs');
-const { TextDecoder, TextEncoder } = require('text-encoding');
+} from '../controller/helpers.js';
+import config from '../config/config.js';
+
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -369,7 +370,7 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
     });
 }
 
-module.exports = {
+export {
     handleWrapEthAction,
     handleWrapPolygonAction,
     handleUnwrapFromEthToFioChain,

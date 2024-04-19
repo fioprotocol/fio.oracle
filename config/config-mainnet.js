@@ -1,6 +1,6 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-module.exports = {
+export default {
   port: process.env.PORT, //3002
   web3Provider: "",
   unsubscribeLandingPage: '',

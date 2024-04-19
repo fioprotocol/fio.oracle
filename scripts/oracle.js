@@ -1,14 +1,13 @@
-const fs = require("fs");
-const {
+import {
     handleUnwrapFromEthToFioChain,
     handleUnwrapFromPolygonToFioChain,
     handleWrapEthAction,
     handleWrapPolygonAction,
     handleBurnNFTInPolygon,
-} = require('./oracleutils.js');
-const { LOG_FILES_PATH_NAMES } = require("../controller/constants");
-const { addLogMessage, prepareLogFile } = require("../controller/helpers");
-const utilCtrl = require('../controller/util.js');
+} from './oracleutils.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
+import { addLogMessage, prepareLogFile } from '../controller/helpers.js';
+import utilCtrl from '../controller/util.js';
 
 const args = process.argv;
 

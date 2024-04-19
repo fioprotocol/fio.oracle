@@ -1,17 +1,16 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-const fs = require('fs');
-const fetch = require('node-fetch');
-const Web3 = require('web3');
+import fs from 'fs';
+import fetch from 'node-fetch';
 
-const config = require('../config/config');
-const { LOG_FILES_PATH_NAMES } = require('../controller/constants');
+import config from '../config/config.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
 
-const {
+import {
   createLogFile,
   checkHttpResponseStatus,
   getLastProceededBlockNumberOnFioChain,
-} = require('./helpers');
+} from './helpers.js';
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 const DEFAULT_FIO_SERVER_HISTORY_VERSION = process.env.FIO_SERVER_HISTORY_VERSION;
@@ -240,4 +239,4 @@ class UtilCtrl {
     }
 }
 
-module.exports = new UtilCtrl();
+export default new UtilCtrl();

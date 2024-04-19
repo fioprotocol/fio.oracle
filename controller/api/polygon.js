@@ -1,9 +1,9 @@
-require('dotenv').config();
+import 'dotenv/config';
 import Web3 from 'web3';
-const fs = require('fs');
+import fs from 'fs';
 
-import config from '../../config/config';
-import fioNftABI from '../../config/ABI/FIOMATICNFT.json';
+import config from '../../config/config.js';
+import fioNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 import {
     addLogMessage,
     calculateAverageGasPrice,
@@ -21,9 +21,9 @@ import {
     handlePolygonChainCommon,
     polygonTransaction,
     updatePolygonNonce
-} from '../helpers';
+} from '../helpers.js';
 
-import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants';
+import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
 
 class PolyCtrl {
     constructor() {

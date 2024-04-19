@@ -1,7 +1,9 @@
-import fioCtrl from "../api/fio";
-import { checkAPIKey } from "./middle";
+import fioCtrl from '../api/fio.js';
+import { checkAPIKey } from './middle.js';
 
-const route = require("express").Router();
+import express from 'express';
 
-route.post("/getAccount", checkAPIKey , (req, res) => fioCtrl.handleUnprocessedWrapActionsOnFioChain(req,res));
+const route = express.Router();
+
+route.post('/getAccount', checkAPIKey , (req, res) => fioCtrl.handleUnprocessedWrapActionsOnFioChain(req,res));
 export default route;
