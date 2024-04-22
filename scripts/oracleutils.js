@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 import Web3 from 'web3';
 import { Common } from '@ethereumjs/common';
 import { Fio } from '@fioprotocol/fiojs';
-import { TextDecoder, TextEncoder } from 'text-encoding';
+import * as textEncoder from 'text-encoding';
 
 import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
@@ -25,6 +25,7 @@ import {
 } from '../controller/helpers.js';
 import config from '../config/config.js';
 
+const { TextEncoder, TextDecoder } = textEncoder;
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
