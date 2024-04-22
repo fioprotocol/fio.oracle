@@ -87,6 +87,7 @@ const handleWrapEthAction = async ({
     await polygonTransaction({
       common,
       contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -94,7 +95,6 @@ const handleWrapEthAction = async ({
       txNonce,
       updateNonce: updateEthNonce,
       web3Instanstce: web3,
-      wrapABI,
     });
 }
 
@@ -148,6 +148,7 @@ const handleWrapPolygonAction = async ({
     await polygonTransaction({
       common,
       contract: config.FIO_NFT_POLYGON_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -155,7 +156,6 @@ const handleWrapPolygonAction = async ({
       txNonce,
       updateNonce: updatePolygonNonce,
       web3Instanstce: polygonWeb3,
-      wrapABI,
     });
 }
 
@@ -359,6 +359,7 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
     await polygonTransaction({
       common,
       contract: config.FIO_NFT_POLYGON_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -366,7 +367,6 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
       txNonce,
       updateNonce: updatePolygonNonce,
       web3Instanstce: polygonWeb3,
-      wrapABI,
     });
 }
 

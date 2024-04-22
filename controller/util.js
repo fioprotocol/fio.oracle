@@ -10,6 +10,7 @@ import {
   createLogFile,
   checkHttpResponseStatus,
   getLastProceededBlockNumberOnFioChain,
+  getLastProceededBlockNumberOnFioChainForBurnNFT,
 } from './helpers.js';
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
@@ -54,8 +55,14 @@ class UtilCtrl {
         return lastBlockNum;
     }
 
-    async getUnprocessedActionsOnFioChain(accountName, pos, logPrefix, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION) {
-        const lastNumber = getLastProceededBlockNumberOnFioChain();
+    async getUnprocessedActionsOnFioChain({ accountName, pos, logPrefix, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION, isBurnNft = false }) {
+        let lastNumber = null;
+
+        if (isBurnNft) {
+            lastNumber = getLastProceededBlockNumberOnFioChainForBurnNFT();
+        } else {
+            lastNumber = getLastProceededBlockNumberOnFioChain();
+        }
 
         console.log(logPrefix + `start Block Number = ${lastNumber + 1}, end Block Number: ${pos}`)
 

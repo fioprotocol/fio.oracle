@@ -19,7 +19,7 @@ import {
     handleLogFailedWrapItem,
     handleEthNonceValue,
     handleServerError,
-    handleUpdatePendingWrapItemsQueue,
+    handleUpdatePendingPolygonItemsQueue,
     isOracleEthAddressValid,
     polygonTransaction,
     updateEthNonce,
@@ -149,6 +149,7 @@ class EthCtrl {
                         await polygonTransaction({
                           common,
                           contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+                          data: wrapABI,
                           gasPrice,
                           gasLimit,
                           handleSuccessedResult: onSussessTransaction,
@@ -159,7 +160,6 @@ class EthCtrl {
                           txNonce,
                           updateNonce: updateEthNonce,
                           web3Instanstce: this.web3,
-                          wrapABI,
                         });
                     } else {
                         console.log(logPrefix + "Invalid Address");
@@ -180,7 +180,7 @@ class EthCtrl {
                     })
                 }
 
-                handleUpdatePendingWrapItemsQueue({
+                handleUpdatePendingPolygonItemsQueue({
                     action: this.handleWrap.bind(this),
                     logPrefix,
                     logFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,

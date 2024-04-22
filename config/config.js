@@ -7,6 +7,17 @@ const oracleCache = new NodeCache();
 import conf_mainnet from './config-mainnet.js';
 import conf_testnet from './config-testnet.js';
 
+const NFT_TESTNET_CHAIN_NAME =
+  process.env.NFT_DEFAULT_TESTNET_CHAIN_NAME || 'POLYGON_AMOY';
+const NFT_MAINNET_CHAIN_NAME = process.env.NFT_MAINNET_CHAIN_NAME || 'POLYGON';
+
+const NFT_CHAIN_NAME =
+  process.env.MODE === 'testnet'
+    ? NFT_TESTNET_CHAIN_NAME
+    : NFT_MAINNET_CHAIN_NAME;
+
+const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
+
 load({
   example: join(process.cwd(), '.env'),
 });
@@ -29,4 +40,8 @@ export default {
   ...config,
   oracleCache,
   FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION || 'active',
+  NFTS: {
+    NFT_CHAIN_NAME: NFT_CHAIN_NAME,
+    NFT_PROVIDER_API_KEY: MORALIS_API_KEY,
+  },
 };

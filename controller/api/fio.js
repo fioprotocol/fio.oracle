@@ -10,7 +10,6 @@ import utilCtrl from '../util.js';
 import ethCtrl from './eth.js';
 import polygonCtrl from './polygon.js';
 import moralis from './moralis.js';
-
 import config from '../../config/config.js';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
@@ -26,16 +25,18 @@ import {
     handleServerError,
     updateBlockNumberForTokensUnwrappingOnETH,
     updateBlockNumberFIO,
+    updateBlockNumberFIOForBurnNFT,
     updateBlockNumberMATIC,
     updateBlockNumberForDomainsUnwrappingOnETH,
     handleLogFailedWrapItem,
-    handleUpdatePendingWrapItemsQueue
+    handleUpdatePendingPolygonItemsQueue
 } from '../helpers.js';
 import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
 
 const { TextEncoder, TextDecoder } = textEncoder;
 
 const {
+  NFTS: { NFT_CHAIN_NAME },
   FIO_NFT_ETH_CONTRACT,
   FIO_NFT_POLYGON_CONTRACT,
   FIO_ORACLE_PERMISSION,
@@ -166,7 +167,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
         })
     }
 
-    handleUpdatePendingWrapItemsQueue({
+    handleUpdatePendingPolygonItemsQueue({
         action: handleUnwrapFromEthToFioChainJob,
         logPrefix,
         logFilePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
@@ -283,7 +284,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
         })
     }
 
-    handleUpdatePendingWrapItemsQueue({
+    handleUpdatePendingPolygonItemsQueue({
         action: handleUnwrapFromPolygonToFioChainJob,
         logPrefix,
         logFilePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
@@ -305,7 +306,12 @@ class FIOCtrl {
         }
 
         const handleWrapAction = async (fioServerHistoryVersion) => {
-            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix, fioServerHistoryVersion);
+            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+                accountName: 'fio.oracle',
+                pos: -1,
+                logPrefix,
+                fioServerHistoryVersion,
+            });
             const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
 
             console.log(logPrefix + `wrap events data length : ${wrapDataArrayLength}:`);
@@ -637,6 +643,108 @@ class FIOCtrl {
         oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting, false, 0);
 
         console.log(logPrefix + 'all necessary actions were completed successfully');
+    }
+
+    async handleUnprocessedBurnNFTActions () {
+        const logPrefix = 'FIO, Get latest Burned domain actions on FIO chain --> ';
+
+         if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting)) {
+            oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, true, 0);
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
+        }
+
+        const handleBurnNFTAction = async (fioServerHistoryVersion) => {
+            const addressDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+                accountName: 'fio.address',
+                pos: -1,
+                logPrefix,
+                fioServerHistoryVersion,
+                isBurnNft: true,
+            });
+
+            const burnedDomainDataEvents = addressDataEvents.filter(
+              (addressDataEvent) =>
+                addressDataEvent.action_trace.act.name === 'burndomain'
+            );
+
+            const burnedDomainsListFromFio = [];
+
+            for (const burnedDomainEvent of burnedDomainDataEvents) {
+                if (
+                  burnedDomainEvent &&
+                  burnedDomainEvent.action_trace &&
+                  burnedDomainEvent.action_trace.act &&
+                  burnedDomainEvent.action_trace.act.data &&
+                  burnedDomainEvent.action_trace.act.data.domainname
+                ) {
+                    burnedDomainsListFromFio.push({
+                      domainName: burnedDomainEvent.action_trace.act.data.domainname,
+                      trxId: burnedDomainEvent.action_trace.trx_id,
+                    });
+
+                    addLogMessage({
+                      filePath: LOG_FILES_PATH_NAMES.FIO,
+                      message: {
+                        chain: 'FIO',
+                        contract: 'fio.address',
+                        action: 'burnDomain MATIC',
+                        transaction: burnedDomainEvent,
+                      },
+                    });
+
+                    updateBlockNumberFIOForBurnNFT(burnedDomainEvent.block_num.toString());
+                }
+            }
+
+            const nftsList = await moralis.getAllContractNFTs({
+              chainName: NFT_CHAIN_NAME,
+              contract: FIO_NFT_POLYGON_CONTRACT,
+            });
+
+            const nftsListToBurn = [];
+
+            for (const nftItem of nftsList) {
+                const { metadata, token_id, normalized_metadata } = nftItem;
+                const metadataName = normalized_metadata.name || (metadata && JSON.parse(metadata).name);
+                const name = metadataName && metadataName.split(': ')[1];
+
+                const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
+
+                if (existingInBurnList) {
+                    const { trxId, domainName } = existingInBurnList;
+                    nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                }
+            }
+
+            for (const nftsListToBurnItem of nftsListToBurn) {
+                addLogMessage({
+                  filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
+                  message: nftsListToBurnItem,
+                  addTimestamp: false,
+                });
+            }
+
+            console.log(nftsListToBurn);
+
+
+            const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
+            console.log(logPrefix + 'isBurnNFTOnPolygonJobExecuting: ' + !!isBurnNFTOnPolygonJobExecuting);
+
+            if (!isBurnNFTOnPolygonJobExecuting) {
+                polygonCtrl.burnNFTOnPolygon();
+            }
+        };
+
+        try {
+            await handleBackups(handleBurnNFTAction, false, process.env.FIO_SERVER_HISTORY_VERSION_BACKUP);
+        } catch (err) {
+            handleServerError(err, 'FIO, handleUnprocessedBurnNFTActions');
+        }
+
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, false, 0);
+        console.log(logPrefix + 'End');
     }
 }
 

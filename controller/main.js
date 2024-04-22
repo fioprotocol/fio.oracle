@@ -113,9 +113,17 @@ class MainCtrl {
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions });
+
       console.log(logPrefix + 'logs folders are ready');
+
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
+        fetchLastBlockNumber: utilCtrl.getLastIrreversibleBlockOnFioChain,
+      });
+      await prepareLogFile({
+        filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
         fetchLastBlockNumber: utilCtrl.getLastIrreversibleBlockOnFioChain,
       });
       await prepareLogFile({
@@ -146,11 +154,16 @@ class MainCtrl {
       fioCtrl.handleUnprocessedWrapActionsOnFioChain();
       fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions();
       fioCtrl.handleUnprocessedUnwrapActionsOnPolygon();
+      fioCtrl.handleUnprocessedBurnNFTActions();
 
       // Start Jobs interval
       setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(process.env.POLLTIME)); //execute wrap FIO tokens and domains action every 60 seconds
       setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions, parseInt(process.env.POLLTIME)); //execute unwrap tokens and domains action every 60 seconds
       setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(process.env.POLLTIME)); //execute unwrap domains action every 60 seconds
+      setInterval(
+        fioCtrl.handleUnprocessedBurnNFTActions,
+        parseInt(process.env.POLLTIME)
+      );
 
       this.initRoutes(app);
 
