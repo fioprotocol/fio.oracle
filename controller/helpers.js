@@ -1,22 +1,22 @@
-const fs = require("fs");
-const Web3 = require("web3");
-const fetch = require("node-fetch");
-const { Transaction } = require('@ethereumjs/tx');
+import fs from 'fs';
+import Web3 from 'web3';
+import fetch from 'node-fetch';
+import { Transaction } from '@ethereumjs/tx';
 
-const { Common, CustomChain } = require('@ethereumjs/common');
+import { Common, CustomChain } from '@ethereumjs/common';
 
-const {
+import {
     ALREADY_KNOWN_TRANSACTION,
     LOG_FILES_PATH_NAMES,
     LOG_DIRECTORY_PATH_NAME,
     MAX_RETRY_TRANSACTION_ATTEMPTS,
     NONCE_TOO_LOW_ERROR,
     POLYGON_TESTNET_CHAIN_ID,
-} = require('./constants');
-const fioABI = require("../config/ABI/FIO.json");
-const fioNftABI = require("../config/ABI/FIONFT.json");
-const fioMaticNftABI = require("../config/ABI/FIOMATICNFT.json");
-const config = require("../config/config");
+} from './constants.js';
+import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioMaticNftABI from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import config from '../config/config.js';
 
 const replaceNewLines = (stringValue, replaceChar = ', ') => {
     return  stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -148,6 +148,9 @@ const convertWeiToEth = (weiValue) => {
 const updateBlockNumberFIO = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
 }
+const updateBlockNumberFIOForBurnNFT = (blockNumber) => {
+  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, blockNumber);
+};
 const updateBlockNumberForTokensUnwrappingOnETH = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, blockNumber);
 }
@@ -167,6 +170,9 @@ const updatePolygonNonce = (nonce) => {
 const getLastProceededBlockNumberOnFioChain = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
 }
+const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
+    return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, 'utf8'));
+} 
 const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
     return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, 'utf8'));
 }
@@ -199,7 +205,7 @@ const checkHttpResponseStatus = async (response, additionalErrorMessage = null) 
     }
 }
 
-const handleUpdatePendingWrapItemsQueue = ({
+const handleUpdatePendingPolygonItemsQueue = ({
     action,
     logFilePath,
     logPrefix,
@@ -230,6 +236,19 @@ const handleLogFailedWrapItem = ({
     const wrapText = txId + ' ' + JSON.stringify(wrapData) + '\r\n';
     fs.appendFileSync(errorLogFilePath, wrapText) // store issued transaction to errored log file queue by line-break
 }
+
+const handleLogFailedBurnNFTItem = ({
+    logPrefix,
+    burnData,
+    errorLogFilePath,
+}) => {
+    console.log(
+        logPrefix +
+        `Something went wrong with the current burnNFT action. Storing transaction data into ${errorLogFilePath}`
+    );
+    const burnText = burnData + '\r\n';
+    fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
+};
 
 // base gas price value + 10%
 const calculateAverageGasPrice = (val) => {
@@ -372,6 +391,7 @@ const handleEthNonceValue = ({ chainNonce }) => {
 const polygonTransaction = async ({
     common,
     contract,
+    data,
     gasPrice,
     gasLimit,
     handleSuccessedResult,
@@ -382,7 +402,6 @@ const polygonTransaction = async ({
     txNonce,
     updateNonce,
     web3Instanstce,
-    wrapABI,
   }) => {
     const signAndSendTransaction = async ({
         txNonce,
@@ -393,7 +412,7 @@ const polygonTransaction = async ({
                 gasPrice: web3Instanstce.utils.toHex(gasPrice),
                 gasLimit: web3Instanstce.utils.toHex(gasLimit),
                 to: contract,
-                data: wrapABI,
+                data,
                 from: oraclePublicKey,
                 nonce: web3Instanstce.utils.toHex(txNonce),
             },
@@ -461,7 +480,7 @@ const polygonTransaction = async ({
     await signAndSendTransaction({ txNonce });
   }
 
-module.exports = {
+export {
   createLogFile,
   isOraclePolygonAddressValid,
   isOracleEthAddressValid,
@@ -470,7 +489,8 @@ module.exports = {
   calculateHighGasPrice,
   calculateAverageGasPrice,
   handleLogFailedWrapItem,
-  handleUpdatePendingWrapItemsQueue,
+  handleLogFailedBurnNFTItem,
+  handleUpdatePendingPolygonItemsQueue,
   handleEthNonceValue,
   handlePolygonNonceValue,
   checkHttpResponseStatus,
@@ -498,4 +518,6 @@ module.exports = {
   polygonTransaction,
   updateEthNonce,
   updatePolygonNonce,
+  updateBlockNumberFIOForBurnNFT,
+  getLastProceededBlockNumberOnFioChainForBurnNFT,
 };

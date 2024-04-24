@@ -1,17 +1,19 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-import fs from "fs";
-import Web3 from "web3";
-const { Fio } = require('@fioprotocol/fiojs');
-const { TextEncoder, TextDecoder } = require('text-encoding');
-const fetch = require('node-fetch');
-import utilCtrl from '../util';
-import ethCtrl from '../api/eth';
-import polygonCtrl from '../api/polygon';
-import config from "../../config/config";
-import fioABI from '../../config/ABI/FIO.json';
-import fioNftABI from "../../config/ABI/FIONFT.json"
-import fioPolygonABI from "../../config/ABI/FIOMATICNFT.json"
+import fs from 'fs';
+import Web3 from 'web3';
+import { Fio } from '@fioprotocol/fiojs';
+import * as textEncoder from 'text-encoding';
+import fetch from 'node-fetch';
+
+import utilCtrl from '../util.js';
+import ethCtrl from './eth.js';
+import polygonCtrl from './polygon.js';
+import moralis from './moralis.js';
+import config from '../../config/config.js';
+import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 import {
     addLogMessage,
     convertNativeFioIntoFio,
@@ -23,26 +25,39 @@ import {
     handleServerError,
     updateBlockNumberForTokensUnwrappingOnETH,
     updateBlockNumberFIO,
+    updateBlockNumberFIOForBurnNFT,
     updateBlockNumberMATIC,
-    updateBlockNumberForDomainsUnwrappingOnETH, handleLogFailedWrapItem, handleUpdatePendingWrapItemsQueue
-} from "../helpers";
-import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
+    updateBlockNumberForDomainsUnwrappingOnETH,
+    handleLogFailedWrapItem,
+    handleUpdatePendingPolygonItemsQueue
+} from '../helpers.js';
+import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
+
+const { TextEncoder, TextDecoder } = textEncoder;
+
+const {
+  NFTS: { NFT_CHAIN_NAME },
+  FIO_NFT_ETH_CONTRACT,
+  FIO_NFT_POLYGON_CONTRACT,
+  FIO_ORACLE_PERMISSION,
+  oracleCache,
+} = config;
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polyWeb3 = new Web3(process.env.POLYGON_INFURA);
 const fioTokenContractOnEthChain = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
-const fioNftContract = new web3.eth.Contract(fioNftABI, config.FIO_NFT_ETH_CONTRACT);
-const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, config.FIO_NFT_POLYGON_CONTRACT)
+const fioNftContract = new web3.eth.Contract(fioNftABI, FIO_NFT_ETH_CONTRACT);
+const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, FIO_NFT_POLYGON_CONTRACT)
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 
 // execute unwrap action job
 const handleUnwrapFromEthToFioChainJob = async () => {
-    if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting))
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+    if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting))
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
 
     const transactionToProceed = fs.readFileSync(LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue).toString().split('\r\n')[0];
     if (transactionToProceed === '') {
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting, false, 0);
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting, false, 0);
         return;
     }
 
@@ -94,7 +109,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
                 name: actionName,
                 authorization: [{
                     actor: oracleAccount,
-                    permission: config.FIO_ORACLE_PERMISSION,
+                    permission: FIO_ORACLE_PERMISSION,
                 }],
                 data: transactionActionsData,
             }]
@@ -152,7 +167,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
         })
     }
 
-    handleUpdatePendingWrapItemsQueue({
+    handleUpdatePendingPolygonItemsQueue({
         action: handleUnwrapFromEthToFioChainJob,
         logPrefix,
         logFilePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
@@ -161,12 +176,12 @@ const handleUnwrapFromEthToFioChainJob = async () => {
 }
 
 const handleUnwrapFromPolygonToFioChainJob = async () => {
-    if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting))
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+    if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting))
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
 
     const transactionToProceed = fs.readFileSync(LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue).toString().split('\r\n')[0];
     if (transactionToProceed === '') {
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting, false, 0);
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting, false, 0);
         return;
     }
 
@@ -206,7 +221,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
                 name: action,
                 authorization: [{
                     actor: oracleAccount,
-                    permission: config.FIO_ORACLE_PERMISSION,
+                    permission: FIO_ORACLE_PERMISSION,
                 }],
                 data: {
                     fio_address: fioAddress,
@@ -269,7 +284,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
         })
     }
 
-    handleUpdatePendingWrapItemsQueue({
+    handleUpdatePendingPolygonItemsQueue({
         action: handleUnwrapFromPolygonToFioChainJob,
         logPrefix,
         logFilePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
@@ -283,15 +298,20 @@ class FIOCtrl {
     async handleUnprocessedWrapActionsOnFioChain(req, res) {
         const logPrefix = 'FIO, Get latest Wrap (tokens and domains) actions on FIO chain --> ';
 
-        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
+        if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
+            oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
         } else {
             console.log(logPrefix + 'Job is already running')
             return
         }
 
         const handleWrapAction = async (fioServerHistoryVersion) => {
-            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain("fio.oracle", -1, logPrefix, fioServerHistoryVersion);
+            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+                accountName: 'fio.oracle',
+                pos: -1,
+                logPrefix,
+                fioServerHistoryVersion,
+            });
             const wrapDataArrayLength = wrapDataEvents ? wrapDataEvents.length : 0;
 
             console.log(logPrefix + `wrap events data length : ${wrapDataArrayLength}:`);
@@ -356,8 +376,8 @@ class FIOCtrl {
                 })
             }
 
-            let isWrapOnEthJobExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting)
-            let isWrapOnPolygonJobExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting)
+            let isWrapOnEthJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting)
+            let isWrapOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting)
             console.log(logPrefix + 'isWrapOnEthJobExecuting: ' + !!isWrapOnEthJobExecuting)
             console.log(logPrefix + 'isWrapOnPolygonJobExecuting: ' + !!isWrapOnPolygonJobExecuting)
 
@@ -376,15 +396,15 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
         }
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
         console.log(logPrefix + 'End');
     }
 
     async handleUnprocessedUnwrapActionsOnEthChainActions() {
         const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnEthChainActions --> `
 
-        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting)) {
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting)) {
+            oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
         } else {
             console.log(logPrefix + 'Job is already running')
             return
@@ -496,7 +516,7 @@ class FIOCtrl {
                 })
             }
 
-            let isUnwrapOnEthJobExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting)
+            let isUnwrapOnEthJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting)
             console.log(logPrefix + 'isUnwrapOnEthJobExecuting: ' + !!isUnwrapOnEthJobExecuting)
 
             // start unwrap job on Eth if it's not running
@@ -506,7 +526,7 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedUnwrapTokensOnEthChainActions');
         }
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting, false, 0);
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting, false, 0);
 
         console.log(logPrefix + 'all necessary actions were completed successfully')
     }
@@ -514,8 +534,8 @@ class FIOCtrl {
     async handleUnprocessedUnwrapActionsOnPolygon() {
         const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnPolygon --> `
 
-        if (!config.oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting)) {
-            config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
+        if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting)) {
+            oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
         } else {
             console.log(logPrefix + 'Job is already running')
             return
@@ -610,7 +630,7 @@ class FIOCtrl {
                 })
             }
 
-            let isUnwrapOnPolygonJobExecuting = config.oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting)
+            let isUnwrapOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting)
             console.log(logPrefix + 'isUnwrapOnEthJobExecuting: ' + !!isUnwrapOnPolygonJobExecuting)
 
             // start unwrap job on Polygon if it's not running
@@ -620,9 +640,111 @@ class FIOCtrl {
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedUnwrapActionsOnPolygon');
         }
-        config.oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting, false, 0);
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting, false, 0);
 
         console.log(logPrefix + 'all necessary actions were completed successfully');
+    }
+
+    async handleUnprocessedBurnNFTActions () {
+        const logPrefix = 'FIO, Get latest Burned domain actions on FIO chain --> ';
+
+         if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting)) {
+            oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, true, 0);
+        } else {
+            console.log(logPrefix + 'Job is already running')
+            return
+        }
+
+        const handleBurnNFTAction = async (fioServerHistoryVersion) => {
+            const addressDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+                accountName: 'fio.address',
+                pos: -1,
+                logPrefix,
+                fioServerHistoryVersion,
+                isBurnNft: true,
+            });
+
+            const burnedDomainDataEvents = addressDataEvents.filter(
+              (addressDataEvent) =>
+                addressDataEvent.action_trace.act.name === 'burndomain'
+            );
+
+            const burnedDomainsListFromFio = [];
+
+            for (const burnedDomainEvent of burnedDomainDataEvents) {
+                if (
+                  burnedDomainEvent &&
+                  burnedDomainEvent.action_trace &&
+                  burnedDomainEvent.action_trace.act &&
+                  burnedDomainEvent.action_trace.act.data &&
+                  burnedDomainEvent.action_trace.act.data.domainname
+                ) {
+                    burnedDomainsListFromFio.push({
+                      domainName: burnedDomainEvent.action_trace.act.data.domainname,
+                      trxId: burnedDomainEvent.action_trace.trx_id,
+                    });
+
+                    addLogMessage({
+                      filePath: LOG_FILES_PATH_NAMES.FIO,
+                      message: {
+                        chain: 'FIO',
+                        contract: 'fio.address',
+                        action: 'burnDomain MATIC',
+                        transaction: burnedDomainEvent,
+                      },
+                    });
+
+                    updateBlockNumberFIOForBurnNFT(burnedDomainEvent.block_num.toString());
+                }
+            }
+
+            const nftsList = await moralis.getAllContractNFTs({
+              chainName: NFT_CHAIN_NAME,
+              contract: FIO_NFT_POLYGON_CONTRACT,
+            });
+
+            const nftsListToBurn = [];
+
+            for (const nftItem of nftsList) {
+                const { metadata, token_id, normalized_metadata } = nftItem;
+                const metadataName = normalized_metadata.name || (metadata && JSON.parse(metadata).name);
+                const name = metadataName && metadataName.split(': ')[1];
+
+                const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
+
+                if (existingInBurnList) {
+                    const { trxId, domainName } = existingInBurnList;
+                    nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                }
+            }
+
+            for (const nftsListToBurnItem of nftsListToBurn) {
+                addLogMessage({
+                  filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
+                  message: nftsListToBurnItem,
+                  addTimestamp: false,
+                });
+            }
+
+            console.log(nftsListToBurn);
+
+
+            const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
+            console.log(logPrefix + 'isBurnNFTOnPolygonJobExecuting: ' + !!isBurnNFTOnPolygonJobExecuting);
+
+            if (!isBurnNFTOnPolygonJobExecuting) {
+                polygonCtrl.burnNFTOnPolygon();
+            }
+        };
+
+        try {
+            await handleBackups(handleBurnNFTAction, false, process.env.FIO_SERVER_HISTORY_VERSION_BACKUP);
+        } catch (err) {
+            handleServerError(err, 'FIO, handleUnprocessedBurnNFTActions');
+        }
+
+        oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, false, 0);
+        console.log(logPrefix + 'End');
     }
 }
 

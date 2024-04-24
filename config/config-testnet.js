@@ -1,6 +1,6 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-module.exports = {
+export default {
     port: process.env.PORT,
     unsubscribeLandingPage: '',
     FIO_token: process.env.FIO_TOKEN_ETH_CONTRACT,

@@ -1,13 +1,15 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-const fetch = require('node-fetch');
-const Web3 = require('web3');
-const { Common } = require('@ethereumjs/common');
+import fetch from 'node-fetch';
+import Web3 from 'web3';
+import { Common } from '@ethereumjs/common';
+import { Fio } from '@fioprotocol/fiojs';
+import * as textEncoder from 'text-encoding';
 
-const fioABI = require('../config/ABI/FIO.json');
-const fioNftABI = require('../config/ABI/FIONFT.json');
-const fioNftABIonPolygon = require('../config/ABI/FIOMATICNFT.json');
-const {
+import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import {
     getEthGasPriceSuggestion,
     calculateAverageGasPrice,
     calculateHighGasPrice,
@@ -20,10 +22,10 @@ const {
     polygonTransaction,
     updateEthNonce,
     updatePolygonNonce,
-} = require('../controller/helpers');
-const config = require('../config/config');
-const { Fio } = require('@fioprotocol/fiojs');
-const { TextDecoder, TextEncoder } = require('text-encoding');
+} from '../controller/helpers.js';
+import config from '../config/config.js';
+
+const { TextEncoder, TextDecoder } = textEncoder;
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -86,6 +88,7 @@ const handleWrapEthAction = async ({
     await polygonTransaction({
       common,
       contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -93,7 +96,6 @@ const handleWrapEthAction = async ({
       txNonce,
       updateNonce: updateEthNonce,
       web3Instanstce: web3,
-      wrapABI,
     });
 }
 
@@ -147,6 +149,7 @@ const handleWrapPolygonAction = async ({
     await polygonTransaction({
       common,
       contract: config.FIO_NFT_POLYGON_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -154,7 +157,6 @@ const handleWrapPolygonAction = async ({
       txNonce,
       updateNonce: updatePolygonNonce,
       web3Instanstce: polygonWeb3,
-      wrapABI,
     });
 }
 
@@ -358,6 +360,7 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
     await polygonTransaction({
       common,
       contract: config.FIO_NFT_POLYGON_CONTRACT,
+      data: wrapABI,
       gasPrice,
       gasLimit,
       oraclePrivateKey,
@@ -365,11 +368,10 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
       txNonce,
       updateNonce: updatePolygonNonce,
       web3Instanstce: polygonWeb3,
-      wrapABI,
     });
 }
 
-module.exports = {
+export {
     handleWrapEthAction,
     handleWrapPolygonAction,
     handleUnwrapFromEthToFioChain,

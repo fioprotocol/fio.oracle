@@ -1,10 +1,11 @@
-require('dotenv').config();
+import 'dotenv/config';
 import { Common } from '@ethereumjs/common'
-import Web3 from "web3";
-const fs = require('fs');
-import config from "../../config/config";
-import fioABI from '../../config/ABI/FIO.json';
-import fioNftABI from "../../config/ABI/FIONFT.json";
+import Web3 from 'web3';
+import fs from 'fs';
+
+import config from '../../config/config.js';
+import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import {
     addLogMessage,
     calculateAverageGasPrice,
@@ -18,12 +19,12 @@ import {
     handleLogFailedWrapItem,
     handleEthNonceValue,
     handleServerError,
-    handleUpdatePendingWrapItemsQueue,
+    handleUpdatePendingPolygonItemsQueue,
     isOracleEthAddressValid,
     polygonTransaction,
     updateEthNonce,
-} from "../helpers";
-import {LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS} from "../constants";
+} from '../helpers.js';
+import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
 
 class EthCtrl {
     constructor() {
@@ -148,6 +149,7 @@ class EthCtrl {
                         await polygonTransaction({
                           common,
                           contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+                          data: wrapABI,
                           gasPrice,
                           gasLimit,
                           handleSuccessedResult: onSussessTransaction,
@@ -158,7 +160,6 @@ class EthCtrl {
                           txNonce,
                           updateNonce: updateEthNonce,
                           web3Instanstce: this.web3,
-                          wrapABI,
                         });
                     } else {
                         console.log(logPrefix + "Invalid Address");
@@ -179,7 +180,7 @@ class EthCtrl {
                     })
                 }
 
-                handleUpdatePendingWrapItemsQueue({
+                handleUpdatePendingPolygonItemsQueue({
                     action: this.handleWrap.bind(this),
                     logPrefix,
                     logFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,

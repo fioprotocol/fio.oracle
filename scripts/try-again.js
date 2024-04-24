@@ -1,5 +1,6 @@
-const fs = require("fs");
-const { LOG_FILES_PATH_NAMES } = require("../controller/constants");
+import fs from 'fs';
+
+import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
 
 const REGISTERED_JOBS_LIST = {
     wrapEth: 'wrapEth',

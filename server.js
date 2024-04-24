@@ -1,7 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import conf from './config/config';
-import mainCtrl from './controller/main';
+import conf from './config/config.js';
+import mainCtrl from './controller/main.js';
 
 const app = express();
 app.use(

@@ -3,7 +3,7 @@ Oracle for wrapping FIO tokens and FIO domains to and from the FIO chain
 
 ## Dependencies to install
 
-node 14
+node 20.0.9
 
 Ubuntu Server 20.04
 
