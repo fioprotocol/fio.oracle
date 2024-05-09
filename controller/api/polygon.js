@@ -63,7 +63,7 @@ class PolyCtrl {
         return { gasLimit, gasPrice };
     }
 
-    async getBalance({ logPrefix}) {
+    async getBalance({ gasLimit, gasPrice, logPrefix }) {
         this.web3.eth.getBalance(process.env.POLYGON_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
                 if (error) {
                     console.log(logPrefix + error.stack)
@@ -100,7 +100,7 @@ class PolyCtrl {
             const { gasLimit, gasPrice } = await this.getGasPriceAndGasLimit({ logPrefix });
 
             // we shouldn't await it to do not block the rest of the actions
-            this.getBalance({ logPrefix });
+            this.getBalance({ gasLimit, gasPrice, logPrefix });
 
             const isOracleAddressValid = await isOraclePolygonAddressValid();
 
@@ -211,7 +211,7 @@ class PolyCtrl {
             const { gasLimit, gasPrice } = await this.getGasPriceAndGasLimit({ logPrefix });
 
             // we shouldn't await it to do not block the rest of the actions
-            this.getBalance({ logPrefix });
+            this.getBalance({ gasLimit, gasPrice, logPrefix });
 
             const isOracleAddressValid = await isOraclePolygonAddressValid();
 
