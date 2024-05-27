@@ -36,13 +36,6 @@ const ORACLE_CACHE_KEYS = {
     isUnprocessedBurnNFTActionsJobExecuting: 'isUnprocessedBurnNFTActionsJobExecuting',
 }
 
-const POLYGON_TESTNET_CHAIN_ID = 80002;
-
-const NONCE_TOO_LOW_ERROR = 'nonce too low';
-const ALREADY_KNOWN_TRANSACTION = 'already known';
-
-const MAX_RETRY_TRANSACTION_ATTEMPTS = 3;
-
 export {
   ALREADY_KNOWN_TRANSACTION,
   ORACLE_CACHE_KEYS,

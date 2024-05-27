@@ -1,17 +1,10 @@
 import fs from 'fs';
 import Web3 from 'web3';
-import fetch from 'node-fetch';
-import { Transaction } from '@ethereumjs/tx';
 
-import { Common, CustomChain } from '@ethereumjs/common';
 
 import {
-    ALREADY_KNOWN_TRANSACTION,
     LOG_FILES_PATH_NAMES,
     LOG_DIRECTORY_PATH_NAME,
-    MAX_RETRY_TRANSACTION_ATTEMPTS,
-    NONCE_TOO_LOW_ERROR,
-    POLYGON_TESTNET_CHAIN_ID,
 } from './constants.js';
 import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
@@ -133,18 +126,6 @@ const addLogMessage = ({
     }
 }
 
-const convertWeiToGwei = (weiValue) => {
-    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, 'gwei'))
-}
-
-const convertGweiToWei = (gweiValue) => {
-    return parseFloat(Web3.utils.toWei(gweiValue, 'gwei'));
-}
-
-const convertWeiToEth = (weiValue) => {
-    return parseFloat(Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '': weiValue, "ether"));
-}
-
 const updateBlockNumberFIO = (blockNumber) => {
     fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
 }
@@ -250,57 +231,6 @@ const handleLogFailedBurnNFTItem = ({
     fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
 };
 
-// base gas price value + 10%
-const calculateAverageGasPrice = (val) => {
-    return Math.ceil(val + val * 0.1);
-}
-// base gas price value + 20%
-const calculateHighGasPrice = (val) => {
-    return Math.ceil(val + val * 0.2);
-}
-
-// ETH gas price suggestion in WEI
-const getEthGasPriceSuggestion = async () => {
-    const gasPriceSuggestion = await (await fetch(process.env.ETHINFURA, {
-        body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: "eth_gasPrice",
-            params: [],
-            id:1
-        }),
-        method: 'POST',
-    })).json();
-
-    let value = null;
-
-    if (gasPriceSuggestion && gasPriceSuggestion.result) {
-        value = parseInt(gasPriceSuggestion.result);
-    }
-
-    return value;
-}
-
-// POLYGON gas price suggestion in WEI
-const getPolygonGasPriceSuggestion = async () => {
-    const gasPriceSuggestion = await (await fetch(process.env.POLYGON_INFURA, {
-        body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: "eth_gasPrice",
-            params: [],
-            id:1
-        }),
-        method: 'POST',
-    })).json();
-
-    let value = null;
-
-    if (gasPriceSuggestion && gasPriceSuggestion.result) {
-        value = parseInt(gasPriceSuggestion.result);
-    }
-
-    return value;
-}
-
 const isOracleEthAddressValid = async (isTokens = true) => {
     const web3 = new Web3(process.env.ETHINFURA);
     const contract = new web3.eth.Contract(isTokens ? fioABI : fioNftABI, isTokens ? process.env.FIO_TOKEN_ETH_CONTRACT : process.env.FIO_NFT_ETH_CONTRACT);
@@ -348,20 +278,6 @@ const handleBackups = async (callback, isRetry, backupParams) => {
     }
 };
 
-const handlePolygonChainCommon = () => {
-    if (process.env.MODE === 'testnet') {
-      const customChainInstance = Common.custom(CustomChain.PolygonMumbai);
-      // Polygon Mumbai has been deprecated from 13th of April 2024.
-      // Using Polygon Amoy instead but it's missing on CustomChain. So chainId and networkId should be updated
-      customChainInstance._chainParams.chainId = POLYGON_TESTNET_CHAIN_ID;
-      customChainInstance._chainParams.networkId = POLYGON_TESTNET_CHAIN_ID;
-
-      return customChainInstance;
-    }
-
-    return Common.custom(CustomChain.PolygonMainnet);
-};
-
 const handlePolygonNonceValue = ({ chainNonce }) => {
     let txNonce = chainNonce;
     const savedNonce = getLastProceededPolygonNonce();
@@ -388,106 +304,10 @@ const handleEthNonceValue = ({ chainNonce }) => {
   return txNonce;
 };
 
-const polygonTransaction = async ({
-    common,
-    contract,
-    data,
-    gasPrice,
-    gasLimit,
-    handleSuccessedResult,
-    logPrefix = '',
-    oraclePrivateKey,
-    oraclePublicKey,
-    shouldThrowError,
-    txNonce,
-    updateNonce,
-    web3Instanstce,
-  }) => {
-    const signAndSendTransaction = async ({
-        txNonce,
-        retryCount = 0,
-    }) => {
-        const preparedTransaction = Transaction.fromTxData(
-            {
-                gasPrice: web3Instanstce.utils.toHex(gasPrice),
-                gasLimit: web3Instanstce.utils.toHex(gasLimit),
-                to: contract,
-                data,
-                from: oraclePublicKey,
-                nonce: web3Instanstce.utils.toHex(txNonce),
-            },
-            { common }
-        );
-
-        const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-        const serializedTx = preparedTransaction
-            .sign(privateKey)
-            .serialize()
-            .toString('hex');
-
-        try { 
-            await web3Instanstce.eth
-                .sendSignedTransaction('0x' + serializedTx)
-                .on('transactionHash', (hash) => {
-                    console.log(
-                    `Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce}`
-                    );
-                })
-                .on('receipt', (receipt) => {
-                    console.log(logPrefix + 'Transaction has been successfully completed in the chain.');
-                    if (handleSuccessedResult) {
-                        try {
-                            handleSuccessedResult && handleSuccessedResult(receipt);
-                        } catch (error) {
-                            console.log('RECEIPT ERROR', error);
-                        }
-                    }
-                })
-                .on('error', (error, receipt) => {
-                    console.log(logPrefix + 'Transaction has been failed in the chain.');
-
-                    if (receipt && receipt.blockHash && !receipt.status)
-                    console.log(logPrefix +
-                        'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value'
-                    );
-            });
-        } catch (error) {
-            console.log(logPrefix + error.stack);
-
-            const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
-            const transactionAlreadyKnown = error.message.includes(
-                ALREADY_KNOWN_TRANSACTION
-            );
-
-            if (retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS && (nonceTooLowError || transactionAlreadyKnown)) {
-                // Retry with an incremented nonce
-                console.log(`Retrying (attempt ${retryCount + 1}/${MAX_RETRY_TRANSACTION_ATTEMPTS}).`);
-
-                const incrementedNonce = txNonce + 1;
-
-                updateNonce && updateNonce(incrementedNonce);
-
-                return signAndSendTransaction({
-                    txNonce: incrementedNonce,
-                    retryCount: retryCount + 1,
-                });
-            } else {
-                if (shouldThrowError) throw error;
-            }
-        }
-    }
-    
-    await signAndSendTransaction({ txNonce });
-  }
-
 export {
   createLogFile,
   isOraclePolygonAddressValid,
   isOracleEthAddressValid,
-  getPolygonGasPriceSuggestion,
-  getEthGasPriceSuggestion,
-  calculateHighGasPrice,
-  calculateAverageGasPrice,
   handleLogFailedWrapItem,
   handleLogFailedBurnNFTItem,
   handleUpdatePendingPolygonItemsQueue,
@@ -499,14 +319,10 @@ export {
   getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
   getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
   getLastProceededBlockNumberOnFioChain,
-  handlePolygonChainCommon,
   updateBlockNumberMATIC,
   updateBlockNumberForDomainsUnwrappingOnETH,
   updateBlockNumberForTokensUnwrappingOnETH,
   updateBlockNumberFIO,
-  convertWeiToEth,
-  convertGweiToWei,
-  convertWeiToGwei,
   addLogMessage,
   prepareLogFile,
   prepareLogDirectory,
@@ -515,7 +331,6 @@ export {
   replaceNewLines,
   checkEthBlockNumbers,
   handleBackups,
-  polygonTransaction,
   updateEthNonce,
   updatePolygonNonce,
   updateBlockNumberFIOForBurnNFT,

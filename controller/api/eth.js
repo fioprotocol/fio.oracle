@@ -1,5 +1,4 @@
 import 'dotenv/config';
-import { Common } from '@ethereumjs/common'
 import Web3 from 'web3';
 import fs from 'fs';
 
@@ -8,12 +7,7 @@ import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import {
     addLogMessage,
-    calculateAverageGasPrice,
-    calculateHighGasPrice,
-    convertGweiToWei,
     convertNativeFioIntoFio,
-    convertWeiToEth,
-    convertWeiToGwei,
     getEthGasPriceSuggestion,
     handleChainError,
     handleLogFailedWrapItem,
@@ -21,10 +15,15 @@ import {
     handleServerError,
     handleUpdatePendingPolygonItemsQueue,
     isOracleEthAddressValid,
-    polygonTransaction,
     updateEthNonce,
 } from '../helpers.js';
 import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
+import { ACTION_NAMES, CONTRACT_NAMES, ETH_CHAIN_NAME, ETH_TOKEN_CODE } from '../constants/chain.js';
+import { DEFAULT_ETH_GAS_PRICE, ETH_GAS_LIMIT } from '../constants/prices.js';
+import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
+import { handleEthChainCommon } from '../utils/chain.js';
+import { getEthGasPriceSuggestion } from '../utils/prices.js';
+import { polygonTransaction } from '../utils/transactions.js';
 
 class EthCtrl {
     constructor() {
@@ -49,50 +48,16 @@ class EthCtrl {
         const txIdOnFioChain = transactionToProceed.split(' ')[0];
         const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
 
-        const logPrefix = `ETH, handleWrap, FIO tx_id: "${txIdOnFioChain}", amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO, public_address: "${wrapData.public_address}": --> `
-        console.log(logPrefix + 'Executing handleWrap.');
+        const logPrefix = `${ETH_CHAIN_NAME}, ${ACTION_NAMES.WRAP_TOKENS}, FIO tx_id: "${txIdOnFioChain}", amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO, public_address: "${wrapData.public_address}": --> `
+        console.log(`${logPrefix} Executing ${ACTION_NAMES.WRAP_TOKENS}.`);
 
         try {
-            const gasPriceSuggestion = await getEthGasPriceSuggestion();
-
-            const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-            let gasPrice = 0;
-            if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
-                console.log(logPrefix + 'using gasPrice value from the api:');
-                if (process.env.GASPRICELEVEL === "average") {
-                    gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-                } else if(process.env.GASPRICELEVEL === "low") {
-                    gasPrice = gasPriceSuggestion;
-                } else if(process.env.GASPRICELEVEL === "high") {
-                    gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-                }
-            } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-                console.log(logPrefix + 'using gasPrice value from the .env:');
-                gasPrice = convertGweiToWei(process.env.TGASPRICE);
-            }
-
-            if (!gasPrice) throw new Error(logPrefix + 'Cannot set valid Gas Price value');
-
-            const gasLimit = parseFloat(process.env.TGASLIMIT);
-
-            console.log(logPrefix + `gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
-
-            // we shouldn't await it to do not block the rest of the actions flow
-            this.web3.eth.getBalance(process.env.ETH_ORACLE_PUBLIC, 'latest', (error, oracleBalance) => {
-                if (error) {
-                    console.log(logPrefix + 'getBalance: ' + error.stack)
-                } else {
-                    if (convertWeiToEth(oracleBalance) < ((convertWeiToEth(gasLimit * gasPrice)) * 5)) {
-                        const timeStamp = new Date().toISOString();
-                        console.log(logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
-                        fs.writeFileSync(LOG_FILES_PATH_NAMES.oracleErrors, timeStamp + ' ' + logPrefix + `Warning: Low Oracle ETH Address Balance: ${convertWeiToEth(oracleBalance)} ETH`)
-                    }
-                }
-            })
-
             const isOracleAddressValid = await isOracleEthAddressValid();
 
-            if (isOracleAddressValid) {
+            if (!isOracleAddressValid) {
+                console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS}`);
+                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
+            } else {
                 let isTransactionProceededSuccessfully = false;
 
                 try {
@@ -108,8 +73,8 @@ class EthCtrl {
                     //         console.log ('Error: ', err);
                     //     });
 
-                    if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === "ETH") { //check validation if the address is ERC20 address
-                        console.log(logPrefix + `preparing wrap action.`)
+                    if (this.web3.utils.isAddress(wrapData.public_address) === true && wrapData.chain_code === ETH_TOKEN_CODE) { //check validation if the address is ERC20 address
+                        console.log(`${logPrefix} preparing wrap action.`)
                         const wrapFunction = this.fioContract.methods.wrap(wrapData.public_address, wrapData.amount, txIdOnFioChain)
 
                         let wrapABI = wrapFunction.encodeABI();
@@ -121,7 +86,7 @@ class EthCtrl {
                           );
                         const txNonce = handleEthNonceValue({ chainNonce });
 
-                        const common = new Common({ chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' })
+                        const common = handleEthChainCommon();
 
                         const submitLogData = {
                             amount: wrapData.amount,
@@ -134,29 +99,36 @@ class EthCtrl {
 
                         addLogMessage({
                             filePath: LOG_FILES_PATH_NAMES.ETH,
-                            message: `ETH fio.erc20 wraptokens submit ${JSON.stringify(submitLogData)}`,
+                            message: `${ETH_CHAIN_NAME} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} submit ${JSON.stringify(submitLogData)}`,
                         });
 
                         const onSussessTransaction = (receipt) => {
                             addLogMessage({
                                 filePath: LOG_FILES_PATH_NAMES.ETH,
-                                message: `ETH fio.erc20 wraptokens receipt ${JSON.stringify(receipt)}`,
+                                message: `${ETH_CHAIN_NAME} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} receipt ${JSON.stringify(receipt)}`,
                             });
 
                             isTransactionProceededSuccessfully = true;
                         };
                         
                         await polygonTransaction({
+                          amount: wrapData.amount,
+                          actionName: ACTION_NAMES.WRAP_TOKENS,
+                          chainName: ETH_CHAIN_NAME,
                           common,
                           contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+                          contractName: CONTRACT_NAMES.ERC_20,
                           data: wrapABI,
-                          gasPrice,
-                          gasLimit,
+                          defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
+                          getGasPriceSuggestionFn: getEthGasPriceSuggestion,
+                          gasLimit: ETH_GAS_LIMIT,
                           handleSuccessedResult: onSussessTransaction,
+                          logFilePath: LOG_FILES_PATH_NAMES.ETH,
                           logPrefix,
                           oraclePrivateKey,
                           oraclePublicKey,
                           shouldThrowError: true,
+                          tokenCode: ETH_TOKEN_CODE,
                           txNonce,
                           updateNonce: updateEthNonce,
                           web3Instanstce: this.web3,
@@ -166,7 +138,7 @@ class EthCtrl {
                     }
                 } catch (error) {
                     handleChainError({
-                        logMessage: `ETH fio.erc20 wraptokens ${error}`,
+                        logMessage: `${ETH_CHAIN_NAME} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} ${error}`,
                         consoleMessage: logPrefix + error.stack
                     });
                 }
@@ -186,13 +158,10 @@ class EthCtrl {
                     logFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
                     jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting
                 })
-            } else {
-                console.log(logPrefix + 'Oracle data is not valid, pls check .env and contract abi.');
-                config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
             }
         } catch (err) {
             config.oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, false, 0);
-            handleServerError(err, 'ETH, handleWrap');
+            handleServerError(err, `${ETH_CHAIN_NAME}, ${ACTION_NAMES.WRAP_TOKENS}`);
         }
     }
 }

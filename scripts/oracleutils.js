@@ -2,7 +2,6 @@ import 'dotenv/config';
 
 import fetch from 'node-fetch';
 import Web3 from 'web3';
-import { Common } from '@ethereumjs/common';
 import { Fio } from '@fioprotocol/fiojs';
 import * as textEncoder from 'text-encoding';
 
@@ -10,27 +9,31 @@ import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 import {
-    getEthGasPriceSuggestion,
-    calculateAverageGasPrice,
-    calculateHighGasPrice,
-    convertGweiToWei,
-    convertWeiToGwei,
-    getPolygonGasPriceSuggestion,
     handleEthNonceValue,
     handlePolygonNonceValue,
-    handlePolygonChainCommon,
-    polygonTransaction,
     updateEthNonce,
     updatePolygonNonce,
 } from '../controller/helpers.js';
+import { handleEthChainCommon, handlePolygonChainCommon } from '../controller/utils/chain.js';
+import { polygonTransaction } from '../controller/utils/transactions.js';
+import { getEthGasPriceSuggestion, getPolygonGasPriceSuggestion } from '../controller/utils/prices.js';
+
+import { ACTION_NAMES, CONTRACT_NAMES, ETH_CHAIN_NAME, ETH_TOKEN_CODE, POLYGON_CHAIN_NAME, POLYGON_TOKEN_CODE } from '../controller/constants/chain.js';
+import {
+  DEFAULT_ETH_GAS_PRICE,
+  DEFAULT_POLYGON_GAS_PRICE,
+  ETH_GAS_LIMIT,
+  POLYGON_GAS_LIMIT,
+} from '../controller/constants/prices.js';
+
 import config from '../config/config.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
 
 const { TextEncoder, TextDecoder } = textEncoder;
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
 const fioTokensEthContract = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
-const fioNftEthContract = new web3.eth.Contract(fioNftABI, process.env.FIO_NFT_ETH_CONTRACT);
 const fioNftPolygonContract = new web3.eth.Contract(fioNftABIonPolygon, process.env.FIO_NFT_POLYGON_CONTRACT);
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
@@ -43,36 +46,10 @@ const handleWrapEthAction = async ({
 }) => {
     console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`)
 
-    const gasPriceSuggestion = await getEthGasPriceSuggestion();
-
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.TGASPRICE);
-    }
-
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
-
-    const gasLimit = parseFloat(process.env.TGASLIMIT);
-
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
-
     const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
     const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
 
-    const wrapFunction = amount ?
-        fioTokensEthContract.methods.wrap(address, amount, obtId)
-        : fioNftEthContract.methods.wrapnft(address, domain, obtId);
+    const wrapFunction = fioTokensEthContract.methods.wrap(address, amount, obtId)
 
     let wrapABI = wrapFunction.encodeABI();
 
@@ -83,19 +60,27 @@ const handleWrapEthAction = async ({
 
     const txNonce = handleEthNonceValue({ chainNonce });
 
-    const common = new Common({ chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' })
+    const common = handleEthChainCommon();
 
     await polygonTransaction({
-      common,
-      contract: process.env.FIO_TOKEN_ETH_CONTRACT,
-      data: wrapABI,
-      gasPrice,
-      gasLimit,
-      oraclePrivateKey,
-      oraclePublicKey,
-      txNonce,
-      updateNonce: updateEthNonce,
-      web3Instanstce: web3,
+        amount,
+        actionName: ACTION_NAMES.WRAP_TOKENS,
+        chainName: ETH_CHAIN_NAME,
+        common,
+        contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+        contractName: CONTRACT_NAMES.ERC_20,
+        data: wrapABI,
+        defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
+        getGasPriceSuggestionFn: getEthGasPriceSuggestion,
+        gasLimit: ETH_GAS_LIMIT,
+        logFilePath: LOG_FILES_PATH_NAMES.ETH,
+        logPrefix: 'ETH WRAP NPM MANUAL',
+        oraclePrivateKey,
+        oraclePublicKey,
+        tokenCode: ETH_TOKEN_CODE,
+        txNonce,
+        updateNonce: updateEthNonce,
+        web3Instanstce: web3,
     });
 }
 
@@ -106,30 +91,6 @@ const handleWrapPolygonAction = async ({
     obtId //txIdOnFioChain
 }) => {
     console.log(`POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`)
-
-    const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
-
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.PGASPRICE);
-    }
-
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
-
-    const gasLimit = parseFloat(process.env.PGASLIMIT);
-
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
 
     const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
     const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
@@ -147,16 +108,24 @@ const handleWrapPolygonAction = async ({
     const txNonce = handlePolygonNonceValue({ chainNonce });
 
     await polygonTransaction({
-      common,
-      contract: config.FIO_NFT_POLYGON_CONTRACT,
-      data: wrapABI,
-      gasPrice,
-      gasLimit,
-      oraclePrivateKey,
-      oraclePublicKey,
-      txNonce,
-      updateNonce: updatePolygonNonce,
-      web3Instanstce: polygonWeb3,
+        action: ACTION_NAMES.WRAP_DOMAIN,
+        chainName: POLYGON_CHAIN_NAME,
+        common,
+        contract: config.FIO_NFT_POLYGON_CONTRACT,
+        contractName: CONTRACT_NAMES.ERC_721,
+        data: wrapABI,
+        defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+        domain,
+        getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+        gasLimit: POLYGON_GAS_LIMIT,
+        logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+        logPrefix: 'POLYGON WRAP NPM MANUAL',
+        oraclePrivateKey,
+        oraclePublicKey,
+        tokenCode: POLYGON_TOKEN_CODE,
+        txNonce,
+        updateNonce: updatePolygonNonce,
+        web3Instanstce: polygonWeb3,
     });
 }
 
@@ -318,30 +287,6 @@ const handleUnwrapFromPolygonToFioChain = async ({
 const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
     console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`)
 
-    const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
-
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.PGASPRICE);
-    }
-
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
-
-    const gasLimit = parseFloat(process.env.PGASLIMIT);
-
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
-
     const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
     const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
 
@@ -358,13 +303,20 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
     const txNonce = handlePolygonNonceValue({ chainNonce });
 
     await polygonTransaction({
+      action: ACTION_NAMES.BURN_NFT,
+      chainName: POLYGON_CHAIN_NAME,
       common,
       contract: config.FIO_NFT_POLYGON_CONTRACT,
+      contractName: CONTRACT_NAMES.ERC_721,
       data: wrapABI,
-      gasPrice,
-      gasLimit,
+      defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+      getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+      gasLimit: POLYGON_GAS_LIMIT,
+      logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+      logPrefix: 'POLYGON BURNNFT NPM MANUAL',
       oraclePrivateKey,
       oraclePublicKey,
+      tokenCode: POLYGON_TOKEN_CODE,
       txNonce,
       updateNonce: updatePolygonNonce,
       web3Instanstce: polygonWeb3,
