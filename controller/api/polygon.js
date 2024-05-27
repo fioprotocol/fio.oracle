@@ -4,23 +4,27 @@ import fs from 'fs';
 
 import config from '../../config/config.js';
 import fioNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+
+import {
+  handlePolygonChainCommon,
+  isOraclePolygonAddressValid,
+} from '../utils/chain.js';
 import {
   addLogMessage,
-  handleChainError,
+  updatePolygonNonce,
   handleLogFailedWrapItem,
-  handleServerError,
-  handleUpdatePendingPolygonItemsQueue,
   handleLogFailedBurnNFTItem,
   handlePolygonNonceValue,
-  isOraclePolygonAddressValid,
-  updatePolygonNonce
-} from '../helpers.js';
-import { handlePolygonChainCommon } from '../utils/chain.js';
+  handleUpdatePendingPolygonItemsQueue,
+  handleServerError,
+  handleChainError,
+} from '../utils/log-files.js';
 import { getPolygonGasPriceSuggestion } from '../utils/prices.js';
 
 import { polygonTransaction } from '../utils/transactions.js';
 
-import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import {
   ACTION_NAMES,
   CONTRACT_NAMES,

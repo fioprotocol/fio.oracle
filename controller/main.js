@@ -4,19 +4,26 @@ import cors from 'cors';
 import express from 'express';
 
 import {
-    convertWeiToEth,
-    convertWeiToGwei,
-    getEthGasPriceSuggestion,
-    getPolygonGasPriceSuggestion,
-    handleServerError,
-    prepareLogDirectory,
-    prepareLogFile,
-} from './helpers.js';
+  prepareLogDirectory,
+  prepareLogFile,
+  handleServerError,
+  getLatestEthNonce,
+  getLatestPolygonNonce,
+} from './utils/log-files.js';
+
+import {
+  convertWeiToEth,
+  convertWeiToGwei,
+  getEthGasPriceSuggestion,
+  getPolygonGasPriceSuggestion,
+} from './utils/prices.js';
+
+import { getLastIrreversibleBlockOnFioChain } from './utils/fio-chain.js';
 
 import fioRoute from './routes/fio.js';
 import fioCtrl from './api/fio.js';
-import utilCtrl from './util.js';
-import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants.js';
+
+import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
 
 const route = express.Router();
 
@@ -120,11 +127,11 @@ class MainCtrl {
 
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-        fetchLastBlockNumber: utilCtrl.getLastIrreversibleBlockOnFioChain,
+        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
-        fetchLastBlockNumber: utilCtrl.getLastIrreversibleBlockOnFioChain,
+        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
@@ -142,11 +149,11 @@ class MainCtrl {
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.ethNonce,
-        fetchLastBlockNumber: utilCtrl.getLatestEthNonce,
+        fetchLastBlockNumber: getLatestEthNonce,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-        fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+        fetchLastBlockNumber: getLatestPolygonNonce,
       });
       console.log(logPrefix + 'blocks folders are ready');
 

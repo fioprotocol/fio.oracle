@@ -6,7 +6,6 @@ import { Fio } from '@fioprotocol/fiojs';
 import * as textEncoder from 'text-encoding';
 import fetch from 'node-fetch';
 
-import utilCtrl from '../util.js';
 import ethCtrl from './eth.js';
 import polygonCtrl from './polygon.js';
 import moralis from './moralis.js';
@@ -14,24 +13,28 @@ import config from '../../config/config.js';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
+
 import {
-    addLogMessage,
-    convertNativeFioIntoFio,
-    getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
-    getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
-    getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
-    handleBackups,
-    handleChainError,
-    handleServerError,
-    updateBlockNumberForTokensUnwrappingOnETH,
-    updateBlockNumberFIO,
-    updateBlockNumberFIOForBurnNFT,
-    updateBlockNumberMATIC,
-    updateBlockNumberForDomainsUnwrappingOnETH,
-    handleLogFailedWrapItem,
-    handleUpdatePendingPolygonItemsQueue
-} from '../helpers.js';
-import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
+  addLogMessage,
+  updateBlockNumberFIO,
+  updateBlockNumberFIOForBurnNFT,
+  updateBlockNumberForTokensUnwrappingOnETH,
+  updateBlockNumberForDomainsUnwrappingOnETH,
+  updateBlockNumberMATIC,
+  getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
+  getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
+  getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+  handleLogFailedWrapItem,
+  handleUpdatePendingPolygonItemsQueue,
+  handleServerError,
+  handleChainError,
+} from '../utils/log-files.js';
+import { handleBackups } from '../utils/general.js';
+import { convertNativeFioIntoFio } from '../utils/chain.js';
+import { getUnprocessedActionsOnFioChain } from '../utils/fio-chain.js';
 
 const { TextEncoder, TextDecoder } = textEncoder;
 
@@ -306,7 +309,7 @@ class FIOCtrl {
         }
 
         const handleWrapAction = async (fioServerHistoryVersion) => {
-            const wrapDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+            const wrapDataEvents = await getUnprocessedActionsOnFioChain({
                 accountName: 'fio.oracle',
                 pos: -1,
                 logPrefix,
@@ -656,7 +659,7 @@ class FIOCtrl {
         }
 
         const handleBurnNFTAction = async (fioServerHistoryVersion) => {
-            const addressDataEvents = await utilCtrl.getUnprocessedActionsOnFioChain({
+            const addressDataEvents = await getUnprocessedActionsOnFioChain({
                 accountName: 'fio.address',
                 pos: -1,
                 logPrefix,

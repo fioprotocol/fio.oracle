@@ -6,8 +6,12 @@ import {
     handleBurnNFTInPolygon,
 } from './oracleutils.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
-import { addLogMessage, prepareLogFile } from '../controller/helpers.js';
-import utilCtrl from '../controller/util.js';
+import {
+  addLogMessage,
+  prepareLogFile,
+  getLatestEthNonce,
+  getLatestPolygonNonce,
+} from '../controller/utils/log-files.js';
 
 const args = process.argv;
 
@@ -42,7 +46,7 @@ const main = async () => {
             case 'wraptokens':
                  await prepareLogFile({
                    filePath: LOG_FILES_PATH_NAMES.ethNonce,
-                   fetchLastBlockNumber: utilCtrl.getLatestEthNonce,
+                   fetchLastBlockNumber: getLatestEthNonce,
                  });
 
                 if (oracle.isClean) {
@@ -61,7 +65,7 @@ const main = async () => {
             case 'wrapdomain':
                 await prepareLogFile({
                     filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-                    fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+                    fetchLastBlockNumber: getLatestPolygonNonce,
                 });
                 if (oracle.isClean) {
                     const wrapText = oracle.obtid + ' ' + JSON.stringify({
@@ -105,7 +109,7 @@ const main = async () => {
             case 'burndomain':
                 await prepareLogFile({
                   filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-                  fetchLastBlockNumber: utilCtrl.getLatestPolygonNonce,
+                  fetchLastBlockNumber: getLatestPolygonNonce,
                 });
                 
                 if (oracle.isClean) {

@@ -10,7 +10,7 @@ import {
 
 import { getGasPrice, getWeb3Balance } from '../utils/prices.js';
 
-import { addLogMessage } from '../helpers.js';
+import { addLogMessage } from '../utils/log-files.js';
 
 export const polygonTransaction = async ({
   amount,
