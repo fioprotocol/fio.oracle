@@ -5,23 +5,26 @@ import fs from 'fs';
 import config from '../../config/config.js';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
-import {
-    addLogMessage,
-    convertNativeFioIntoFio,
-    getEthGasPriceSuggestion,
-    handleChainError,
-    handleLogFailedWrapItem,
-    handleEthNonceValue,
-    handleServerError,
-    handleUpdatePendingPolygonItemsQueue,
-    isOracleEthAddressValid,
-    updateEthNonce,
-} from '../helpers.js';
-import { LOG_FILES_PATH_NAMES, ORACLE_CACHE_KEYS } from '../constants.js';
+
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { ACTION_NAMES, CONTRACT_NAMES, ETH_CHAIN_NAME, ETH_TOKEN_CODE } from '../constants/chain.js';
 import { DEFAULT_ETH_GAS_PRICE, ETH_GAS_LIMIT } from '../constants/prices.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
-import { handleEthChainCommon } from '../utils/chain.js';
+import {
+  handleEthChainCommon,
+  isOracleEthAddressValid,
+  convertNativeFioIntoFio,
+} from '../utils/chain.js';
+import {
+  addLogMessage,
+  updateEthNonce,
+  handleChainError,
+  handleLogFailedWrapItem,
+  handleEthNonceValue,
+  handleUpdatePendingPolygonItemsQueue,
+  handleServerError,
+} from '../utils/log-files.js';
 import { getEthGasPriceSuggestion } from '../utils/prices.js';
 import { polygonTransaction } from '../utils/transactions.js';
 

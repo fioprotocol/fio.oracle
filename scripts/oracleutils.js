@@ -6,14 +6,13 @@ import { Fio } from '@fioprotocol/fiojs';
 import * as textEncoder from 'text-encoding';
 
 import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 import {
-    handleEthNonceValue,
-    handlePolygonNonceValue,
-    updateEthNonce,
-    updatePolygonNonce,
-} from '../controller/helpers.js';
+  updateEthNonce,
+  updatePolygonNonce,
+  handlePolygonNonceValue,
+  handleEthNonceValue,
+} from '../controller/utils/log-files.js';
 import { handleEthChainCommon, handlePolygonChainCommon } from '../controller/utils/chain.js';
 import { polygonTransaction } from '../controller/utils/transactions.js';
 import { getEthGasPriceSuggestion, getPolygonGasPriceSuggestion } from '../controller/utils/prices.js';
