@@ -38,95 +38,109 @@ const fioNftPolygonContract = new web3.eth.Contract(fioNftABIonPolygon, process.
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 
 const handleWrapEthAction = async ({
+  address,
+  amount,
+  domain,
+  obtId, //txIdOnFioChain
+  manualSetGasPrice,
+}) => {
+  console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`);
+
+  const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
+
+  const wrapFunction = fioTokensEthContract.methods.wrap(
     address,
     amount,
-    domain,
-    obtId //txIdOnFioChain
-}) => {
-    console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`)
+    obtId
+  );
 
-    const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
+  let wrapABI = wrapFunction.encodeABI();
 
-    const wrapFunction = fioTokensEthContract.methods.wrap(address, amount, obtId)
+  const chainNonce = await web3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    let wrapABI = wrapFunction.encodeABI();
+  const txNonce = handleEthNonceValue({ chainNonce });
 
-    const chainNonce = await web3.eth.getTransactionCount(
-      oraclePublicKey,
-      'pending'
-    );
+  const common = handleEthChainCommon();
 
-    const txNonce = handleEthNonceValue({ chainNonce });
-
-    const common = handleEthChainCommon();
-
-    await polygonTransaction({
-        amount,
-        actionName: ACTION_NAMES.WRAP_TOKENS,
-        chainName: ETH_CHAIN_NAME,
-        common,
-        contract: process.env.FIO_TOKEN_ETH_CONTRACT,
-        contractName: CONTRACT_NAMES.ERC_20,
-        data: wrapABI,
-        defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
-        getGasPriceSuggestionFn: getEthGasPriceSuggestion,
-        gasLimit: ETH_GAS_LIMIT,
-        logFilePath: LOG_FILES_PATH_NAMES.ETH,
-        logPrefix: 'ETH WRAP NPM MANUAL ',
-        oraclePrivateKey,
-        oraclePublicKey,
-        tokenCode: ETH_TOKEN_CODE,
-        txNonce,
-        updateNonce: updateEthNonce,
-        web3Instance: web3,
-    });
-}
+  await polygonTransaction({
+    amount,
+    actionName: ACTION_NAMES.WRAP_TOKENS,
+    chainName: ETH_CHAIN_NAME,
+    common,
+    contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_20,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
+    getGasPriceSuggestionFn: getEthGasPriceSuggestion,
+    gasLimit: ETH_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.ETH,
+    logPrefix: 'ETH WRAP NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: ETH_TOKEN_CODE,
+    txNonce,
+    updateNonce: updateEthNonce,
+    web3Instance: web3,
+  });
+};
 
 
 const handleWrapPolygonAction = async ({
+  address,
+  domain,
+  obtId, //txIdOnFioChain
+  manualSetGasPrice,
+}) => {
+  console.log(
+    `POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`
+  );
+
+  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+
+  const wrapDomainFunction = fioNftPolygonContract.methods.wrapnft(
     address,
     domain,
-    obtId //txIdOnFioChain
-}) => {
-    console.log(`POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`)
+    obtId
+  );
+  let wrapABI = wrapDomainFunction.encodeABI();
 
-    const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+  const common = handlePolygonChainCommon();
 
-    const wrapDomainFunction = fioNftPolygonContract.methods.wrapnft(address, domain, obtId);
-    let wrapABI = wrapDomainFunction.encodeABI();
+  const chainNonce = await polygonWeb3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    const common = handlePolygonChainCommon();
+  const txNonce = handlePolygonNonceValue({ chainNonce });
 
-    const chainNonce = await polygonWeb3.eth.getTransactionCount(
-      oraclePublicKey,
-      'pending'
-    );
-
-    const txNonce = handlePolygonNonceValue({ chainNonce });
-
-    await polygonTransaction({
-        action: ACTION_NAMES.WRAP_DOMAIN,
-        chainName: POLYGON_CHAIN_NAME,
-        common,
-        contract: config.FIO_NFT_POLYGON_CONTRACT,
-        contractName: CONTRACT_NAMES.ERC_721,
-        data: wrapABI,
-        defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
-        domain,
-        getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
-        gasLimit: POLYGON_GAS_LIMIT,
-        logFilePath: LOG_FILES_PATH_NAMES.MATIC,
-        logPrefix: 'POLYGON WRAP NPM MANUAL ',
-        oraclePrivateKey,
-        oraclePublicKey,
-        tokenCode: POLYGON_TOKEN_CODE,
-        txNonce,
-        updateNonce: updatePolygonNonce,
-        web3Instance: polygonWeb3,
-    });
-}
+  await polygonTransaction({
+    action: ACTION_NAMES.WRAP_DOMAIN,
+    chainName: POLYGON_CHAIN_NAME,
+    common,
+    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_721,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+    domain,
+    getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+    gasLimit: POLYGON_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+    logPrefix: 'POLYGON WRAP NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: POLYGON_TOKEN_CODE,
+    txNonce,
+    updateNonce: updatePolygonNonce,
+    web3Instance: polygonWeb3,
+  });
+};
 
 const handleUnwrapFromEthToFioChain = async ({
     address,
@@ -283,44 +297,52 @@ const handleUnwrapFromPolygonToFioChain = async ({
     console.log(transactionResult)
 }
 
-const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
-    console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`)
+const handleBurnNFTInPolygon = async ({
+  obtId,
+  tokenId,
+  manualSetGasPrice,
+}) => {
+  console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`);
 
-    const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
 
-    const wrapDomainFunction = fioNftPolygonContract.methods.burnnft(tokenId, obtId);
-    let wrapABI = wrapDomainFunction.encodeABI();
+  const wrapDomainFunction = fioNftPolygonContract.methods.burnnft(
+    tokenId,
+    obtId
+  );
+  let wrapABI = wrapDomainFunction.encodeABI();
 
-    const common = handlePolygonChainCommon();
+  const common = handlePolygonChainCommon();
 
-    const chainNonce = await polygonWeb3.eth.getTransactionCount(
-      oraclePublicKey,
-      'pending'
-    );
-    
-    const txNonce = handlePolygonNonceValue({ chainNonce });
+  const chainNonce = await polygonWeb3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    await polygonTransaction({
-      action: ACTION_NAMES.BURN_NFT,
-      chainName: POLYGON_CHAIN_NAME,
-      common,
-      contract: config.FIO_NFT_POLYGON_CONTRACT,
-      contractName: CONTRACT_NAMES.ERC_721,
-      data: wrapABI,
-      defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
-      getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
-      gasLimit: POLYGON_GAS_LIMIT,
-      logFilePath: LOG_FILES_PATH_NAMES.MATIC,
-      logPrefix: 'POLYGON BURNNFT NPM MANUAL ',
-      oraclePrivateKey,
-      oraclePublicKey,
-      tokenCode: POLYGON_TOKEN_CODE,
-      txNonce,
-      updateNonce: updatePolygonNonce,
-      web3Instance: polygonWeb3,
-    });
-}
+  const txNonce = handlePolygonNonceValue({ chainNonce });
+
+  await polygonTransaction({
+    action: ACTION_NAMES.BURN_NFT,
+    chainName: POLYGON_CHAIN_NAME,
+    common,
+    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_721,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+    getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+    gasLimit: POLYGON_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+    logPrefix: 'POLYGON BURNNFT NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: POLYGON_TOKEN_CODE,
+    txNonce,
+    updateNonce: updatePolygonNonce,
+    web3Instance: polygonWeb3,
+  });
+};
 
 export {
     handleWrapEthAction,
