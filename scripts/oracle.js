@@ -5,7 +5,7 @@ import {
     handleWrapPolygonAction,
     handleBurnNFTInPolygon,
 } from './oracleutils.js';
-import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 import {
   addLogMessage,
   prepareLogFile,

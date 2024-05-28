@@ -6,7 +6,7 @@ import {
   ALREADY_KNOWN_TRANSACTION,
   MAX_RETRY_TRANSACTION_ATTEMPTS,
   NONCE_TOO_LOW_ERROR,
-} from '../constants/transactions';
+} from '../constants/transactions.js';
 
 import { getGasPrice, getWeb3Balance } from '../utils/prices.js';
 
@@ -33,7 +33,7 @@ export const polygonTransaction = async ({
   tokenCode,
   txNonce,
   updateNonce,
-  web3Instanstce, // todo: add forced gasPrice from npm command
+  web3Instance, // todo: add forced gasPrice from npm command
 }) => {
   const signAndSendTransaction = async ({ txNonce, retryCount = 0 }) => {
     const gasPrice = await getGasPrice({
@@ -76,12 +76,12 @@ export const polygonTransaction = async ({
 
     const preparedTransaction = Transaction.fromTxData(
       {
-        gasPrice: web3Instanstce.utils.toHex(gasPrice),
-        gasLimit: web3Instanstce.utils.toHex(gasLimit),
+        gasPrice: web3Instance.utils.toHex(gasPrice),
+        gasLimit: web3Instance.utils.toHex(gasLimit),
         to: contract,
         data,
         from: oraclePublicKey,
-        nonce: web3Instanstce.utils.toHex(txNonce),
+        nonce: web3Instance.utils.toHex(txNonce),
       },
       { common }
     );
@@ -93,7 +93,7 @@ export const polygonTransaction = async ({
       .toString('hex');
 
     try {
-      await web3Instanstce.eth
+      await web3Instance.eth
         .sendSignedTransaction('0x' + serializedTx)
         .on('transactionHash', (hash) => {
           console.log(

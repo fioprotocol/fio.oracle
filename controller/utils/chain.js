@@ -1,11 +1,11 @@
 import { Common, CustomChain } from '@ethereumjs/common';
 import Web3 from 'web3';
 
-import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../config/ABI/FIONFT.json' assert { type: 'json' };
-import fioMaticNftABI from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioMaticNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 
-import { POLYGON_TESTNET_CHAIN_ID } from '../constants/chain';
+import { POLYGON_TESTNET_CHAIN_ID } from '../constants/chain.js';
 
 export const handlePolygonChainCommon = () => {
   if (process.env.MODE === 'testnet') {

@@ -91,20 +91,6 @@ class EthCtrl {
 
                         const common = handleEthChainCommon();
 
-                        const submitLogData = {
-                            amount: wrapData.amount,
-                            gasPrice,
-                            gasLimit,
-                            to: process.env.FIO_TOKEN_ETH_CONTRACT,
-                            from: oraclePublicKey,
-                            txNonce,
-                        }
-
-                        addLogMessage({
-                            filePath: LOG_FILES_PATH_NAMES.ETH,
-                            message: `${ETH_CHAIN_NAME} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} submit ${JSON.stringify(submitLogData)}`,
-                        });
-
                         const onSussessTransaction = (receipt) => {
                             addLogMessage({
                                 filePath: LOG_FILES_PATH_NAMES.ETH,
@@ -134,7 +120,7 @@ class EthCtrl {
                           tokenCode: ETH_TOKEN_CODE,
                           txNonce,
                           updateNonce: updateEthNonce,
-                          web3Instanstce: this.web3,
+                          web3Instance: this.web3,
                         });
                     } else {
                         console.log(logPrefix + "Invalid Address");

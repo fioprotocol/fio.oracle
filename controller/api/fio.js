@@ -729,9 +729,6 @@ class FIOCtrl {
                 });
             }
 
-            console.log(nftsListToBurn);
-
-
             const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
             console.log(logPrefix + 'isBurnNFTOnPolygonJobExecuting: ' + !!isBurnNFTOnPolygonJobExecuting);
 

@@ -2,6 +2,8 @@ import fetch from 'node-fetch';
 import Web3 from 'web3';
 import fs from 'fs';
 
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+
 export const convertWeiToGwei = (weiValue) => {
   return parseFloat(
     Web3.utils.fromWei(
@@ -109,7 +111,7 @@ export const getGasPrice = async ({
     }
   } else if (!isUsingGasApi || !getGasPriceSuggestionFn) {
     console.log(`${logPrefix} Using gasPrice value from the .env:`);
-    gasPrice = convertGweiToWei(defaultGasPrice);
+    gasPrice = convertGweiToWei(defaultGasPrice.toString());
   }
 
   if (!gasPrice || parseInt(defaultGasPrice) <= 0)
@@ -149,7 +151,8 @@ export const getWeb3Balance = async ({
           LOG_FILES_PATH_NAMES.oracleErrors,
           `${timeStamp} ${logPrefix} Warning: Low Oracle ${chainName} Address Balance: ${convertWeiToEth(
             walletBalance
-          )} ${tokenCode}`
+          )} ${tokenCode}`,
+          () => {}
         );
       }
     }
