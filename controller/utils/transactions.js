@@ -8,7 +8,11 @@ import {
   NONCE_TOO_LOW_ERROR,
 } from '../constants/transactions.js';
 
-import { getGasPrice, getWeb3Balance } from '../utils/prices.js';
+import {
+  getGasPrice,
+  getWeb3Balance,
+  convertWeiToGwei,
+} from '../utils/prices.js';
 
 import { addLogMessage } from '../utils/log-files.js';
 
@@ -27,20 +31,28 @@ export const polygonTransaction = async ({
   handleSuccessedResult,
   logFilePath,
   logPrefix = '',
+  manualSetGasPrice,
   oraclePrivateKey,
   oraclePublicKey,
   shouldThrowError,
   tokenCode,
   txNonce,
   updateNonce,
-  web3Instance, // todo: add forced gasPrice from npm command
+  web3Instance,
 }) => {
   const signAndSendTransaction = async ({ txNonce, retryCount = 0 }) => {
-    const gasPrice = await getGasPrice({
-      defaultGasPrice,
-      getGasPriceSuggestionFn,
-      logPrefix,
-    });
+    let gasPrice = 0;
+
+    if (manualSetGasPrice) {
+      gasPrice = manualSetGasPrice;
+      console.log(`${logPrefix} gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI)`);
+    } else {
+      gasPrice = await getGasPrice({
+        defaultGasPrice,
+        getGasPriceSuggestionFn,
+        logPrefix,
+      });
+    }
 
     const submitLogData = {
       gasPrice,
