@@ -26,7 +26,7 @@ import {
 } from '../controller/constants/prices.js';
 
 import config from '../config/config.js';
-import { LOG_FILES_PATH_NAMES } from '../controller/constants.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 
 const { TextEncoder, TextDecoder } = textEncoder;
 
@@ -73,13 +73,13 @@ const handleWrapEthAction = async ({
         getGasPriceSuggestionFn: getEthGasPriceSuggestion,
         gasLimit: ETH_GAS_LIMIT,
         logFilePath: LOG_FILES_PATH_NAMES.ETH,
-        logPrefix: 'ETH WRAP NPM MANUAL',
+        logPrefix: 'ETH WRAP NPM MANUAL ',
         oraclePrivateKey,
         oraclePublicKey,
         tokenCode: ETH_TOKEN_CODE,
         txNonce,
         updateNonce: updateEthNonce,
-        web3Instanstce: web3,
+        web3Instance: web3,
     });
 }
 
@@ -118,13 +118,13 @@ const handleWrapPolygonAction = async ({
         getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
         gasLimit: POLYGON_GAS_LIMIT,
         logFilePath: LOG_FILES_PATH_NAMES.MATIC,
-        logPrefix: 'POLYGON WRAP NPM MANUAL',
+        logPrefix: 'POLYGON WRAP NPM MANUAL ',
         oraclePrivateKey,
         oraclePublicKey,
         tokenCode: POLYGON_TOKEN_CODE,
         txNonce,
         updateNonce: updatePolygonNonce,
-        web3Instanstce: polygonWeb3,
+        web3Instance: polygonWeb3,
     });
 }
 
@@ -312,13 +312,13 @@ const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
       getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
       gasLimit: POLYGON_GAS_LIMIT,
       logFilePath: LOG_FILES_PATH_NAMES.MATIC,
-      logPrefix: 'POLYGON BURNNFT NPM MANUAL',
+      logPrefix: 'POLYGON BURNNFT NPM MANUAL ',
       oraclePrivateKey,
       oraclePublicKey,
       tokenCode: POLYGON_TOKEN_CODE,
       txNonce,
       updateNonce: updatePolygonNonce,
-      web3Instanstce: polygonWeb3,
+      web3Instance: polygonWeb3,
     });
 }
 

@@ -1,10 +1,13 @@
 import fs from 'fs';
 
-import { LOG_FILES_PATH_NAMES } from '../constants/log-files';
+import {
+  LOG_FILES_PATH_NAMES,
+  LOG_DIRECTORY_PATH_NAME,
+} from '../constants/log-files.js';
 
-import { replaceNewLines } from '../utils/general';
+import { replaceNewLines } from '../utils/general.js';
 
-import config from '../config/config.js';
+import config from '../../config/config.js';
 
 export const createLogFile = ({ filePath, dataToWrite, showSuccessConsole }) => {
   fs.writeFileSync(filePath, dataToWrite, (err) => {

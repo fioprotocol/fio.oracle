@@ -135,7 +135,7 @@ class PolyCtrl {
               tokenCode: POLYGON_TOKEN_CODE,
               txNonce,
               updateNonce: updatePolygonNonce,
-              web3Instanstce: this.web3,
+              web3Instance: this.web3,
             });
           } else {
             console.log(`${logPrefix} Invalid Address`);
@@ -244,7 +244,7 @@ class PolyCtrl {
             tokenCode: POLYGON_TOKEN_CODE,
             txNonce,
             updateNonce: updatePolygonNonce,
-            web3Instanstce: this.web3,
+            web3Instance: this.web3,
           });
         } catch (error) {
           handleChainError({
