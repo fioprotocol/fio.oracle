@@ -46,6 +46,18 @@ BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH cha
 BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
 BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
 FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
+MORALIS_API_KEY=             # Moralis API Key
+MORALIS_RPC_BASE_URL=        # Moralis RPC Base Url
+MORALIS_RPC_BASE_URL_FALLBACK= # Moralis Fallback RPC Base Url
+MORALIS_RPC_NODE_API_KEY_ETHEREUM_MAINNET= # Moralis RPC Node API key for ETH mainnet
+MORALIS_RPC_NODE_API_KEY_ETHEREUM_TESTNET= # Moralis RPC Node API key for ETH testnet
+MORALIS_RPC_NODE_API_KEY_POLYGON_MAINNET=  # Moralis RPC Node API key for Polygon mainnet
+MORALIS_RPC_NODE_API_KEY_POLYGON_TESTNET=  # Moralis RPC Node API key for Polygon testnet
+MORALIS_RPC_ETH_CHAIN_NAME=  # Moralis RPC ETH chain name (ethereum|sepolia)
+MORALIS_RPC_POLYGON_CHAIN_NAME= # Moralis RPC Polygon RPC chain name (polygon|amoy)
+NFT_DEFAULT_TESTNET_CHAIN_NAME= # Default NFT chain name (POLYGON_AMOY)
+NFT_MAINNET_CHAIN_NAME=     # NFT chain name mainnet (POLYGON)
+THIRDWEB_API_KEY=           # Thirdweb API key
 
 # Optional
 FIO_SERVER_URL_HISTORY_BACKUP= # Backup URL of FIO history node
