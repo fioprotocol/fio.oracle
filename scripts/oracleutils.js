@@ -1,179 +1,146 @@
-require('dotenv').config();
+import 'dotenv/config';
 
-const fetch = require('node-fetch');
-const Web3 = require('web3');
-const { Common, CustomChain } = require("@ethereumjs/common");
-const { Transaction } = require("@ethereumjs/tx");
+import fetch from 'node-fetch';
+import Web3 from 'web3';
+import { Fio } from '@fioprotocol/fiojs';
+import * as textEncoder from 'text-encoding';
 
-const fioABI = require('../config/ABI/FIO.json');
-const fioNftABI = require('../config/ABI/FIONFT.json');
-const fioNftABIonPolygon = require('../config/ABI/FIOMATICNFT.json');
-const {
-    getEthGasPriceSuggestion,
-    calculateAverageGasPrice,
-    calculateHighGasPrice,
-    convertGweiToWei,
-    convertWeiToGwei,
-    getPolygonGasPriceSuggestion,
-} = require("../controller/helpers");
-const config = require("../config/config");
-const {Fio} = require("@fioprotocol/fiojs");
-const {TextDecoder, TextEncoder} = require("text-encoding");
+import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
+import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import {
+  updateEthNonce,
+  updatePolygonNonce,
+  handlePolygonNonceValue,
+  handleEthNonceValue,
+} from '../controller/utils/log-files.js';
+import { handleEthChainCommon, handlePolygonChainCommon } from '../controller/utils/chain.js';
+import { polygonTransaction } from '../controller/utils/transactions.js';
+import { getEthGasPriceSuggestion, getPolygonGasPriceSuggestion } from '../controller/utils/prices.js';
+
+import { ACTION_NAMES, CONTRACT_NAMES, ETH_CHAIN_NAME, ETH_TOKEN_CODE, POLYGON_CHAIN_NAME, POLYGON_TOKEN_CODE } from '../controller/constants/chain.js';
+import {
+  DEFAULT_ETH_GAS_PRICE,
+  DEFAULT_POLYGON_GAS_PRICE,
+  ETH_GAS_LIMIT,
+  POLYGON_GAS_LIMIT,
+} from '../controller/constants/prices.js';
+
+import config from '../config/config.js';
+import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
+
+const { TextEncoder, TextDecoder } = textEncoder;
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
 const fioTokensEthContract = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
-const fioNftEthContract = new web3.eth.Contract(fioNftABI, process.env.FIO_NFT_ETH_CONTRACT);
 const fioNftPolygonContract = new web3.eth.Contract(fioNftABIonPolygon, process.env.FIO_NFT_POLYGON_CONTRACT);
 
 const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
 
 const handleWrapEthAction = async ({
+  address,
+  amount,
+  domain,
+  obtId, //txIdOnFioChain
+  manualSetGasPrice,
+}) => {
+  console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`);
+
+  const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
+
+  const wrapFunction = fioTokensEthContract.methods.wrap(
     address,
     amount,
-    domain,
-    obtId //txIdOnFioChain
-}) => {
-    console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`)
+    obtId
+  );
 
-    const gasPriceSuggestion = await getEthGasPriceSuggestion();
+  let wrapABI = wrapFunction.encodeABI();
 
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.TGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.TGASPRICE);
-    }
+  const chainNonce = await web3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
+  const txNonce = handleEthNonceValue({ chainNonce });
 
-    const gasLimit = parseFloat(process.env.TGASLIMIT);
+  const common = handleEthChainCommon();
 
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
-
-    const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
-
-    const wrapFunction = amount ?
-        fioTokensEthContract.methods.wrap(address, amount, obtId)
-        : fioNftEthContract.methods.wrapnft(address, domain, obtId);
-
-    let wrapABI = wrapFunction.encodeABI();
-    const nonce = await web3.eth.getTransactionCount(oraclePublicKey, 'pending');
-
-    const common = new Common({ chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' })
-
-    const ethTransaction = Transaction.fromTxData(
-        {
-            gasPrice: web3.utils.toHex(gasPrice),
-            gasLimit: web3.utils.toHex(gasLimit),
-            to: process.env.FIO_TOKEN_ETH_CONTRACT,
-            data: wrapABI,
-            from: oraclePublicKey,
-            nonce: web3.utils.toHex(nonce)
-        },
-        { common }
-    );
-
-    const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-    const serializedTx = ethTransaction.sign(privateKey).serialize().toString('hex');
-
-    await web3.eth
-        .sendSignedTransaction('0x' + serializedTx)
-        .on('transactionHash', (hash) => {
-            console.log(`Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${nonce}`);
-        })
-        .on('receipt', (receipt) => {
-            console.log("Transaction has been successfully completed in the chain.");
-        })
-        .on('error', (error, receipt) => {
-            console.log(error.stack)
-            console.log('Transaction has been failed in the chain.')
-
-            if (receipt && receipt.blockHash && !receipt.status) console.log('It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value')
-        })
-}
+  await polygonTransaction({
+    amount,
+    actionName: ACTION_NAMES.WRAP_TOKENS,
+    chainName: ETH_CHAIN_NAME,
+    common,
+    contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_20,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
+    getGasPriceSuggestionFn: getEthGasPriceSuggestion,
+    gasLimit: ETH_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.ETH,
+    logPrefix: 'ETH WRAP NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: ETH_TOKEN_CODE,
+    txNonce,
+    updateNonce: updateEthNonce,
+    web3Instance: web3,
+  });
+};
 
 
 const handleWrapPolygonAction = async ({
+  address,
+  domain,
+  obtId, //txIdOnFioChain
+  manualSetGasPrice,
+}) => {
+  console.log(
+    `POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`
+  );
+
+  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+
+  const wrapDomainFunction = fioNftPolygonContract.methods.wrapnft(
     address,
     domain,
-    obtId //txIdOnFioChain
-}) => {
-    console.log(`POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`)
+    obtId
+  );
+  let wrapABI = wrapDomainFunction.encodeABI();
 
-    const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
+  const common = handlePolygonChainCommon();
 
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.PGASPRICE);
-    }
+  const chainNonce = await polygonWeb3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
+  const txNonce = handlePolygonNonceValue({ chainNonce });
 
-    const gasLimit = parseFloat(process.env.PGASLIMIT);
-
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
-
-    const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
-
-    const wrapDomainFunction = fioNftPolygonContract.methods.wrapnft(address, domain, obtId);
-    let wrapABI = wrapDomainFunction.encodeABI();
-
-    const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
-
-    const nonce = await polygonWeb3.eth.getTransactionCount(oraclePublicKey, 'pending');//calculate nonce value for transaction
-    const polygonTransaction = Transaction.fromTxData(
-        {
-            gasPrice: polygonWeb3.utils.toHex(gasPrice),
-            gasLimit: polygonWeb3.utils.toHex(gasLimit),
-            to: config.FIO_NFT_POLYGON_CONTRACT,
-            data: wrapABI,
-            from: oraclePublicKey,
-            nonce: polygonWeb3.utils.toHex(nonce),
-        },
-        { common }
-    );
-
-    const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-    const serializedTx = polygonTransaction.sign(privateKey).serialize().toString('hex');
-
-    await polygonWeb3.eth
-        .sendSignedTransaction('0x' + serializedTx)
-        .on('transactionHash', (hash) => {
-            console.log(`Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${nonce}`);
-        })
-        .on('receipt', (receipt) => {
-            console.log("Transaction has been successfully completed in the chain.");
-        })
-        .on('error', (error, receipt) => {
-            console.log(error.stack);
-            console.log('transaction has been failed in the chain.');
-
-            if (receipt && receipt.blockHash && !receipt.status) console.log('It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value.')
-        })
-}
+  await polygonTransaction({
+    action: ACTION_NAMES.WRAP_DOMAIN,
+    chainName: POLYGON_CHAIN_NAME,
+    common,
+    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_721,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+    domain,
+    getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+    gasLimit: POLYGON_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+    logPrefix: 'POLYGON WRAP NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: POLYGON_TOKEN_CODE,
+    txNonce,
+    updateNonce: updatePolygonNonce,
+    web3Instance: polygonWeb3,
+  });
+};
 
 const handleUnwrapFromEthToFioChain = async ({
     address,
@@ -330,75 +297,54 @@ const handleUnwrapFromPolygonToFioChain = async ({
     console.log(transactionResult)
 }
 
-const handleBurnNFTInPolygon = async ({ obtId, tokenId }) => {
-    console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`)
+const handleBurnNFTInPolygon = async ({
+  obtId,
+  tokenId,
+  manualSetGasPrice,
+}) => {
+  console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`);
 
-    const gasPriceSuggestion = await getPolygonGasPriceSuggestion();
+  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
 
-    const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
-    let gasPrice = 0;
-    if ((isUsingGasApi && gasPriceSuggestion) || (!isUsingGasApi && parseInt(process.env.PGASPRICE) <= 0)) {
-        console.log('using gasPrice value from the api:');
-        if (process.env.GASPRICELEVEL === "average") {
-            gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
-        } else if(process.env.GASPRICELEVEL === "low") {
-            gasPrice = gasPriceSuggestion;
-        } else if(process.env.GASPRICELEVEL === "high") {
-            gasPrice = calculateHighGasPrice(gasPriceSuggestion);
-        }
-    } else if (!isUsingGasApi || (isUsingGasApi && gasPriceSuggestion)){
-        console.log('using gasPrice value from the .env:');
-        gasPrice = convertGweiToWei(process.env.PGASPRICE);
-    }
+  const wrapDomainFunction = fioNftPolygonContract.methods.burnnft(
+    tokenId,
+    obtId
+  );
+  let wrapABI = wrapDomainFunction.encodeABI();
 
-    if (!gasPrice) throw new Error('Cannot set valid Gas Price value');
+  const common = handlePolygonChainCommon();
 
-    const gasLimit = parseFloat(process.env.PGASLIMIT);
+  const chainNonce = await polygonWeb3.eth.getTransactionCount(
+    oraclePublicKey,
+    'pending'
+  );
 
-    console.log(`gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI), gasLimit = ${gasLimit}`)
+  const txNonce = handlePolygonNonceValue({ chainNonce });
 
-    const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-    const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+  await polygonTransaction({
+    action: ACTION_NAMES.BURN_NFT,
+    chainName: POLYGON_CHAIN_NAME,
+    common,
+    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contractName: CONTRACT_NAMES.ERC_721,
+    data: wrapABI,
+    defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
+    getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
+    gasLimit: POLYGON_GAS_LIMIT,
+    logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+    logPrefix: 'POLYGON BURNNFT NPM MANUAL ',
+    manualSetGasPrice,
+    oraclePrivateKey,
+    oraclePublicKey,
+    tokenCode: POLYGON_TOKEN_CODE,
+    txNonce,
+    updateNonce: updatePolygonNonce,
+    web3Instance: polygonWeb3,
+  });
+};
 
-    const wrapDomainFunction = fioNftPolygonContract.methods.burnnft(tokenId, obtId);
-    let wrapABI = wrapDomainFunction.encodeABI();
-
-    const common = Common.custom(process.env.MODE === 'testnet' ? CustomChain.PolygonMumbai : CustomChain.PolygonMainnet)
-
-    const nonce = await polygonWeb3.eth.getTransactionCount(oraclePublicKey, 'pending'); //calculate nonce value for transaction
-    const polygonTransaction = Transaction.fromTxData(
-        {
-            gasPrice: polygonWeb3.utils.toHex(gasPrice),
-            gasLimit: polygonWeb3.utils.toHex(gasLimit),
-            to: config.FIO_NFT_POLYGON_CONTRACT,
-            data: wrapABI,
-            from: oraclePublicKey,
-            nonce: polygonWeb3.utils.toHex(nonce),
-        },
-        { common }
-    );
-
-    const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-    const serializedTx = polygonTransaction.sign(privateKey).serialize().toString('hex');
-
-    await polygonWeb3.eth
-        .sendSignedTransaction('0x' + serializedTx)
-        .on('transactionHash', (hash) => {
-            console.log(`Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${nonce}`);
-        })
-        .on('receipt', (receipt) => {
-            console.log("Transaction has been successfully completed in the chain.");
-        })
-        .on('error', (error, receipt) => {
-            console.log(error.stack);
-            console.log('transaction has been failed in the chain.');
-
-            if (receipt && receipt.blockHash && !receipt.status) console.log('It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value.')
-        })
-
-}
-
-module.exports = {
+export {
     handleWrapEthAction,
     handleWrapPolygonAction,
     handleUnwrapFromEthToFioChain,

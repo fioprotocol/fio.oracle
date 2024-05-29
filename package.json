@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint src/js",
-    "dev": "cross-env nodemon -r esm server.js",
+    "dev": "cross-env nodemon --experimental-json-modules server.js",
     "oracle": "node scripts/oracle.js",
     "tryagain": "node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly"
   },
@@ -15,7 +15,7 @@
   "devDependencies": {
     "cross-env": "7.0.3",
     "eslint": "7.32.0",
-    "nodemon": "2.0.20"
+    "nodemon": "3.1.0"
   },
   "dependencies": {
     "@babel/runtime": "7.20.1",
@@ -31,13 +31,16 @@
     "express": "4.18.2",
     "fs": "0.0.1-security",
     "mathjs": "9.5.2",
+    "moralis": "2.26.2",
     "node-cache": "5.1.2",
-    "node-fetch": "2.6.7",
+    "node-fetch": "3.3.2",
     "node-file-cache": "1.0.2",
-    "node-libcurl": "2.3.4",
+    "node-libcurl": "4.0.0",
     "redis": "3.1.2",
     "text-encoding": "0.7.0",
-    "web3": "1.8.1",
-    "web3-eth-contract": "1.8.1"
-  }
+    "thirdweb": "5.24.0",
+    "web3": "1.10.2",
+    "web3-eth-contract": "1.10.2"
+  },
+  "type": "module"
 }
