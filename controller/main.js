@@ -14,8 +14,8 @@ import {
 import {
   convertWeiToEth,
   convertWeiToGwei,
-  getEthGasPriceSuggestion,
-  getPolygonGasPriceSuggestion,
+  getMiddleEthGasPriceSuggestion,
+  getMiddlePolygonGasPriceSuggestion,
 } from './utils/prices.js';
 
 import { getLastIrreversibleBlockOnFioChain } from './utils/fio-chain.js';
@@ -68,7 +68,8 @@ class MainCtrl {
       // Check is ETHINFURA and POLYGON_INFURA variables are valid
       const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
       if (isUsingGasApi) {
-        const ethGasPriceSuggestion = await getEthGasPriceSuggestion();
+        const ethGasPriceSuggestion = await getMiddleEthGasPriceSuggestion();
+
         console.log(
           convertWeiToGwei(ethGasPriceSuggestion),
           'GWEI - safe gas price for ETH'
@@ -78,7 +79,7 @@ class MainCtrl {
             'Please, check "ETHINFURA" variable: ' +
               JSON.stringify(ethGasPriceSuggestion)
           );
-        const polyGasPriceSuggestion = await getPolygonGasPriceSuggestion();
+        const polyGasPriceSuggestion = await getMiddlePolygonGasPriceSuggestion();
         console.log(
           convertWeiToGwei(polyGasPriceSuggestion),
           'GWEI - safe gas price for Polygon'

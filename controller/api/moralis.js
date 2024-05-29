@@ -1,7 +1,10 @@
 import Moralis from 'moralis';
 import { EvmChain } from '@moralisweb3/common-evm-utils';
+import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
+
+import { handleBackups } from '../utils/general.js';
 
 const {
   FIO_NFT_POLYGON_CONTRACT,
@@ -29,7 +32,7 @@ class GetMoralis {
         tokenId: nftItem.token_id,
       });
     } catch (error) {
-      logger.error(
+      console.error(
         `Resync metadata error for token id - ${nftItem.token_id}: `,
         error.message
       );
@@ -47,7 +50,7 @@ class GetMoralis {
         });
       return nftItemWithFreshMetadataRes.toJSON();
     } catch (error) {
-      logger.error(
+      console.error(
         `Get metadata for token id - ${nftItem.token_id}: `,
         error.message
       );
@@ -156,5 +159,67 @@ class GetMoralis {
     return nftsList;
   }
 }
+
+const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
+  const urlParams = `${chainName}/${rpcNodeApiKey}`;
+
+  const primaryUrl = `${config.MORALIS_RPC_BASE_URL}/${urlParams}`;
+  const fallbackUrl = `${config.MORALIS_RPC_BASE_URL_FALLBACK}/${urlParams}`;
+
+  const fetchGasPrice = async (url) => {
+    const options = {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_gasPrice',
+      }),
+    };
+
+    const response = await fetch(url ? url : primaryUrl, options);
+
+    if (!response.ok) {
+      throw new Error(`Network response was not ok: ${response.statusText}`);
+    }
+
+    let gasPrice = null;
+    const gasEstimateResponse = await response.json();
+
+    if (gasEstimateResponse && gasEstimateResponse.result) {
+      gasPrice = parseInt(gasEstimateResponse.result);
+    }
+
+    return gasPrice;
+  };
+
+
+  try {
+    return await handleBackups(
+      fetchGasPrice,
+      isRetry,
+      fallbackUrl
+    );
+  } catch (error) {
+    console.error('MORALIS Both primary and fallback RPC URLs failed:', error);
+    throw new Error(
+      'MORALIS Failed to fetch gas prices from both primary and fallback RPC URLs.'
+    );
+  }
+};
+
+export const getMoralisEthGasPrice = async () => await getGasPrices({
+  chainName: config.MORALIS_RPC_ETH_CHAIN_NAME,
+  rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
+});
+
+export const getMoralisPolygonGasPrice = async () =>
+  await getGasPrices({
+    chainName: config.MORALIS_RPC_POLYGON_CHAIN_NAME,
+    rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_POLYGON,
+  });
 
 export default new GetMoralis();
