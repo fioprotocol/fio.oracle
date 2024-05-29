@@ -6,6 +6,7 @@ import {
   ALREADY_KNOWN_TRANSACTION,
   MAX_RETRY_TRANSACTION_ATTEMPTS,
   NONCE_TOO_LOW_ERROR,
+  LOW_GAS_PRICE,
 } from '../constants/transactions.js';
 
 import {
@@ -142,10 +143,11 @@ export const polygonTransaction = async ({
       const transactionAlreadyKnown = error.message.includes(
         ALREADY_KNOWN_TRANSACTION
       );
+      const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
 
       if (
         retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS &&
-        (nonceTooLowError || transactionAlreadyKnown)
+        (nonceTooLowError || transactionAlreadyKnown || lowGasPriceError)
       ) {
         // Retry with an incremented nonce
         console.log(
