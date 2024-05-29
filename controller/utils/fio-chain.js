@@ -96,8 +96,11 @@ export const getUnprocessedActionsOnFioChain = async ({ accountName, pos, logPre
     while (hasMore) {
         const dataPart = await getActionsV2(accountName, skip, limit, lastIrreversibleBlock);
         data = data.concat(dataPart);
+        const dataPartBlockNumber =
+          dataPart[dataPart.length - 1] &&
+          dataPart[dataPart.length - 1].block_num;
 
-        hasMore = dataPart[dataPart.length - 1].block_num > lastNumber
+        hasMore = dataPartBlockNumber > lastNumber;
         skip += limit;
     }
     data = data.reverse();
