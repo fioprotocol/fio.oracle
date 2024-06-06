@@ -696,8 +696,6 @@ class FIOCtrl {
                         transaction: burnedDomainEvent,
                       },
                     });
-
-                    updateBlockNumberFIOForBurnNFT(burnedDomainEvent.block_num.toString());
                 }
             }
 
@@ -727,6 +725,16 @@ class FIOCtrl {
                   message: nftsListToBurnItem,
                   addTimestamp: false,
                 });
+            }
+
+            if (addressDataEvents.length) {
+                const maxBlockNumber = Math.max(...addressDataEvents.map(addressDataEvent => addressDataEvent.block_num));
+                if (maxBlockNumber) {
+                    console.log(`${logPrefix} update FIO block number to ${maxBlockNumber}`);
+                    updateBlockNumberFIOForBurnNFT(
+                        maxBlockNumber.toString()
+                    );
+                }
             }
 
             const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
