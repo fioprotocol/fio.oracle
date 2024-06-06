@@ -669,6 +669,8 @@ class FIOCtrl {
 
             const burnedDomainDataEvents = addressDataEvents.filter(
               (addressDataEvent) =>
+                addressDataEvent.action_trace &&
+                addressDataEvent.action_trace.act &&
                 addressDataEvent.action_trace.act.name === 'burndomain'
             );
 
@@ -708,14 +710,31 @@ class FIOCtrl {
 
             for (const nftItem of nftsList) {
                 const { metadata, token_id, normalized_metadata } = nftItem;
-                const metadataName = normalized_metadata.name || (metadata && JSON.parse(metadata).name);
+
+                let metadataName = null;
+
+                if (normalized_metadata && normalized_metadata.name) {
+                    metadataName = normalized_metadata.name;
+                } else if (metadata) {
+                    try {
+                        const parsedMetadata = JSON.parse(metadata);
+                    if (parsedMetadata && parsedMetadata.name) {
+                        metadataName = parsedMetadata.name;
+                    }
+                  } catch (error) {
+                    console.error(`${logPrefix} Failed to parse metadata: ${error}`);
+                  }
+                }
+
                 const name = metadataName && metadataName.split(': ')[1];
 
-                const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
+                if (name) {
+                    const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
 
-                if (existingInBurnList) {
-                    const { trxId, domainName } = existingInBurnList;
-                    nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                    if (existingInBurnList) {
+                        const { trxId, domainName } = existingInBurnList;
+                        nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                    }
                 }
             }
 
