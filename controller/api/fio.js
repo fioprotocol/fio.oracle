@@ -13,6 +13,7 @@ import config from '../../config/config.js';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import MathOp from '../utils/math.js';
 
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
@@ -441,26 +442,27 @@ class FIOCtrl {
             };
 
             const getUnprocessedActionsLogs = async (isTokens = false) => {
-                const lastInChainBlockNumber = await web3.eth.getBlockNumber() - blocksOffset;
+                const chainBlockNumber = await web3.eth.getBlockNumber();
+                const lastInChainBlockNumber = new MathOp(chainBlockNumber).sub(blocksOffset).toNumber();
                 const lastProcessedBlockNumber = isTokens ? getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping() : getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping();
 
-                if (lastProcessedBlockNumber > lastInChainBlockNumber)
+                if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
                     throw new Error(
                         logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, Wrong start blockNumber, pls check stored value.`,
                     );
 
-                let fromBlockNumber = lastProcessedBlockNumber + 1;
+                let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
                 console.log(logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`);
 
                 let result = [];
                 let maxCheckedBlockNumber = 0;
 
-                while (fromBlockNumber <= lastInChainBlockNumber) {
-                    const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
+                while (new MathOp(fromBlockNumber).lte(lastInChainBlockNumber)) {
+                    const maxAllowedBlockNumber = new MathOp(fromBlockNumber).add(blocksRangeLimit).sub(1).toNumber();
 
                     const toBlockNumber =
-                        maxAllowedBlockNumber > lastInChainBlockNumber
+                        new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
                             ? lastInChainBlockNumber
                             : maxAllowedBlockNumber;
 
@@ -474,7 +476,7 @@ class FIOCtrl {
                         ...(await getEthActionsLogs(fromBlockNumber, toBlockNumber, isTokens)),
                     ];
 
-                    fromBlockNumber = toBlockNumber + 1;
+                    fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
                 }
 
                 console.log(logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'} events list length: ${result.length}`);
@@ -576,22 +578,22 @@ class FIOCtrl {
                 const lastInChainBlockNumber = await polyWeb3.eth.getBlockNumber()
                 const lastProcessedBlockNumber = getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
-                if (lastProcessedBlockNumber > lastInChainBlockNumber)
+                if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
                     throw new Error(
                         logPrefix + `Wrong start blockNumber, pls check stored value.`,
                     );
 
-                let fromBlockNumber = lastProcessedBlockNumber + 1;
+                let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
                 console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`)
 
                 const result = [];
 
-                while (fromBlockNumber <= lastInChainBlockNumber) {
-                    const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
+                while (new MathOp(fromBlockNumber).lte(lastInChainBlockNumber)) {
+                    const maxAllowedBlockNumber = new MathOp(fromBlockNumber).add(blocksRangeLimit).sub(1).toNumber();
 
                     const toBlockNumber =
-                        maxAllowedBlockNumber > lastInChainBlockNumber
+                        new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
                             ? lastInChainBlockNumber
                             : maxAllowedBlockNumber;
 
@@ -606,7 +608,7 @@ class FIOCtrl {
                         result.push(...events);
                     }
 
-                    fromBlockNumber = toBlockNumber + 1;
+                    fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
                 }
 
                 console.log(logPrefix + `events list length: ${result.length}`);
