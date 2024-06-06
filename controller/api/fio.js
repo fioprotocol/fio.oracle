@@ -3,7 +3,7 @@ import 'dotenv/config';
 import fs from 'fs';
 import Web3 from 'web3';
 import { Fio } from '@fioprotocol/fiojs';
-import * as textEncoder from 'text-encoding';
+import * as textEncoderObj from 'text-encoding';
 import fetch from 'node-fetch';
 
 import ethCtrl from './eth.js';
@@ -37,7 +37,13 @@ import { handleBackups } from '../utils/general.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
 import { getUnprocessedActionsOnFioChain } from '../utils/fio-chain.js';
 
-const { TextEncoder, TextDecoder } = textEncoder;
+const defaultTextEncoderObj = textEncoderObj.default || {};
+
+const TextDecoder = defaultTextEncoderObj.TextDecoder;
+const TextEncoder = defaultTextEncoderObj.TextEncoder;
+
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 const {
   NFTS: { NFT_CHAIN_NAME },
@@ -132,8 +138,8 @@ const handleUnwrapFromEthToFioChainJob = async () => {
             chainId,
             privateKeys,
             abiMap,
-            textDecoder: new TextDecoder(),
-            textEncoder: new TextEncoder()
+            textDecoder,
+            textEncoder,
         });
 
         const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
@@ -249,8 +255,8 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
             chainId,
             privateKeys,
             abiMap,
-            textDecoder: new TextDecoder(),
-            textEncoder: new TextEncoder()
+            textDecoder,
+            textEncoder,
         });
 
         const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
