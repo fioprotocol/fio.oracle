@@ -3,7 +3,7 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 import Web3 from 'web3';
 import { Fio } from '@fioprotocol/fiojs';
-import * as textEncoder from 'text-encoding';
+import * as textEncoderObj from 'text-encoding';
 
 import fioABI from '../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABIonPolygon from '../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
@@ -28,7 +28,13 @@ import {
 import config from '../config/config.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 
-const { TextEncoder, TextDecoder } = textEncoder;
+const defaultTextEncoderObj = textEncoderObj.default || {};
+
+const TextDecoder = defaultTextEncoderObj.TextDecoder;
+const TextEncoder = defaultTextEncoderObj.TextEncoder;
+
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 const web3 = new Web3(process.env.ETHINFURA);
 const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
@@ -208,8 +214,8 @@ const handleUnwrapFromEthToFioChain = async ({
         chainId,
         privateKeys,
         abiMap,
-        textDecoder: new TextDecoder(),
-        textEncoder: new TextEncoder()
+        textDecoder,
+        textEncoder,
     });
 
     const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
@@ -279,8 +285,8 @@ const handleUnwrapFromPolygonToFioChain = async ({
         chainId,
         privateKeys,
         abiMap,
-        textDecoder: new TextDecoder(),
-        textEncoder: new TextEncoder()
+        textDecoder,
+        textEncoder,
     });
 
     const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', {

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import fs from 'fs';
 import Web3 from 'web3';
 import { Fio } from '@fioprotocol/fiojs';
-import * as textEncoder from 'text-encoding';
+import * as textEncoderObj from 'text-encoding';
 import fetch from 'node-fetch';
 
 import ethCtrl from './eth.js';
@@ -13,6 +13,7 @@ import config from '../../config/config.js';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import MathOp from '../utils/math.js';
 
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
@@ -36,7 +37,13 @@ import { handleBackups } from '../utils/general.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
 import { getUnprocessedActionsOnFioChain } from '../utils/fio-chain.js';
 
-const { TextEncoder, TextDecoder } = textEncoder;
+const defaultTextEncoderObj = textEncoderObj.default || {};
+
+const TextDecoder = defaultTextEncoderObj.TextDecoder;
+const TextEncoder = defaultTextEncoderObj.TextEncoder;
+
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 const {
   NFTS: { NFT_CHAIN_NAME },
@@ -131,8 +138,8 @@ const handleUnwrapFromEthToFioChainJob = async () => {
             chainId,
             privateKeys,
             abiMap,
-            textDecoder: new TextDecoder(),
-            textEncoder: new TextEncoder()
+            textDecoder,
+            textEncoder,
         });
 
         const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
@@ -248,8 +255,8 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
             chainId,
             privateKeys,
             abiMap,
-            textDecoder: new TextDecoder(),
-            textEncoder: new TextEncoder()
+            textDecoder,
+            textEncoder,
         });
 
         const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
@@ -441,26 +448,27 @@ class FIOCtrl {
             };
 
             const getUnprocessedActionsLogs = async (isTokens = false) => {
-                const lastInChainBlockNumber = await web3.eth.getBlockNumber() - blocksOffset;
+                const chainBlockNumber = await web3.eth.getBlockNumber();
+                const lastInChainBlockNumber = new MathOp(chainBlockNumber).sub(blocksOffset).toNumber();
                 const lastProcessedBlockNumber = isTokens ? getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping() : getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping();
 
-                if (lastProcessedBlockNumber > lastInChainBlockNumber)
+                if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
                     throw new Error(
                         logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, Wrong start blockNumber, pls check stored value.`,
                     );
 
-                let fromBlockNumber = lastProcessedBlockNumber + 1;
+                let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
                 console.log(logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`);
 
                 let result = [];
                 let maxCheckedBlockNumber = 0;
 
-                while (fromBlockNumber <= lastInChainBlockNumber) {
-                    const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
+                while (new MathOp(fromBlockNumber).lte(lastInChainBlockNumber)) {
+                    const maxAllowedBlockNumber = new MathOp(fromBlockNumber).add(blocksRangeLimit).sub(1).toNumber();
 
                     const toBlockNumber =
-                        maxAllowedBlockNumber > lastInChainBlockNumber
+                        new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
                             ? lastInChainBlockNumber
                             : maxAllowedBlockNumber;
 
@@ -474,7 +482,7 @@ class FIOCtrl {
                         ...(await getEthActionsLogs(fromBlockNumber, toBlockNumber, isTokens)),
                     ];
 
-                    fromBlockNumber = toBlockNumber + 1;
+                    fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
                 }
 
                 console.log(logPrefix + `Unwrap ${isTokens ? 'Tokens' : 'Domain'} events list length: ${result.length}`);
@@ -576,22 +584,22 @@ class FIOCtrl {
                 const lastInChainBlockNumber = await polyWeb3.eth.getBlockNumber()
                 const lastProcessedBlockNumber = getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
-                if (lastProcessedBlockNumber > lastInChainBlockNumber)
+                if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
                     throw new Error(
                         logPrefix + `Wrong start blockNumber, pls check stored value.`,
                     );
 
-                let fromBlockNumber = lastProcessedBlockNumber + 1;
+                let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
                 console.log(logPrefix + `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`)
 
                 const result = [];
 
-                while (fromBlockNumber <= lastInChainBlockNumber) {
-                    const maxAllowedBlockNumber = fromBlockNumber + blocksRangeLimit - 1;
+                while (new MathOp(fromBlockNumber).lte(lastInChainBlockNumber)) {
+                    const maxAllowedBlockNumber = new MathOp(fromBlockNumber).add(blocksRangeLimit).sub(1).toNumber();
 
                     const toBlockNumber =
-                        maxAllowedBlockNumber > lastInChainBlockNumber
+                        new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
                             ? lastInChainBlockNumber
                             : maxAllowedBlockNumber;
 
@@ -606,7 +614,7 @@ class FIOCtrl {
                         result.push(...events);
                     }
 
-                    fromBlockNumber = toBlockNumber + 1;
+                    fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
                 }
 
                 console.log(logPrefix + `events list length: ${result.length}`);
@@ -669,6 +677,8 @@ class FIOCtrl {
 
             const burnedDomainDataEvents = addressDataEvents.filter(
               (addressDataEvent) =>
+                addressDataEvent.action_trace &&
+                addressDataEvent.action_trace.act &&
                 addressDataEvent.action_trace.act.name === 'burndomain'
             );
 
@@ -696,8 +706,6 @@ class FIOCtrl {
                         transaction: burnedDomainEvent,
                       },
                     });
-
-                    updateBlockNumberFIOForBurnNFT(burnedDomainEvent.block_num.toString());
                 }
             }
 
@@ -710,14 +718,31 @@ class FIOCtrl {
 
             for (const nftItem of nftsList) {
                 const { metadata, token_id, normalized_metadata } = nftItem;
-                const metadataName = normalized_metadata.name || (metadata && JSON.parse(metadata).name);
+
+                let metadataName = null;
+
+                if (normalized_metadata && normalized_metadata.name) {
+                    metadataName = normalized_metadata.name;
+                } else if (metadata) {
+                    try {
+                        const parsedMetadata = JSON.parse(metadata);
+                    if (parsedMetadata && parsedMetadata.name) {
+                        metadataName = parsedMetadata.name;
+                    }
+                  } catch (error) {
+                    console.error(`${logPrefix} Failed to parse metadata: ${error}`);
+                  }
+                }
+
                 const name = metadataName && metadataName.split(': ')[1];
 
-                const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
+                if (name) {
+                    const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
 
-                if (existingInBurnList) {
-                    const { trxId, domainName } = existingInBurnList;
-                    nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                    if (existingInBurnList) {
+                        const { trxId, domainName } = existingInBurnList;
+                        nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
+                    }
                 }
             }
 
@@ -727,6 +752,16 @@ class FIOCtrl {
                   message: nftsListToBurnItem,
                   addTimestamp: false,
                 });
+            }
+
+            if (addressDataEvents.length) {
+                const maxBlockNumber = Math.max(...addressDataEvents.map(addressDataEvent => addressDataEvent.block_num));
+                if (maxBlockNumber) {
+                    console.log(`${logPrefix} update FIO block number to ${maxBlockNumber}`);
+                    updateBlockNumberFIOForBurnNFT(
+                        maxBlockNumber.toString()
+                    );
+                }
             }
 
             const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
