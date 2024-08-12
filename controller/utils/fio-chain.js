@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 import fetch from 'node-fetch';
 
+import MathOp from './math.js';
+
 import {
   getLastProceededBlockNumberOnFioChain,
   getLastProceededBlockNumberOnFioChainForBurnNFT,
@@ -43,9 +45,7 @@ const getActions = async (accountName, pos, offset) => {
   }
   const actionsHistory = await actionsHistoryResponse.json();
 
-  let result = [];
-  if (actionsHistory.actions.length) result = actionsHistory.actions.filter(elem => elem.block_num <= actionsHistory.last_irreversible_block)
-  return result;
+  return actionsHistory;
 };
 
 const getActionsV2 = async (accountName, skip, limit, lastIrreversibleBlock) => {
@@ -74,43 +74,103 @@ const getActionsV2 = async (accountName, skip, limit, lastIrreversibleBlock) => 
   return result;
 };
 
-export const getUnprocessedActionsOnFioChain = async ({ accountName, pos, logPrefix, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION, isBurnNft = false }) => {
-  let lastNumber = null;
+export const getUnprocessedActionsOnFioChain = async ({ accountName, logPrefix, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION, isBurnNft = false }) => {
+  let lastAccountActionSequence = null;
+  let lastProcessedAccountActionSequence = null;
 
   if (isBurnNft) {
-      lastNumber = getLastProceededBlockNumberOnFioChainForBurnNFT();
+      lastAccountActionSequence =
+        getLastProceededBlockNumberOnFioChainForBurnNFT();
   } else {
-      lastNumber = getLastProceededBlockNumberOnFioChain();
+      lastAccountActionSequence = getLastProceededBlockNumberOnFioChain();
   }
 
-  console.log(logPrefix + `start Block Number = ${lastNumber + 1}, end Block Number: ${pos}`)
+  console.log(
+    logPrefix + `start Account Action Sequence = ${lastAccountActionSequence}`
+  );
 
-  let data = []
+  let unprocessedActionsList = [];
   const isV2 = fioServerHistoryVersion === 'hyperion';
+
+  const getFioActionsLogsAll = async ({ pos, actionsList }) => {
+    const offset = (process.env.POLLOFFSET);
+
+    const actionsLogsResult = await getActions(accountName, pos, offset);
+
+    const actionsLogsLength =
+      actionsLogsResult &&
+      actionsLogsResult.actions &&
+      actionsLogsResult.actions.length
+        ? actionsLogsResult.actions.length
+        : 0;
+
+    const actionTraceHasNonIrreversibleBlockIndex =
+      actionsLogsResult && actionsLogsResult.actions
+        ? actionsLogsResult.actions.findIndex((actionItem) =>
+            new MathOp(actionItem.block_num).gt(
+              actionsLogsResult.last_irreversible_block
+            )
+          )
+        : null;
+
+    if (
+      actionsLogsResult &&
+      actionsLogsResult.last_irreversible_block &&
+      actionsLogsResult.actions &&
+      actionsLogsLength > 0 &&
+      actionTraceHasNonIrreversibleBlockIndex < 0
+    ) {
+      actionsList.push(...actionsLogsResult.actions);
+      lastProcessedAccountActionSequence =
+        actionsList[actionsList.length - 1].account_action_seq;
+      await getFioActionsLogsAll({ pos: pos + actionsLogsLength, actionsList });
+    }
+
+    if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
+      actionsList.push(
+        ...actionsLogsResult.actions.slice(
+          0,
+          actionTraceHasNonIrreversibleBlockIndex
+        )
+      );
+
+      lastProcessedAccountActionSequence =
+        actionTraceHasNonIrreversibleBlockIndex > 0
+          ? actionsLogsResult.actions[
+              actionTraceHasNonIrreversibleBlockIndex - 1
+            ].account_action_seq
+          : lastProcessedAccountActionSequence;
+    }
+  };
+
   if (isV2) {
     let hasMore = true;
     let skip = 0;
-    const limit = parseInt(process.env.HYPERION_LIMIT) || 10
+    const limit = parseInt(process.env.HYPERION_LIMIT);
     const lastIrreversibleBlock = await getLastIrreversibleBlockOnFioChain();
 
     while (hasMore) {
         const dataPart = await getActionsV2(accountName, skip, limit, lastIrreversibleBlock);
-        data = data.concat(dataPart);
-        const dataPartBlockNumber =
+        unprocessedActionsList = unprocessedActionsList.concat(dataPart);
+        const dataPartAccountActionSequence =
           dataPart[dataPart.length - 1] &&
-          dataPart[dataPart.length - 1].block_num;
+          dataPart[dataPart.length - 1].account_action_seq;
 
-        hasMore = dataPartBlockNumber > lastNumber;
+        hasMore = dataPartAccountActionSequence > accountActionSequence;
         skip += limit;
     }
-    data = data.reverse();
+    unprocessedActionsList = unprocessedActionsList.reverse();
   } else {
-    let offset = parseInt(process.env.POLLOFFSET) || -10;
-    data = await getActions(accountName, pos, offset);
-    while (data.length > 0 && data[0].block_num > lastNumber) {
-        offset -= 10;
-        data = await getActions(accountName, pos, offset);
-    }
+    await getFioActionsLogsAll({
+      pos:
+        lastAccountActionSequence > 0
+          ? new MathOp(lastAccountActionSequence).add(1).toNumber()
+          : lastAccountActionSequence,
+      actionsList: unprocessedActionsList,
+    });
   }
-  return data.filter(elem => (elem.block_num > lastNumber))
+
+  return unprocessedActionsList.filter(
+    (elem) => elem.account_action_seq > lastAccountActionSequence
+  );
 };
