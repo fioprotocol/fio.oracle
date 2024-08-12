@@ -318,7 +318,6 @@ class FIOCtrl {
         const handleWrapAction = async (fioServerHistoryVersion) => {
             const wrapDataEvents = await getUnprocessedActionsOnFioChain({
                 accountName: 'fio.oracle',
-                pos: -1,
                 logPrefix,
                 fioServerHistoryVersion,
             });
@@ -382,7 +381,7 @@ class FIOCtrl {
                         });
                     }
 
-                    updateBlockNumberFIO(eventData.block_num.toString());
+                    updateBlockNumberFIO(eventData.account_action_seq.toString());
                 })
             }
 
@@ -669,7 +668,6 @@ class FIOCtrl {
         const handleBurnNFTAction = async (fioServerHistoryVersion) => {
             const addressDataEvents = await getUnprocessedActionsOnFioChain({
                 accountName: 'fio.address',
-                pos: -1,
                 logPrefix,
                 fioServerHistoryVersion,
                 isBurnNft: true,
@@ -755,11 +753,17 @@ class FIOCtrl {
             }
 
             if (addressDataEvents.length) {
-                const maxBlockNumber = Math.max(...addressDataEvents.map(addressDataEvent => addressDataEvent.block_num));
+                const accountActionSequence = Math.max(
+                  ...addressDataEvents.map(
+                    (addressDataEvent) => addressDataEvent.account_action_seq
+                  )
+                );
                 if (maxBlockNumber) {
-                    console.log(`${logPrefix} update FIO block number to ${maxBlockNumber}`);
+                    console.log(
+                      `${logPrefix} update FIO Account Action Sequence to ${accountActionSequence}`
+                    );
                     updateBlockNumberFIOForBurnNFT(
-                        maxBlockNumber.toString()
+                      accountActionSequence.toString()
                     );
                 }
             }
