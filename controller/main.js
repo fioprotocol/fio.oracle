@@ -126,6 +126,8 @@ class MainCtrl {
 
       console.log(logPrefix + 'logs folders are ready');
 
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.fioOraclePosition });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.fioAddressPosition });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
         fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
