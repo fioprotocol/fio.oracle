@@ -30,11 +30,14 @@ import {
   getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
   getLastProceededBlockNumberOnFioChain,
   getLastProceededFioOraclePositionFioChain,
+  getLastProceededFioAddressPositionFioChain,
+  getLastProceededBlockNumberOnFioChainForBurnNFT,
   getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
   handleLogFailedWrapItem,
   handleUpdatePendingPolygonItemsQueue,
   handleServerError,
   handleChainError,
+  updatefioAddressPositionFIO,
 } from '../utils/log-files.js';
 import { handleBackups } from '../utils/general.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
@@ -155,6 +158,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
             isTransactionProceededSuccessfully = true;
             console.log(logPrefix + `Completed:`)
         } else console.log(logPrefix + `Error:`)
+        // todo: handle 500 error set retry to count 5
         console.log(transactionResult)
 
         addLogMessage({
@@ -273,6 +277,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
             isTransactionProceededSuccessfully = true;
             console.log(logPrefix + `Completed:`)
         } else console.log(logPrefix + `Error:`)
+        // todo: handle 500 error set retry to count 5
         console.log(transactionResult)
 
         addLogMessage({
@@ -334,7 +339,7 @@ class FIOCtrl {
             console.log(
               logPrefix +
                 `start Position = ${
-                  isV2 ? lastIrreversibleBlock : lastFioOraclePosition
+                  isV2 ? lastProcessedFioBlockNumber : lastFioOraclePosition
                 }`
             );
 
@@ -345,7 +350,7 @@ class FIOCtrl {
             const actionsLogsResult = await getUnprocessedActionsOnFioChain({
                 accountName: 'fio.oracle',
                 fioServerHistoryVersion,
-                pos: pos,
+                pos,
                 offset,
                 before: before || lastIrreversibleBlock,
                 after: lastProcessedFioBlockNumber,
@@ -481,43 +486,43 @@ class FIOCtrl {
                             });
                         }
                     }
-                  });
-
-            if (!isV2) {        
-                updatefioOraclePositionFIO(
-                  new MathOp(
-                    actionTraceHasNonIrreversibleBlockIndex < 0
-                      ? actionsLogsResult.actions.slice(
-                          0,
-                          actionTraceHasNonIrreversibleBlockIndex
-                        ).length
-                      : actionsLogsResult.actions.length
-                  )
-                    .add(pos)
-                    .toString()
-                );
-            }
-
-            if (
-              actionsLogsResult &&
-              lastIrreversibleBlock &&
-              actionsLogsResult.actions &&
-              actionsLogsLength > 0 &&
-              actionTraceHasNonIrreversibleBlockIndex < 0
-            ) {
-                const lastActionsLogsItemToProcess =
-                    actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
-                const before =
-                    actionsLogsLength === 1
-                        ? lastActionsLogsItemToProcess.block_num - 1
-                        : lastActionsLogsItemToProcess.block_num;
-
-                await handleWrapAction({
-                    fioServerHistoryVersion,
-                    before,
                 });
+
+                if (!isV2) {        
+                    updatefioOraclePositionFIO(
+                    new MathOp(
+                        actionTraceHasNonIrreversibleBlockIndex < 0
+                        ? actionsLogsResult.actions.slice(
+                            0,
+                            actionTraceHasNonIrreversibleBlockIndex
+                            ).length
+                        : actionsLogsResult.actions.length
+                    )
+                        .add(pos)
+                        .toString()
+                    );
+                }
+
+                if (
+                    actionsLogsResult &&
+                    lastIrreversibleBlock &&
+                    actionsLogsResult.actions &&
+                    actionsLogsLength > 0 &&
+                    actionTraceHasNonIrreversibleBlockIndex < 0
+                ) {
+                    const lastActionsLogsItemToProcess =
+                        actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
+                    const before =
+                        actionsLogsLength === 1
+                            ? lastActionsLogsItemToProcess.block_num - 1
+                            : lastActionsLogsItemToProcess.block_num;
+
+                    await handleWrapAction({
+                        fioServerHistoryVersion,
+                        before,
+                    });
+                }
             }
-        }
 
             let isWrapOnEthJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting);
             let isWrapOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting);
@@ -808,106 +813,215 @@ class FIOCtrl {
         }
 
         const handleBurnNFTAction = async (fioServerHistoryVersion) => {
-            const addressDataEvents = await getUnprocessedActionsOnFioChain({
-                accountName: 'fio.address',
-                logPrefix,
-                fioServerHistoryVersion,
-                isBurnNft: true,
-            });
+            const serverType = fioServerHistoryVersion || DEFAULT_FIO_SERVER_HISTORY_VERSION;
+            const isV2 = serverType === 'hyperion';
+            const offset = isV2
+                ? parseInt(process.env.HYPERION_LIMIT)
+                : parseInt(process.env.POLLOFFSET);
 
-            const burnedDomainDataEvents = addressDataEvents.filter(
-              (addressDataEvent) =>
-                addressDataEvent.action_trace &&
-                addressDataEvent.action_trace.act &&
-                addressDataEvent.action_trace.act.name === 'burndomain'
+            const lastFioAddressPosition =
+              getLastProceededFioAddressPositionFioChain() || 0;
+            const lastProcessedFioBlockNumber =
+              getLastProceededBlockNumberOnFioChainForBurnNFT() || 0;
+            const lastIrreversibleBlock =
+                (await getLastIrreversibleBlockOnFioChain()) || 0;
+
+            console.log(
+              logPrefix +
+                `start Position = ${
+                  isV2 ? lastProcessedFioBlockNumber : lastFioAddressPosition
+                }`
             );
 
-            const burnedDomainsListFromFio = [];
-
-            for (const burnedDomainEvent of burnedDomainDataEvents) {
-                if (
-                  burnedDomainEvent &&
-                  burnedDomainEvent.action_trace &&
-                  burnedDomainEvent.action_trace.act &&
-                  burnedDomainEvent.action_trace.act.data &&
-                  burnedDomainEvent.action_trace.act.data.domainname
-                ) {
-                    burnedDomainsListFromFio.push({
-                      domainName: burnedDomainEvent.action_trace.act.data.domainname,
-                      trxId: burnedDomainEvent.action_trace.trx_id,
-                    });
-
-                    addLogMessage({
-                      filePath: LOG_FILES_PATH_NAMES.FIO,
-                      message: {
-                        chain: 'FIO',
-                        contract: 'fio.address',
-                        action: 'burnDomain MATIC',
-                        transaction: burnedDomainEvent,
-                      },
-                    });
-                }
-            }
+            const pos =
+              lastFioAddressPosition > 0
+                ? new MathOp(lastFioAddressPosition).add(1).toNumber()
+                : lastFioAddressPosition;
 
             const nftsList = await moralis.getAllContractNFTs({
-              chainName: NFT_CHAIN_NAME,
-              contract: FIO_NFT_POLYGON_CONTRACT,
+                chainName: NFT_CHAIN_NAME,
+                contract: FIO_NFT_POLYGON_CONTRACT,
             });
+            
+            const processActions = async () => {
+                let actionsToProcess = [];
+                let nextPos = pos;
+                let nextBefore = lastIrreversibleBlock;
+                let hasMoreActions = true;
+                const burnedDomainsListFromFio = [];
 
-            const nftsListToBurn = [];
-
-            for (const nftItem of nftsList) {
-                const { metadata, token_id, normalized_metadata } = nftItem;
-
-                let metadataName = null;
-
-                if (normalized_metadata && normalized_metadata.name) {
-                    metadataName = normalized_metadata.name;
-                } else if (metadata) {
-                    try {
-                        const parsedMetadata = JSON.parse(metadata);
-                    if (parsedMetadata && parsedMetadata.name) {
-                        metadataName = parsedMetadata.name;
-                    }
-                  } catch (error) {
-                    console.error(`${logPrefix} Failed to parse metadata: ${error}`);
-                  }
-                }
-
-                const name = metadataName && metadataName.split(': ')[1];
-
-                if (name) {
-                    const existingInBurnList = burnedDomainsListFromFio.find(burnedDomainItem => name === burnedDomainItem.domainName);
-
-                    if (existingInBurnList) {
-                        const { trxId, domainName } = existingInBurnList;
-                        nftsListToBurn.push({ tokenId: token_id, obtId: trxId, domainName });
-                    }
-                }
-            }
-
-            for (const nftsListToBurnItem of nftsListToBurn) {
-                addLogMessage({
-                  filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
-                  message: nftsListToBurnItem,
-                  addTimestamp: false,
-                });
-            }
-
-            if (addressDataEvents.length) {
-                const accountActionSequence = Math.max(
-                  ...addressDataEvents.map(
-                    (addressDataEvent) => addressDataEvent.account_action_seq
-                  )
-                );
-                if (maxBlockNumber) {
-                    console.log(
-                      `${logPrefix} update FIO Account Action Sequence to ${accountActionSequence}`
+                while (hasMoreActions) {
+                    const actionsLogsResult = await getUnprocessedActionsOnFioChain(
+                        {
+                            accountName: 'fio.address',
+                            fioServerHistoryVersion: serverType,
+                            pos: nextPos,
+                            offset,
+                            before: nextBefore,
+                            after: lastProcessedFioBlockNumber,
+                        }
                     );
-                    updateBlockNumberFIOForBurnNFT(
-                      accountActionSequence.toString()
-                    );
+
+                    const actionsLogsResultLength = actionsLogsResult && actionsLogsResult.actions && actionsLogsResult.actions.length;
+
+                    if (actionsLogsResultLength) {
+                        actionsToProcess = actionsLogsResult.actions.filter(
+                            (actionsLogsItem) =>
+                                actionsLogsItem.action_trace &&
+                                actionsLogsItem.action_trace.act &&
+                                actionsLogsItem.action_trace.act.name === 'burndomain'
+                      );
+
+                        console.log(`${logPrefix} burn domains events data length: ${actionsToProcess.length}`);
+
+                        const actionTraceHasNonIrreversibleBlockIndex =
+                            actionsLogsResult.actions.findIndex((actionItem) =>
+                                new MathOp(actionItem.block_num).gt(
+                                lastIrreversibleBlock
+                            )
+                        );
+
+                        if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
+                            actionsToProcess = actionsToProcess.slice(
+                                0,
+                                actionTraceHasNonIrreversibleBlockIndex
+                            );
+                            hasMoreActions = false; // Stop pagination if reaching non-irreversible blocks
+                        }
+
+                        for (const actionsToProcessItem of actionsToProcess) {
+                            if (
+                                actionsToProcessItem &&
+                                actionsToProcessItem.action_trace &&
+                                actionsToProcessItem.action_trace.act &&
+                                actionsToProcessItem.action_trace.act.data &&
+                                actionsToProcessItem.action_trace.act.data.domainname
+                            ) {
+                                const txId = actionsToProcessItem.action_trace.trx_id;
+                                if (
+                                    burnedDomainsListFromFio.includes(
+                                        (burnedDomainsListItem) =>
+                                        burnedDomainsListItem.trxId === txId
+                                    )
+                                ) {
+                                    return;
+                                }
+
+                                burnedDomainsListFromFio.push({
+                                    domainName:
+                                        actionsToProcessItem.action_trace.act.data
+                                        .domainname,
+                                    trxId: txId,
+                                    data: actionsToProcessItem
+                                });
+                            }
+                        }
+
+                        if (actionTraceHasNonIrreversibleBlockIndex < 0) {
+                            const lastAction = actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
+
+                            nextPos = new MathOp(nextPos)
+                                .add(actionsLogsResult.actions.length)
+                                .toString();
+
+                            updatefioAddressPositionFIO(nextPos);
+
+                            nextBefore = lastAction.block_num - 1;
+                        } else {
+                            hasMoreActions = false;
+                        }
+                    } else {
+                        hasMoreActions = false;
+                    }
+
+                    if (!isV2) {
+                        console.log(`${logPrefix} update FIO Address position to ${nextPos}`);
+                        updatefioAddressPositionFIO(nextPos.toString());
+                    }
+                    actionsToProcess = [];
                 }
+
+                const nftsListToBurn = [];
+
+                for (const nftItem of nftsList) {
+                    const { metadata, token_id, normalized_metadata } =
+                        nftItem;
+
+                    let metadataName = null;
+
+                    if (normalized_metadata && normalized_metadata.name) {
+                        metadataName = normalized_metadata.name;
+                    } else if (metadata) {
+                        try {
+                            const parsedMetadata = JSON.parse(metadata);
+                            if (parsedMetadata && parsedMetadata.name) {
+                                metadataName = parsedMetadata.name;
+                            }
+                        } catch (error) {
+                            console.error(`${logPrefix} Failed to parse metadata: ${error}`);
+                        }
+                    }
+
+                    const name = metadataName && metadataName.split(': ')[1];
+
+                    if (name) {
+                        const existingInBurnList =
+                            burnedDomainsListFromFio.find(
+                                (burnedDomainItem) => name === burnedDomainItem.domainName
+                        );
+
+                        if (existingInBurnList) {
+                            const { trxId, domainName, data } = existingInBurnList;
+                            nftsListToBurn.push({
+                                tokenId: token_id,
+                                obtId: trxId,
+                                domainName,
+                            });
+
+                            const existingFIOLogs = fs
+                                .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
+                                .toString();
+
+                            const isActionDataExists = existingFIOLogs.includes(trxId);
+
+                            if (!isActionDataExists && data) {
+                                addLogMessage({
+                                    filePath: LOG_FILES_PATH_NAMES.FIO,
+                                    message: {
+                                        chain: 'FIO',
+                                        contract: 'fio.address',
+                                        action: 'burnDomain MATIC',
+                                        transaction: JSON.stringify(data),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+
+                for (const nftsListToBurnItem of nftsListToBurn) {
+                    const existingNFTTransactionsQueue = fs
+                        .readFileSync(LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue, 'utf-8')
+                        .toString();
+
+                    const isActionDataExists = existingNFTTransactionsQueue.includes(nftsListToBurnItem.obtId);
+
+                    if (!isActionDataExists) {
+                        addLogMessage({
+                            filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
+                            message: nftsListToBurnItem,
+                            addTimestamp: false,
+                        });
+                    }
+                }
+            };
+
+            await processActions();
+
+
+            if (isV2) {
+                console.log(`${logPrefix} update processed FIO Block Number to ${lastIrreversibleBlock}`);
+                updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock);
             }
 
             const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)

@@ -6,8 +6,8 @@ export const LOG_FILES_PATH_NAMES = {
   MATIC: LOG_DIRECTORY_PATH_NAME + 'MATIC.log',
   ethNonce: LOG_DIRECTORY_PATH_NAME + 'ethNonce.log', // store last used ETH nonce to aviod too low nonce issue on concurrency calls
   polygonNonce: LOG_DIRECTORY_PATH_NAME + 'polygonNonce.log', // store last used Polygon nonce to aviod too low nonce issue on concurrency calls
-  fioAddressPosition: LOG_DIRECTORY_PATH_NAME + 'fioAddressPositionFIO.log', // store last processed fio.address position of FIO actions
-  fioOraclePosition: LOG_DIRECTORY_PATH_NAME + 'fioOraclePositionFIO.log', // store last processed fio.oracle position of FIO actions
+  fioAddressPosition: LOG_DIRECTORY_PATH_NAME + 'fioAddressPosition.log', // store last processed fio.address position of FIO actions
+  fioOraclePosition: LOG_DIRECTORY_PATH_NAME + 'fioOraclePosition.log', // store last processed fio.oracle position of FIO actions
   blockNumberFIO: LOG_DIRECTORY_PATH_NAME + 'blockNumberFIO.log', //store FIO blockNumber for the wrapAction history v2 (hyperion)
   blockNumberFIOForBurnNFT:
     LOG_DIRECTORY_PATH_NAME + 'blockNumberFIOForBurnNFT.log', // store FIO block number for burn domain action

@@ -175,6 +175,12 @@ export const getLastProceededFioOraclePositionFioChain = () => {
   );
 };
 
+export const getLastProceededFioAddressPositionFioChain = () => {
+  return parseFloat(
+    fs.readFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, 'utf-8')
+  );
+};
+
 export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
   return parseFloat(
     fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, 'utf8')

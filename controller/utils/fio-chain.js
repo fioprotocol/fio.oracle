@@ -37,7 +37,7 @@ const getActions = async (accountName, pos, offset) => {
       await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
     }
   }
-  const actionsHistory = await actionsHistoryResponse.json();
+  const actionsHistory = actionsHistoryResponse ? await actionsHistoryResponse.json() : null;
 
   return actionsHistory;
 };
@@ -53,7 +53,7 @@ const getActionsV2 = async ({ accountName, before, after, limit }) => {
       await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
     }
   }
-  const actionsHistory = await actionsHistoryResponse.json();
+  const actionsHistory = actionsHistoryResponse ? await actionsHistoryResponse.json() : null;
 
   return actionsHistory &&
     actionsHistory.actions &&
