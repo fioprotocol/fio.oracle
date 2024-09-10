@@ -885,7 +885,7 @@ class FIOCtrl {
                                 actionsLogsItem.action_trace &&
                                 actionsLogsItem.action_trace.act &&
                                 actionsLogsItem.action_trace.act.name === 'burndomain'
-                      );
+                        );
 
                         console.log(`${logPrefix} burn domains events data length: ${actionsToProcess.length}`);
 
@@ -934,25 +934,31 @@ class FIOCtrl {
 
                         const lastAction = actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
 
-                        if (actionTraceHasNonIrreversibleBlockIndex >= 0 ) {
+                        if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
                             nextPos = new MathOp(nextPos)
-                                .add(actionsLogsResult.actions.length)
-                                .toString();
+                               .add(
+                                 actionsLogsResult.actions.slice(
+                                   0,
+                                   actionTraceHasNonIrreversibleBlockIndex
+                                 ).length
+                               )
+                               .toString();
+
+                            updatefioAddressPositionFIO(nextPos);
+
+                             nextBefore = lastAction
+                               ? lastAction.block_num - 1
+                               : nextBefore;
+
+                             hasMoreActions = false;
+                        } else {
+                            nextPos = new MathOp(nextPos)
+                              .add(actionsLogsResult.actions.length)
+                              .toString();
 
                             updatefioAddressPositionFIO(nextPos);
 
                             nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-                        } else {
-                            nextPos = new MathOp(nextPos).add(
-                                actionsLogsResult.actions.slice(
-                                    0,
-                                    actionTraceHasNonIrreversibleBlockIndex
-                                ).length
-                            ).toString();
-
-                            nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-
-                            hasMoreActions = false;
                         }
                     } else {
                         hasMoreActions = false;
@@ -1045,7 +1051,7 @@ class FIOCtrl {
 
             if (isV2) {
                 console.log(`${logPrefix} update processed FIO Block Number to ${lastIrreversibleBlock}`);
-                updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock);
+                updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());
             }
 
             const isBurnNFTOnPolygonJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting)
