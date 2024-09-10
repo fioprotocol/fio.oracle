@@ -11,7 +11,11 @@ export const checkHttpResponseStatus = async (
     return response;
   } else {
     if (additionalErrorMessage) console.log(additionalErrorMessage);
-    const errorBody = await response.text();
+    // Clone the response to preserve the original body
+    const clonedResponse = response.clone();
+
+    // Consume the cloned response body
+    const errorBody = await clonedResponse.text();
     throw new Error(errorBody);
   }
 };
@@ -28,3 +32,7 @@ export const handleBackups = async (callback, isRetry, backupParams) => {
     }
   }
 };
+
+export const sleep = async (ms) => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

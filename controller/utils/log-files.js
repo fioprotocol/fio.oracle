@@ -100,6 +100,20 @@ export const addLogMessage = ({
   }
 };
 
+export const updatefioOraclePositionFIO = (accountActionSequence) => {
+  fs.writeFileSync(
+    LOG_FILES_PATH_NAMES.fioOraclePosition,
+    accountActionSequence
+  );
+};
+
+export const updatefioAddressPositionFIO = (accountActionSequence) => {
+  fs.writeFileSync(
+    LOG_FILES_PATH_NAMES.fioAddressPosition,
+    accountActionSequence
+  );
+};
+
 export const updateBlockNumberFIO = (blockNumber) => {
   fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
 };
@@ -152,6 +166,18 @@ export const getLastProceededBlockNumberOnFioChain = () => {
 export const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
   return parseFloat(
     fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, 'utf8')
+  );
+};
+
+export const getLastProceededFioOraclePositionFioChain = () => {
+  return parseFloat(
+    fs.readFileSync(LOG_FILES_PATH_NAMES.fioOraclePosition)
+  );
+};
+
+export const getLastProceededFioAddressPositionFioChain = () => {
+  return parseFloat(
+    fs.readFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, 'utf-8')
   );
 };
 
