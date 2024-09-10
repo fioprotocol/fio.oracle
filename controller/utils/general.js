@@ -32,3 +32,7 @@ export const handleBackups = async (callback, isRetry, backupParams) => {
     }
   }
 };
+
+export const sleep = async (ms) => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

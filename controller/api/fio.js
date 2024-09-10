@@ -39,7 +39,7 @@ import {
   handleChainError,
   updatefioAddressPositionFIO,
 } from '../utils/log-files.js';
-import { handleBackups } from '../utils/general.js';
+import { handleBackups, sleep } from '../utils/general.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
 import { getUnprocessedActionsOnFioChain, getLastIrreversibleBlockOnFioChain } from '../utils/fio-chain.js';
 
@@ -57,6 +57,7 @@ const {
   FIO_NFT_POLYGON_CONTRACT,
   FIO_ORACLE_PERMISSION,
   oracleCache,
+  FIO_TRANSACTION_MAX_RETRIES,
 } = config;
 
 const web3 = new Web3(process.env.ETHINFURA);
@@ -86,92 +87,103 @@ const handleUnwrapFromEthToFioChainJob = async () => {
 
     const logPrefix = `FIO, unwrapFromEthToFioChainJob, ETH tx_id: "${txIdOnEthChain}", ${isUnwrappingTokens ? `amount: ${convertNativeFioIntoFio(unwrapData.amount)} wFIO` : `domain: "${unwrapData.domain}"`}, fioAddress :  "${fioAddress}": --> `
     console.log(logPrefix + 'Start');
-    try {
-        let contract = 'fio.oracle',
-            actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
-            oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-            oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
-            amount = parseInt(unwrapData.amount),
-            obtId = txIdOnEthChain,
-            domain = unwrapData.domain;
-        const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-        const fioLastBlockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
-            body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
-            method: 'POST'
-        })).json()
 
-        const chainId = fioChainInfo.chain_id;
-        const currentDate = new Date();
-        const timePlusTen = currentDate.getTime() + 10000;
-        const timeInISOString = (new Date(timePlusTen)).toISOString();
-        const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
+    let retries = 0;
 
-        const transactionActionsData = {
-            fio_address: fioAddress,
-            obt_id: obtId,
-            actor: oracleAccount
-        }
+    while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
+        try {
+            let contract = 'fio.oracle',
+                actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
+                oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
+                oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+                amount = parseInt(unwrapData.amount),
+                obtId = txIdOnEthChain,
+                domain = unwrapData.domain;
+            const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
+            const fioLastBlockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+                body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
+                method: 'POST'
+            })).json()
 
-        if (isUnwrappingTokens) {
-            transactionActionsData.amount = amount;
-        } else transactionActionsData.domain = domain;
+            const chainId = fioChainInfo.chain_id;
+            const currentDate = new Date();
+            const timePlusTen = currentDate.getTime() + 10000;
+            const timeInISOString = (new Date(timePlusTen)).toISOString();
+            const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
 
-        const transaction = {
-            expiration,
-            ref_block_num: fioLastBlockInfo.block_num & 0xffff,
-            ref_block_prefix: fioLastBlockInfo.ref_block_prefix,
-            actions: [{
-                account: contract,
-                name: actionName,
-                authorization: [{
-                    actor: oracleAccount,
-                    permission: FIO_ORACLE_PERMISSION,
-                }],
-                data: transactionActionsData,
-            }]
-        };
-        const abiMap = new Map();
-        const tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
-            body: `{"account_name": "fio.oracle"}`,
-            method: 'POST'
-        })).json()
-        abiMap.set('fio.oracle', tokenRawAbi)
-
-        const privateKeys = [oraclePrivateKey];
-
-        const tx = await Fio.prepareTransaction({
-            transaction,
-            chainId,
-            privateKeys,
-            abiMap,
-            textDecoder,
-            textEncoder,
-        });
-
-        const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
-            body: JSON.stringify(tx),
-            method: 'POST',
-        });
-        const transactionResult = await pushResult.json();
-
-        if (!(transactionResult.type || transactionResult.error)) {
-            isTransactionProceededSuccessfully = true;
-            console.log(logPrefix + `Completed:`)
-        } else console.log(logPrefix + `Error:`)
-        // todo: handle 500 error set retry to count 5
-        console.log(transactionResult)
-
-        addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.FIO,
-            message: {
-                chain: "FIO",
-                contract: "fio.oracle",
-                action: isUnwrappingTokens ? "unwraptokens" : "unwrapdomains",
-                transaction: transactionResult
+            const transactionActionsData = {
+                fio_address: fioAddress,
+                obt_id: obtId,
+                actor: oracleAccount
             }
-        })
-    } catch (err) {
-        handleServerError(err, 'FIO, handleUnwrapFromEthToFioChainJob');
+
+            if (isUnwrappingTokens) {
+                transactionActionsData.amount = amount;
+            } else transactionActionsData.domain = domain;
+
+            const transaction = {
+                expiration,
+                ref_block_num: fioLastBlockInfo.block_num & 0xffff,
+                ref_block_prefix: fioLastBlockInfo.ref_block_prefix,
+                actions: [{
+                    account: contract,
+                    name: actionName,
+                    authorization: [{
+                        actor: oracleAccount,
+                        permission: FIO_ORACLE_PERMISSION,
+                    }],
+                    data: transactionActionsData,
+                }]
+            };
+            const abiMap = new Map();
+            const tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+                body: `{"account_name": "fio.oracle"}`,
+                method: 'POST'
+            })).json()
+            abiMap.set('fio.oracle', tokenRawAbi)
+
+            const privateKeys = [oraclePrivateKey];
+
+            const tx = await Fio.prepareTransaction({
+                transaction,
+                chainId,
+                privateKeys,
+                abiMap,
+                textDecoder,
+                textEncoder,
+            });
+
+            const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
+                body: JSON.stringify(tx),
+                method: 'POST',
+            });
+            const transactionResult = await pushResult.json();
+
+            if (!(transactionResult.type || transactionResult.error)) {
+                isTransactionProceededSuccessfully = true;
+                console.log(logPrefix + `Completed:`)
+            } else {
+                retries++
+                console.log(logPrefix + `Error:`)
+                console.log(`${logPrefix} Retry increment to ${retries}`);
+            }
+
+            console.log(JSON.stringify(transactionResult, null, 4));
+
+            addLogMessage({
+                filePath: LOG_FILES_PATH_NAMES.FIO,
+                message: {
+                    chain: "FIO",
+                    contract: "fio.oracle",
+                    action: isUnwrappingTokens ? "unwraptokens" : "unwrapdomains",
+                    transaction: transactionResult
+                }
+            })
+        } catch (err) {
+            retries++;
+            await sleep(1000);
+            handleServerError(err, 'FIO, handleUnwrapFromEthToFioChainJob');
+        }
     }
 
     console.log(isTransactionProceededSuccessfully)
@@ -211,86 +223,97 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
     const logPrefix = `FIO, unwrapFromPolygonToFioChainJob, Polygon tx_id: "${txIdOnPolygonChain}", domain: "${unwrapData.domain}", fioAddress :  "${fioAddress}": --> `
     console.log(logPrefix + 'Start');
 
-    try {
-        let contract = 'fio.oracle',
-            action = 'unwrapdomain', //action name
-            oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-            oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
-            domain = unwrapData.domain,
-            obtId = txIdOnPolygonChain;
-        const info = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-        const blockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
-            body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`,
-            method: 'POST'
-        })).json()
-        const chainId = info.chain_id;
-        const currentDate = new Date();
-        const timePlusTen = currentDate.getTime() + 10000;
-        const timeInISOString = (new Date(timePlusTen)).toISOString();
-        const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
+    let retries = 0;
 
-        const transaction = {
-            expiration,
-            ref_block_num: blockInfo.block_num & 0xffff,
-            ref_block_prefix: blockInfo.ref_block_prefix,
-            actions: [{
-                account: contract,
-                name: action,
-                authorization: [{
-                    actor: oracleAccount,
-                    permission: FIO_ORACLE_PERMISSION,
-                }],
-                data: {
-                    fio_address: fioAddress,
-                    fio_domain: domain,
-                    obt_id: obtId,
-                    actor: oracleAccount
-                },
-            }]
-        };
-        let abiMap = new Map();
-        let tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
-            body: `{"account_name": "fio.oracle"}`,
-            method: 'POST'
-        })).json()
-        abiMap.set('fio.oracle', tokenRawAbi);
+    while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
+        try {
+            let contract = 'fio.oracle',
+                action = 'unwrapdomain', //action name
+                oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
+                oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+                domain = unwrapData.domain,
+                obtId = txIdOnPolygonChain;
+            const info = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
+            const blockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+                body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`,
+                method: 'POST'
+            })).json()
+            const chainId = info.chain_id;
+            const currentDate = new Date();
+            const timePlusTen = currentDate.getTime() + 10000;
+            const timeInISOString = (new Date(timePlusTen)).toISOString();
+            const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
 
-        const privateKeys = [oraclePrivateKey];
+            const transaction = {
+                expiration,
+                ref_block_num: blockInfo.block_num & 0xffff,
+                ref_block_prefix: blockInfo.ref_block_prefix,
+                actions: [{
+                    account: contract,
+                    name: action,
+                    authorization: [{
+                        actor: oracleAccount,
+                        permission: FIO_ORACLE_PERMISSION,
+                    }],
+                    data: {
+                        fio_address: fioAddress,
+                        fio_domain: domain,
+                        obt_id: obtId,
+                        actor: oracleAccount
+                    },
+                }]
+            };
+            let abiMap = new Map();
+            let tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+                body: `{"account_name": "fio.oracle"}`,
+                method: 'POST'
+            })).json()
+            abiMap.set('fio.oracle', tokenRawAbi);
 
-        const tx = await Fio.prepareTransaction({
-            transaction,
-            chainId,
-            privateKeys,
-            abiMap,
-            textDecoder,
-            textEncoder,
-        });
+            const privateKeys = [oraclePrivateKey];
 
-        const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
-            body: JSON.stringify(tx),
-            method: 'POST',
-        });
+            const tx = await Fio.prepareTransaction({
+                transaction,
+                chainId,
+                privateKeys,
+                abiMap,
+                textDecoder,
+                textEncoder,
+            });
 
-        const transactionResult = await pushResult.json();
+            const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
+                body: JSON.stringify(tx),
+                method: 'POST',
+            });
 
-        if (!(transactionResult.type || transactionResult.error)) {
-            isTransactionProceededSuccessfully = true;
-            console.log(logPrefix + `Completed:`)
-        } else console.log(logPrefix + `Error:`)
-        // todo: handle 500 error set retry to count 5
-        console.log(transactionResult)
+            const transactionResult = await pushResult.json();
 
-        addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.FIO,
-            message: {
-                chain: "FIO",
-                contract: "fio.oracle",
-                action: "unwrapdomain Polygon",
-                transaction: transactionResult
+            if (!(transactionResult.type || transactionResult.error)) {
+                isTransactionProceededSuccessfully = true;
+                console.log(logPrefix + `Completed:`)
+            } else {
+                console.log(logPrefix + `Error:`)
+                retries++;
+                console.log(logPrefix + `Error:`);
+                console.log(`${logPrefix} Retry increment to ${retries}`);
             }
-        });
-    } catch (err) {
-        handleServerError(err, 'FIO, handleUnwrapFromPolygonToFioChainJob');
+
+            console.log(JSON.stringify(transactionResult, null, 4))
+
+            addLogMessage({
+                filePath: LOG_FILES_PATH_NAMES.FIO,
+                message: {
+                    chain: "FIO",
+                    contract: "fio.oracle",
+                    action: "unwrapdomain Polygon",
+                    transaction: transactionResult
+                }
+            });
+        } catch (err) {
+            retries++;
+            await sleep(1000);
+            handleServerError(err, 'FIO, handleUnwrapFromPolygonToFioChainJob');
+        }
     }
 
     if (!isTransactionProceededSuccessfully) {
