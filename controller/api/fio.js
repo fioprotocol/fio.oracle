@@ -58,6 +58,7 @@ const {
   FIO_ORACLE_PERMISSION,
   oracleCache,
   FIO_TRANSACTION_MAX_RETRIES,
+  DEFAULT_FIO_SERVER_HISTORY_VERSION,
 } = config;
 
 const web3 = new Web3(process.env.ETHINFURA);
