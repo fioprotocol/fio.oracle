@@ -16,6 +16,7 @@ export const checkHttpResponseStatus = async (
 
     // Consume the cloned response body
     const errorBody = await clonedResponse.text();
+    console.log(errorBody);
     throw new Error(errorBody);
   }
 };
