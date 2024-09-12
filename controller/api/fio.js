@@ -385,19 +385,17 @@ class FIOCtrl {
                     actionsLogsResult.actions.length > 0
                     ? actionsLogsResult.actions
                     : [];
-
-                const actionsLogsLength =
-                    actionsToProcess && actionsToProcess.length
-                        ? actionsToProcess.length
-                        : 0;
                 
-
                 const actionTraceHasNonIrreversibleBlockIndex =
-                    actionsLogsResult && actionsLogsResult.actions.length > 0
-                        ? actionsLogsResult.actions.findIndex((actionItem) =>
-                            new MathOp(actionItem.block_num).gt(lastIrreversibleBlock)
+                  actionsLogsResult &&
+                  actionsLogsResult.actions &&
+                  actionsLogsResult.actions.length > 0
+                    ? actionsLogsResult.actions.findIndex((actionItem) =>
+                        new MathOp(actionItem.block_num).gt(
+                          lastIrreversibleBlock
                         )
-                        : null;
+                      )
+                    : null;
 
                 if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
                     actionsToProcess = actionsToProcess.slice(
