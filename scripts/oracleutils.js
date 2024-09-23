@@ -74,7 +74,7 @@ const handleWrapEthAction = async ({
 
   await polygonTransaction({
     amount,
-    actionName: ACTION_NAMES.WRAP_TOKENS,
+    action: ACTION_NAMES.WRAP_TOKENS,
     chainName: ETH_CHAIN_NAME,
     common,
     contract: process.env.FIO_TOKEN_ETH_CONTRACT,

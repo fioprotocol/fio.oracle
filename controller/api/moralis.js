@@ -4,11 +4,12 @@ import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
 
-import { handleBackups } from '../utils/general.js';
+import { handleBackups, sleep } from '../utils/general.js';
 
 const {
   FIO_NFT_POLYGON_CONTRACT,
   NFTS: { NFT_CHAIN_NAME, NFT_PROVIDER_API_KEY },
+  MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
 } = config;
 
 const CHUNK_SIZE = 2;
@@ -63,7 +64,7 @@ class GetMoralis {
     cursor,
   }) {
     const chain = EvmChain[chainName];
-
+    console.log('MORALIS Chain', chain);
     return await Moralis.EvmApi.nft.getContractNFTs({
       address: contractAddress,
       cursor,
@@ -83,6 +84,7 @@ class GetMoralis {
 
     let contractNftsRes = {};
     if (cursor) {
+      await sleep(MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS);
       contractNftsRes = await cursor.next();
     } else {
       contractNftsRes =

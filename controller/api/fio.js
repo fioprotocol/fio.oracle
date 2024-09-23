@@ -360,12 +360,11 @@ class FIOCtrl {
 
             console.log(logPrefix + `start Position = ${isV2 ? lastProcessedFioBlockNumber : lastFioOraclePosition}`);
 
-            let nextPos = lastFioOraclePosition > 0
-                ? new MathOp(lastFioOraclePosition).add(1).toNumber()
-                : lastFioOraclePosition;
+            let nextPos = lastFioOraclePosition;
             let nextBefore = lastIrreversibleBlock;
 
             let hasMoreActions = true;
+            let isFirstCall = true;
 
             while (hasMoreActions) {
                 const actionsLogsResult = await getUnprocessedActionsOnFioChain(
@@ -530,8 +529,19 @@ class FIOCtrl {
 
                         nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
                     }
+                    isFirstCall = false;
                 } else {
                     hasMoreActions = false;
+                    if (
+                      isFirstCall &&
+                      actionsLogsResult &&
+                      actionsLogsResult.actions &&
+                      actionsLogsResult.actions.length > 0
+                    ) {
+                        nextPos = new MathOp(nextPos)
+                          .add(actionsLogsResult.actions.length)
+                          .toString();
+                    }
                 }
 
                 if (!isV2) {
@@ -847,19 +857,16 @@ class FIOCtrl {
                 }`
             );
 
-            const pos =
-              lastFioAddressPosition > 0
-                ? new MathOp(lastFioAddressPosition).add(1).toNumber()
-                : lastFioAddressPosition;
-
+            console.log('START GETTING MORALIS NFTS');
             const nftsList = await moralis.getAllContractNFTs({
                 chainName: NFT_CHAIN_NAME,
                 contract: FIO_NFT_POLYGON_CONTRACT,
             });
+            console.log('NFTS LENGTH', nftsList && nftsList.length);
             
             const processActions = async () => {
                 let actionsToProcess = [];
-                let nextPos = pos;
+                let nextPos = lastFioAddressPosition;
                 let nextBefore = lastIrreversibleBlock;
                 let hasMoreActions = true;
                 const burnedDomainsListFromFio = [];
