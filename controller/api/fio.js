@@ -360,12 +360,11 @@ class FIOCtrl {
 
             console.log(logPrefix + `start Position = ${isV2 ? lastProcessedFioBlockNumber : lastFioOraclePosition}`);
 
-            let nextPos = lastFioOraclePosition > 0
-                ? new MathOp(lastFioOraclePosition).add(1).toNumber()
-                : lastFioOraclePosition;
+            let nextPos = lastFioOraclePosition;
             let nextBefore = lastIrreversibleBlock;
 
             let hasMoreActions = true;
+            let isFirstCall = true;
 
             while (hasMoreActions) {
                 const actionsLogsResult = await getUnprocessedActionsOnFioChain(
@@ -530,8 +529,19 @@ class FIOCtrl {
 
                         nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
                     }
+                    isFirstCall = false;
                 } else {
                     hasMoreActions = false;
+                    if (
+                      isFirstCall &&
+                      actionsLogsResult &&
+                      actionsLogsResult.actions &&
+                      actionsLogsResult.actions.length > 0
+                    ) {
+                        nextPos = new MathOp(nextPos)
+                          .add(actionsLogsResult.actions.length)
+                          .toString();
+                    }
                 }
 
                 if (!isV2) {
