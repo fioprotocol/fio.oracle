@@ -203,7 +203,7 @@ class PolyCtrl {
           const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
           const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
 
-          const burnNFTFunction = fioNftPolygonContract.methods.burnnft(
+          const burnNFTFunction = this.fioNftContract.methods.burnnft(
             tokenId,
             obtId
           );

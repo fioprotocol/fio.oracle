@@ -857,19 +857,16 @@ class FIOCtrl {
                 }`
             );
 
-            const pos =
-              lastFioAddressPosition > 0
-                ? new MathOp(lastFioAddressPosition).add(1).toNumber()
-                : lastFioAddressPosition;
-
+            console.log('START GETTING MORALIS NFTS');
             const nftsList = await moralis.getAllContractNFTs({
                 chainName: NFT_CHAIN_NAME,
                 contract: FIO_NFT_POLYGON_CONTRACT,
             });
+            console.log('NFTS LENGTH', nftsList && nftsList.length);
             
             const processActions = async () => {
                 let actionsToProcess = [];
-                let nextPos = pos;
+                let nextPos = lastFioAddressPosition;
                 let nextBefore = lastIrreversibleBlock;
                 let hasMoreActions = true;
                 const burnedDomainsListFromFio = [];
