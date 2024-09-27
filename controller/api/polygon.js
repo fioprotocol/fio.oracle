@@ -187,7 +187,7 @@ class PolyCtrl {
     const { tokenId, obtId, domainName } = burnNFTData || {};
     const actionName = ACTION_NAMES.BURN_NFT;
 
-    const logPrefix = `MATIC, ${actionName}, FIO obtId: ${obtId}, domain: "${domainName}", tokenId: "${tokenId}": --> `;
+    const logPrefix = `MATIC, ${actionName}, FIO obtId: ${obtId}, domain: ${domainName}, tokenId: ${tokenId}: --> `;
     console.log(logPrefix + `Executing ${actionName}.`);
 
     try {
@@ -248,7 +248,7 @@ class PolyCtrl {
           });
         } catch (error) {
           handleChainError({
-            logMessage: `${POLYGON_CHAIN_NAME} ${this.contractName} ${actionName} ${error}`,
+            logMessage: `BURN ERROR ${POLYGON_CHAIN_NAME} ${this.contractName} ${actionName} ${error}`,
             consoleMessage: logPrefix + error.stack,
           });
         }
@@ -257,7 +257,7 @@ class PolyCtrl {
             handleLogFailedBurnNFTItem({
               logPrefix,
               errorLogFilePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
-              burnData: burnNFTData,
+              burnData: JSON.stringify(burnNFTData),
             });
         }
 

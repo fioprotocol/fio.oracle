@@ -34,7 +34,7 @@ class GetMoralis {
       });
     } catch (error) {
       console.error(
-        `Resync metadata error for token id - ${nftItem.token_id}: `,
+        `MORALIS ERROR: Resync metadata error for token id - ${nftItem.token_id}: `,
         error.message
       );
     }
@@ -52,7 +52,7 @@ class GetMoralis {
       return nftItemWithFreshMetadataRes.toJSON();
     } catch (error) {
       console.error(
-        `Get metadata for token id - ${nftItem.token_id}: `,
+        `MORALIS ERROR: Get metadata for token id - ${nftItem.token_id}: `,
         error.message
       );
     }
@@ -64,7 +64,7 @@ class GetMoralis {
     cursor,
   }) {
     const chain = EvmChain[chainName];
-    console.log('MORALIS Chain', chain);
+
     return await Moralis.EvmApi.nft.getContractNFTs({
       address: contractAddress,
       cursor,
@@ -80,85 +80,91 @@ class GetMoralis {
     cursor,
     nftsList = [],
   }) {
-    await this.init();
+    try {
+      await this.init();
 
-    let contractNftsRes = {};
-    if (cursor) {
-      await sleep(MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS);
-      contractNftsRes = await cursor.next();
-    } else {
-      contractNftsRes =
-        (await this.getContractNFTs({
-          chainName,
-          contractAddress,
-          cursor,
-        })) || {};
-    }
-
-    const contractNftsResData = contractNftsRes.toJSON();
-
-    if (contractNftsResData && contractNftsResData.result) {
-      nftsList.push(...contractNftsResData.result);
-
-      if (contractNftsRes.hasNext()) {
-        await this.getAllContractNFTs({
-          chainName,
-          contractAddress,
-          cursor: contractNftsRes,
-          nftsList,
-        });
+      let contractNftsRes = {};
+      if (cursor) {
+        await sleep(MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS);
+        contractNftsRes = await cursor.next();
+      } else {
+        contractNftsRes =
+          (await this.getContractNFTs({
+            chainName,
+            contractAddress,
+            cursor,
+          })) || {};
       }
-    }
 
-    if (nftsList.some((nftItem) => nftItem.metadata == null)) {
-      const nftItemsWithNoMetadata = nftsList.filter(
-        (nftItem) => nftItem.metadata == null
-      );
-      const nftItemsWithSyncedMetadata = [];
+      const contractNftsResData = contractNftsRes.toJSON();
 
-      const processChunk = async (chunk) => {
-        const nftMetadataPromises = chunk.map((nftItem) =>
-          this.resyncNftMetadata(nftItem)
-        );
+      if (contractNftsResData && contractNftsResData.result) {
+        nftsList.push(...contractNftsResData.result);
 
-        const chunkResults = await Promise.allSettled(nftMetadataPromises);
-
-        const resolvedChunkResults = chunkResults
-          .filter((result) => result.status === 'fulfilled')
-          .map((result) => result.value);
-
-        nftItemsWithSyncedMetadata.push(...resolvedChunkResults);
-      };
-
-      for (let i = 0; i < nftItemsWithNoMetadata.length; i += CHUNK_SIZE) {
-        const chunk = nftItemsWithNoMetadata.slice(i, i + CHUNK_SIZE);
-
-        await processChunk(chunk);
-
-        if (i + CHUNK_SIZE < nftItemsWithNoMetadata.length) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, DELAY_BETWEEN_CHUNKS)
-          );
+        if (contractNftsRes.hasNext()) {
+          await this.getAllContractNFTs({
+            chainName,
+            contractAddress,
+            cursor: contractNftsRes,
+            nftsList,
+          });
         }
       }
 
-      if (nftItemsWithSyncedMetadata.length) {
-        for (const nftItemWithSyncedMetadata of nftItemsWithSyncedMetadata) {
-          const nonUpdatedMetadataNftItem = nftsList.find(
-            (nftItem) => nftItem.token_id === nftItemWithSyncedMetadata.token_id
+      if (nftsList.some((nftItem) => nftItem.metadata == null)) {
+        const nftItemsWithNoMetadata = nftsList.filter(
+          (nftItem) => nftItem.metadata == null
+        );
+        const nftItemsWithSyncedMetadata = [];
+
+        const processChunk = async (chunk) => {
+          const nftMetadataPromises = chunk.map((nftItem) =>
+            this.resyncNftMetadata(nftItem)
           );
 
-          if (nonUpdatedMetadataNftItem) {
-            nonUpdatedMetadataNftItem.metadata =
-              nftItemWithSyncedMetadata.metadata;
-            nonUpdatedMetadataNftItem.normalized_metadata =
-              nftItemWithSyncedMetadata.normalized_metadata;
+          const chunkResults = await Promise.allSettled(nftMetadataPromises);
+
+          const resolvedChunkResults = chunkResults
+            .filter((result) => result.status === 'fulfilled')
+            .map((result) => result.value);
+
+          nftItemsWithSyncedMetadata.push(...resolvedChunkResults);
+        };
+
+        for (let i = 0; i < nftItemsWithNoMetadata.length; i += CHUNK_SIZE) {
+          const chunk = nftItemsWithNoMetadata.slice(i, i + CHUNK_SIZE);
+
+          await processChunk(chunk);
+
+          if (i + CHUNK_SIZE < nftItemsWithNoMetadata.length) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, DELAY_BETWEEN_CHUNKS)
+            );
+          }
+        }
+
+        if (nftItemsWithSyncedMetadata.length) {
+          for (const nftItemWithSyncedMetadata of nftItemsWithSyncedMetadata) {
+            const nonUpdatedMetadataNftItem = nftsList.find(
+              (nftItem) =>
+                nftItem.token_id === nftItemWithSyncedMetadata.token_id
+            );
+
+            if (nonUpdatedMetadataNftItem) {
+              nonUpdatedMetadataNftItem.metadata =
+                nftItemWithSyncedMetadata.metadata;
+              nonUpdatedMetadataNftItem.normalized_metadata =
+                nftItemWithSyncedMetadata.normalized_metadata;
+            }
           }
         }
       }
-    }
 
-    return nftsList;
+      return nftsList;
+    } catch (error) {
+      console.log('MORALIS ERROR: Get all contract NFTs ', error);
+      throw error;
+    }
   }
 }
 
@@ -213,15 +219,28 @@ const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
   }
 };
 
-export const getMoralisEthGasPrice = async () => await getGasPrices({
-  chainName: config.MORALIS_RPC_ETH_CHAIN_NAME,
-  rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
-});
+export const getMoralisEthGasPrice = async () => {
+  try {
+    return await getGasPrices({
+      chainName: config.MORALIS_RPC_ETH_CHAIN_NAME,
+      rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
+    });
+  } catch (error) {
+    console.log('MORALIS ERROR: ETH GAS PRICE', error);
+    throw error;
+  }
+}
 
-export const getMoralisPolygonGasPrice = async () =>
-  await getGasPrices({
-    chainName: config.MORALIS_RPC_POLYGON_CHAIN_NAME,
-    rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_POLYGON,
-  });
+export const getMoralisPolygonGasPrice = async () => {
+  try {
+    return await getGasPrices({
+      chainName: config.MORALIS_RPC_POLYGON_CHAIN_NAME,
+      rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_POLYGON,
+    });
+  } catch (error) {
+    console.log('MORALIS ERROR: POLYGON GAS PRICE', error);
+    throw error;
+  }
+}
 
 export default new GetMoralis();
