@@ -823,16 +823,8 @@ class FIOCtrl {
                   isV2 ? lastProcessedFioBlockNumber : lastFioAddressPosition
                 }`
             );
-
-            console.log('START GETTING MORALIS NFTS');
-            const nftsList = await moralis.getAllContractNFTs({
-                chainName: NFT_CHAIN_NAME,
-                contract: FIO_NFT_POLYGON_CONTRACT,
-            });
-            console.log('NFTS LENGTH', nftsList && nftsList.length);
             
             const processActions = async () => {
-                let actionsToProcess = [];
                 let nextPos = lastFioAddressPosition;
                 let nextBefore = lastIrreversibleBlock;
                 let hasMoreActions = true;
@@ -850,34 +842,29 @@ class FIOCtrl {
                         }
                     );
 
-                    const actionsLogsResultLength = actionsLogsResult && actionsLogsResult.actions && actionsLogsResult.actions.length;
+                    const actionsToProcess =
+                      actionsLogsResult &&
+                      actionsLogsResult.actions &&
+                      actionsLogsResult.actions.length > 0
+                        ? actionsLogsResult.actions.filter(actionItem => new MathOp(actionItem.block_num).lte(
+                                lastIrreversibleBlock
+                            ))
+                        : [];
+                    console.log('actionsToProcess ===', actionsToProcess.length);
 
-                    if (actionsLogsResultLength) {
-                        actionsToProcess = actionsLogsResult.actions.filter(
+                    const burnActionsToProcess =
+                        actionsToProcess.filter(
                             (actionsLogsItem) =>
                                 actionsLogsItem.action_trace &&
                                 actionsLogsItem.action_trace.act &&
                                 actionsLogsItem.action_trace.act.name === 'burndomain'
                         );
 
-                        console.log(`${logPrefix} burn domains events data length: ${actionsToProcess.length}`);
+                    const actionsLogsResultLength = burnActionsToProcess && burnActionsToProcess.length;
+                    console.log(`${logPrefix} burn domains events data length: ${burnActionsToProcess.length}`);
 
-                        const actionTraceHasNonIrreversibleBlockIndex =
-                            actionsLogsResult.actions.findIndex((actionItem) =>
-                                new MathOp(actionItem.block_num).gt(
-                                lastIrreversibleBlock
-                            )
-                        );
-
-                        if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
-                            actionsToProcess = actionsToProcess.slice(
-                                0,
-                                actionTraceHasNonIrreversibleBlockIndex
-                            );
-                            hasMoreActions = false; // Stop pagination if reaching non-irreversible blocks
-                        }
-
-                        for (const actionsToProcessItem of actionsToProcess) {
+                    if (actionsLogsResultLength) {
+                        for (const actionsToProcessItem of burnActionsToProcess) {
                             if (
                                 actionsToProcessItem &&
                                 actionsToProcessItem.action_trace &&
@@ -905,46 +892,42 @@ class FIOCtrl {
                             }
                         }
 
-                        const lastAction = actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
+                        const lastAction = actionsToProcess[actionsToProcess.length - 1];
 
-                        if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
-                            nextPos = new MathOp(nextPos)
-                               .add(
-                                 actionsLogsResult.actions.slice(
-                                   0,
-                                   actionTraceHasNonIrreversibleBlockIndex
-                                 ).length
-                               )
-                               .toString();
+                        nextPos = new MathOp(nextPos)
+                            .add(actionsToProcess.length)
+                            .toString();
 
-                            updatefioAddressPositionFIO(nextPos);
+                        updatefioAddressPositionFIO(nextPos);
 
-                             nextBefore = lastAction
-                               ? lastAction.block_num - 1
-                               : nextBefore;
-
-                             hasMoreActions = false;
-                        } else {
-                            nextPos = new MathOp(nextPos)
-                              .add(actionsLogsResult.actions.length)
-                              .toString();
-
-                            updatefioAddressPositionFIO(nextPos);
-
-                            nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-                        }
+                        nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
                     } else {
-                        hasMoreActions = false;
+                        if (actionsToProcess && actionsToProcess.length > 0) {
+                            nextPos = new MathOp(nextPos)
+                                .add(actionsToProcess.length)
+                                .toString();
+                        } else {
+                            hasMoreActions = false;
+                        }
                     }
 
                     if (!isV2) {
                         console.log(`${logPrefix} update FIO Address position to ${nextPos}`);
                         updatefioAddressPositionFIO(nextPos.toString());
                     }
-                    actionsToProcess = [];
                 }
 
+                console.log('Burned Domains List From Fio Length: ', burnedDomainsListFromFio.length);
+                if (!burnedDomainsListFromFio.length) return;
+
                 const nftsListToBurn = [];
+
+                console.log('START GETTING MORALIS NFTS');
+                const nftsList = await moralis.getAllContractNFTs({
+                    chainName: NFT_CHAIN_NAME,
+                    contract: FIO_NFT_POLYGON_CONTRACT,
+                });
+                console.log('NFTS LENGTH', nftsList && nftsList.length);
 
                 for (const nftItem of nftsList) {
                     const { metadata, token_id, normalized_metadata } =
@@ -1001,6 +984,8 @@ class FIOCtrl {
                         }
                     }
                 }
+
+                console.log('Nfts List To Burn Lnegth: ', nftsListToBurn.length);
 
                 for (const nftsListToBurnItem of nftsListToBurn) {
                     const existingNFTTransactionsQueue = fs
