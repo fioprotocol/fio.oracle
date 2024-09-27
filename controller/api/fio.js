@@ -364,7 +364,6 @@ class FIOCtrl {
             let nextBefore = lastIrreversibleBlock;
 
             let hasMoreActions = true;
-            let isFirstCall = true;
 
             while (hasMoreActions) {
                 const actionsLogsResult = await getUnprocessedActionsOnFioChain(
@@ -377,34 +376,17 @@ class FIOCtrl {
                         after: lastProcessedFioBlockNumber,
                     }
                 );
-
-                let actionsToProcess =
-                    actionsLogsResult &&
-                    actionsLogsResult.actions &&
-                    actionsLogsResult.actions.length > 0
-                    ? actionsLogsResult.actions
-                    : [];
-                
-                const actionTraceHasNonIrreversibleBlockIndex =
+               
+                const actionsToProcess =
                   actionsLogsResult &&
                   actionsLogsResult.actions &&
                   actionsLogsResult.actions.length > 0
-                    ? actionsLogsResult.actions.findIndex((actionItem) =>
-                        new MathOp(actionItem.block_num).gt(
+                    ? actionsLogsResult.actions.filter(actionItem => new MathOp(actionItem.block_num).lte(
                           lastIrreversibleBlock
-                        )
-                      )
-                    : null;
+                        ))
+                    : [];
 
-                if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
-                    actionsToProcess = actionsToProcess.slice(
-                        0,
-                        actionTraceHasNonIrreversibleBlockIndex
-                    );
-                    hasMoreActions = false; // Stop pagination if reaching non-irreversible blocks
-                }
-
-                actionsToProcess = actionsToProcess.filter(
+                const wrapActionsToProcess = actionsToProcess.filter(
                     (actionsToProcessItem) =>
                         (actionsToProcessItem.action_trace.act.name === 'wraptokens' ||
                         actionsToProcessItem.action_trace.act.name ==='wrapdomain') &&
@@ -413,134 +395,120 @@ class FIOCtrl {
                         actionsToProcessItem.action_trace.act.data.chain_code === 'ETH')
                 );
 
-                const actionsToProcessLength = actionsToProcess ? actionsToProcess.length : 0;
+                const actionsToProcessLength = wrapActionsToProcess ? wrapActionsToProcess.length : 0;
 
                 console.log(logPrefix + `wrap events data length : ${actionsToProcessLength}`);
 
                 if (actionsToProcessLength > 0) {
                     const processedWrapDataArray = [];
-                    actionsToProcess.forEach((eventData) => {
+                    for (const eventData of wrapActionsToProcess) {
                         if (
-                            (eventData.action_trace.act.name === 'wraptokens' ||
+                          (eventData.action_trace.act.name === 'wraptokens' ||
                             eventData.action_trace.act.name === 'wrapdomain') &&
-                            eventData.action_trace.act.data.chain_code === 'ETH'
+                          eventData.action_trace.act.data.chain_code === 'ETH'
                         ) {
-                            const isWrappingTokens =
+                          const isWrappingTokens =
                             eventData.action_trace.act.name === 'wraptokens';
-                            const tx_id = eventData.action_trace.trx_id;
-                            const wrapText =
-                                tx_id +
-                                ' ' +
-                                JSON.stringify(eventData.action_trace.act.data);
-                            if (processedWrapDataArray.includes(tx_id)) {
-                                return;
-                            } else {
-                                processedWrapDataArray.push(tx_id);
-                            }
+                          const tx_id = eventData.action_trace.trx_id;
+                          const wrapText =
+                            tx_id +
+                            ' ' +
+                            JSON.stringify(eventData.action_trace.act.data);
+                          if (processedWrapDataArray.includes(tx_id)) {
+                            return;
+                          } else {
+                            processedWrapDataArray.push(tx_id);
+                          }
 
-                            const existingFIOLogs = fs
-                                .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
-                                .toString();
+                          const existingFIOLogs = fs
+                            .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
+                            .toString();
 
-                            const isEventDataExists = existingFIOLogs.includes(tx_id);
+                          const isEventDataExists =
+                            existingFIOLogs.includes(tx_id);
 
-                            // save tx data into wrap tokens and domains queue log file
-                            if (!isEventDataExists) {
-                                addLogMessage({
-                                    filePath: LOG_FILES_PATH_NAMES.FIO,
-                                    message: {
-                                        chain: 'FIO',
-                                        contract: 'fio.oracle',
-                                        action: isWrappingTokens
-                                            ? 'wraptokens'
-                                            : 'wrapdomain ETH',
-                                        transaction: eventData,
-                                    },
-                                });
-                                addLogMessage({
-                                    filePath:
-                                    LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
-                                    message: wrapText,
-                                    addTimestamp: false,
-                                });
-                            }
+                          // save tx data into wrap tokens and domains queue log file
+                          if (!isEventDataExists) {
+                            addLogMessage({
+                              filePath: LOG_FILES_PATH_NAMES.FIO,
+                              message: {
+                                chain: 'FIO',
+                                contract: 'fio.oracle',
+                                action: isWrappingTokens
+                                  ? 'wraptokens'
+                                  : 'wrapdomain ETH',
+                                transaction: eventData,
+                              },
+                            });
+                            addLogMessage({
+                              filePath:
+                                LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
+                              message: wrapText,
+                              addTimestamp: false,
+                            });
+                          }
                         } else if (
-                            eventData.action_trace.act.name === 'wrapdomain' &&
-                            (eventData.action_trace.act.data.chain_code === 'MATIC' ||
-                            eventData.action_trace.act.data.chain_code === 'POL')
+                          eventData.action_trace.act.name === 'wrapdomain' &&
+                          (eventData.action_trace.act.data.chain_code ===
+                            'MATIC' ||
+                            eventData.action_trace.act.data.chain_code ===
+                              'POL')
                         ) {
-                            const tx_id = eventData.action_trace.trx_id;
-                            const wrapText =
-                                tx_id +
-                                ' ' +
-                                JSON.stringify(eventData.action_trace.act.data);
-                            if (processedWrapDataArray.includes(tx_id)) {
-                                return;
-                            } else {
-                                processedWrapDataArray.push(tx_id);
-                            }
+                          const tx_id = eventData.action_trace.trx_id;
+                          const wrapText =
+                            tx_id +
+                            ' ' +
+                            JSON.stringify(eventData.action_trace.act.data);
+                          if (processedWrapDataArray.includes(tx_id)) {
+                            return;
+                          } else {
+                            processedWrapDataArray.push(tx_id);
+                          }
 
-                            const existingFIOLogs = fs
-                                .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
-                                .toString();
+                          const existingFIOLogs = fs
+                            .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
+                            .toString();
 
-                            const isEventDataExists = existingFIOLogs.includes(tx_id);
+                          const isEventDataExists =
+                            existingFIOLogs.includes(tx_id);
 
-                            if (!isEventDataExists) {
-                                addLogMessage({
-                                    filePath: LOG_FILES_PATH_NAMES.FIO,
-                                    message: {
-                                        chain: 'FIO',
-                                        contract: 'fio.oracle',
-                                        action: 'wrapdomain MATIC',
-                                        transaction: eventData,
-                                    },
-                                });
-                                // save tx data into wrap domain on Polygon queue log file
-                                addLogMessage({
-                                    filePath:
-                                    LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
-                                    message: wrapText,
-                                    addTimestamp: false,
-                                });
-                            }
+                          if (!isEventDataExists) {
+                            addLogMessage({
+                              filePath: LOG_FILES_PATH_NAMES.FIO,
+                              message: {
+                                chain: 'FIO',
+                                contract: 'fio.oracle',
+                                action: 'wrapdomain MATIC',
+                                transaction: eventData,
+                              },
+                            });
+                            // save tx data into wrap domain on Polygon queue log file
+                            addLogMessage({
+                              filePath:
+                                LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
+                              message: wrapText,
+                              addTimestamp: false,
+                            });
+                          }
                         }
-                    });
+                    };
 
-                    const lastAction = actionsLogsResult.actions[actionsLogsResult.actions.length - 1];
+                    const lastAction = actionsToProcess[actionsToProcess.length - 1];
 
-                    if (actionTraceHasNonIrreversibleBlockIndex >= 0) {
-                        nextPos = new MathOp(nextPos)
-                            .add(
-                            actionsLogsResult.actions.slice(
-                                0,
-                                actionTraceHasNonIrreversibleBlockIndex
-                            ).length
-                            )
-                            .toString();
-                        
-                        nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
+                    nextPos = new MathOp(nextPos)
+                        .add(actionsToProcess.length)
+                        .toString();
 
-                        hasMoreActions = false;
-                    } else {
-                        nextPos = new MathOp(nextPos)
-                            .add(actionsLogsResult.actions.length)
-                            .toString();
-
-                        nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-                    }
-                    isFirstCall = false;
+                    nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
                 } else {
                     hasMoreActions = false;
                     if (
-                      isFirstCall &&
-                      actionsLogsResult &&
-                      actionsLogsResult.actions &&
-                      actionsLogsResult.actions.length > 0
+                      actionsToProcess &&
+                      actionsToProcess.length > 0
                     ) {
-                        nextPos = new MathOp(nextPos)
-                          .add(actionsLogsResult.actions.length)
-                          .toString();
+                      nextPos = new MathOp(nextPos)
+                        .add(actionsToProcess.length)
+                        .toString();
                     }
                 }
 
@@ -548,7 +516,6 @@ class FIOCtrl {
                     console.log(`${logPrefix}update FIO Oracle position to ${nextPos}`);
                     updatefioOraclePositionFIO(nextPos.toString());
                 }
-                actionsToProcess = [];
             }
 
             let isWrapOnEthJobExecuting = oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting);
