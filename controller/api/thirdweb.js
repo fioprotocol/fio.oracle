@@ -4,10 +4,13 @@ import { ethereum, sepolia, polygon, polygonAmoy } from 'thirdweb/chains';
 
 import config from '../../config/config.js';
 
-const isTestnet = config && config.mode === 'testnet';
+const {
+  isTestnet,
+  thirdWeb: { THIRDWEB_API_KEY },
+} = config;
 
 const client = createThirdwebClient({
-  secretKey: config.THIRDWEB_API_KEY,
+  secretKey: THIRDWEB_API_KEY,
 });
 
 const getChainRpcRequest = (chain) => getRpcClient({ client, chain });

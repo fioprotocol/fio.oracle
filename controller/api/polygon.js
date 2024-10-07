@@ -34,12 +34,16 @@ import {
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { DEFAULT_POLYGON_GAS_PRICE, POLYGON_GAS_LIMIT } from '../constants/prices.js';
 
-const { FIO_NFT_POLYGON_CONTRACT, oracleCache } = config || {};
+const {
+  infura: { polygon },
+  oracleCache,
+  polygon: { POLYGON_ORACLE_PUBLIC, POLYGON_ORACLE_PRIVATE, POLYGON_CONTRACT },
+} = config || {};
 
 class PolyCtrl {
   constructor() {
-      this.web3 = new Web3(process.env.POLYGON_INFURA);
-      this.fioNftContract = new this.web3.eth.Contract(fioNftABI, FIO_NFT_POLYGON_CONTRACT);
+      this.web3 = new Web3(polygon);
+      this.fioNftContract = new this.web3.eth.Contract(fioNftABI, POLYGON_CONTRACT);
       this.contractName = CONTRACT_NAMES.ERC_721;
   }
 
@@ -73,8 +77,8 @@ class PolyCtrl {
         const domainName = wrapData.fio_domain;
 
         try {
-          const pubKey = process.env.POLYGON_ORACLE_PUBLIC;
-          const signKey = process.env.POLYGON_ORACLE_PRIVATE;
+          const pubKey = POLYGON_ORACLE_PUBLIC;
+          const signKey = POLYGON_ORACLE_PRIVATE;
 
           //Commented this out. It was throwing an uncaught exception.
           // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
@@ -119,7 +123,7 @@ class PolyCtrl {
               action: actionName,
               chainName: POLYGON_CHAIN_NAME,
               common,
-              contract: FIO_NFT_POLYGON_CONTRACT,
+              contract: POLYGON_CONTRACT,
               contractName: this.contractName,
               data: wrapABI,
               defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
@@ -200,8 +204,8 @@ class PolyCtrl {
         let isTransactionProceededSuccessfully = false;
 
         try {
-          const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-          const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+          const oraclePublicKey = POLYGON_ORACLE_PUBLIC;
+          const oraclePrivateKey = POLYGON_ORACLE_PRIVATE;
 
           const burnNFTFunction = this.fioNftContract.methods.burnnft(
             tokenId,
@@ -229,7 +233,7 @@ class PolyCtrl {
             action: actionName,
             chainName: POLYGON_CHAIN_NAME,
             common,
-            contract: FIO_NFT_POLYGON_CONTRACT,
+            contract: POLYGON_CONTRACT,
             data: burnABI,
             defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
             domain: domainName,

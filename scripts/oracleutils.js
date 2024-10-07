@@ -17,7 +17,14 @@ import { handleEthChainCommon, handlePolygonChainCommon } from '../controller/ut
 import { polygonTransaction } from '../controller/utils/transactions.js';
 import { getEthGasPriceSuggestion, getPolygonGasPriceSuggestion } from '../controller/utils/prices.js';
 
-import { ACTION_NAMES, CONTRACT_NAMES, ETH_CHAIN_NAME, ETH_TOKEN_CODE, POLYGON_CHAIN_NAME, POLYGON_TOKEN_CODE } from '../controller/constants/chain.js';
+import {
+  ACTION_NAMES,
+  CONTRACT_NAMES,
+  ETH_CHAIN_NAME_CONSTANT,
+  ETH_TOKEN_CODE,
+  POLYGON_CHAIN_NAME,
+  POLYGON_TOKEN_CODE,
+} from '../controller/constants/chain.js';
 import {
   DEFAULT_ETH_GAS_PRICE,
   DEFAULT_POLYGON_GAS_PRICE,
@@ -28,6 +35,18 @@ import {
 import config from '../config/config.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 
+const {
+  eth: { ETH_ORACLE_PUBLIC, ETH_ORACLE_PRIVATE, ETH_CONTRACT },
+  fio: {
+    FIO_ORACLE_PERMISSION,
+    FIO_SERVER_URL_ACTION,
+    FIO_ORACLE_PRIVATE_KEY,
+    FIO_ORACLE_ACCOUNT,
+  },
+  infura: { eth, polygon },
+  polygon: { POLYGON_ORACLE_PUBLIC, POLYGON_ORACLE_PRIVATE, POLYGON_CONTRACT },
+} = config;
+
 const defaultTextEncoderObj = textEncoderObj.default || {};
 
 const TextDecoder = defaultTextEncoderObj.TextDecoder;
@@ -36,12 +55,10 @@ const TextEncoder = defaultTextEncoderObj.TextEncoder;
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
-const web3 = new Web3(process.env.ETHINFURA);
-const polygonWeb3 = new Web3(process.env.POLYGON_INFURA);
-const fioTokensEthContract = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
-const fioNftPolygonContract = new web3.eth.Contract(fioNftABIonPolygon, process.env.FIO_NFT_POLYGON_CONTRACT);
-
-const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
+const web3 = new Web3(eth);
+const polygonWeb3 = new Web3(polygon);
+const ethContract = new web3.eth.Contract(fioABI, ETH_CONTRACT);
+const polygonContract = new web3.eth.Contract(fioNftABIonPolygon, POLYGON_CONTRACT);
 
 const handleWrapEthAction = async ({
   address,
@@ -52,10 +69,10 @@ const handleWrapEthAction = async ({
 }) => {
   console.log(`ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`);
 
-  const oraclePublicKey = process.env.ETH_ORACLE_PUBLIC;
-  const oraclePrivateKey = process.env.ETH_ORACLE_PRIVATE;
+  const oraclePublicKey = ETH_ORACLE_PUBLIC;
+  const oraclePrivateKey = ETH_ORACLE_PRIVATE;
 
-  const wrapFunction = fioTokensEthContract.methods.wrap(
+  const wrapFunction = ethContract.methods.wrap(
     address,
     amount,
     obtId
@@ -75,9 +92,9 @@ const handleWrapEthAction = async ({
   await polygonTransaction({
     amount,
     action: ACTION_NAMES.WRAP_TOKENS,
-    chainName: ETH_CHAIN_NAME,
+    chainName: ETH_CHAIN_NAME_CONSTANT,
     common,
-    contract: process.env.FIO_TOKEN_ETH_CONTRACT,
+    contract: ETH_CONTRACT,
     contractName: CONTRACT_NAMES.ERC_20,
     data: wrapABI,
     defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
@@ -106,10 +123,10 @@ const handleWrapPolygonAction = async ({
     `POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`
   );
 
-  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+  const oraclePublicKey = POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = POLYGON_ORACLE_PRIVATE;
 
-  const wrapDomainFunction = fioNftPolygonContract.methods.wrapnft(
+  const wrapDomainFunction = polygonContract.methods.wrapnft(
     address,
     domain,
     obtId
@@ -129,7 +146,7 @@ const handleWrapPolygonAction = async ({
     action: ACTION_NAMES.WRAP_DOMAIN,
     chainName: POLYGON_CHAIN_NAME,
     common,
-    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contract: POLYGON_CONTRACT,
     contractName: CONTRACT_NAMES.ERC_721,
     data: wrapABI,
     defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
@@ -161,11 +178,11 @@ const handleUnwrapFromEthToFioChain = async ({
 
     let contract = 'fio.oracle',
         actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain',
-        oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-        oracleAccount = process.env.FIO_ORACLE_ACCOUNT;
+        oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
+        oracleAccount = FIO_ORACLE_ACCOUNT;
 
-    const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-    const fioLastBlockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+    const fioChainInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')).json();
+    const fioLastBlockInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
         body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
         method: 'POST'
     })).json()
@@ -195,13 +212,13 @@ const handleUnwrapFromEthToFioChain = async ({
             name: actionName,
             authorization: [{
                 actor: oracleAccount,
-                permission: config.FIO_ORACLE_PERMISSION,
+                permission: FIO_ORACLE_PERMISSION,
             }],
             data: transactionActionsData,
         }]
     };
     const abiMap = new Map();
-    const tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+    const tokenRawAbi = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
         body: `{"account_name": "fio.oracle"}`,
         method: 'POST'
     })).json()
@@ -218,7 +235,7 @@ const handleUnwrapFromEthToFioChain = async ({
         textEncoder,
     });
 
-    const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
+    const pushResult = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction', { //execute transaction for unwrap
         body: JSON.stringify(tx),
         method: 'POST',
     });
@@ -239,10 +256,10 @@ const handleUnwrapFromPolygonToFioChain = async ({
     console.log(`POLYGON UNWRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`)
     let contract = 'fio.oracle',
         action = 'unwrapdomain',
-        oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-        oracleAccount = process.env.FIO_ORACLE_ACCOUNT;
-    const info = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-    const blockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+        oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
+        oracleAccount = FIO_ORACLE_ACCOUNT;
+    const info = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')).json();
+    const blockInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
         body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`,
         method: 'POST'
     })).json()
@@ -261,7 +278,7 @@ const handleUnwrapFromPolygonToFioChain = async ({
             name: action,
             authorization: [{
                 actor: oracleAccount,
-                permission: config.FIO_ORACLE_PERMISSION,
+                permission: FIO_ORACLE_PERMISSION,
             }],
             data: {
                 fio_address: address,
@@ -272,7 +289,7 @@ const handleUnwrapFromPolygonToFioChain = async ({
         }]
     };
     let abiMap = new Map();
-    let tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+    let tokenRawAbi = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
         body: `{"account_name": "fio.oracle"}`,
         method: 'POST'
     })).json()
@@ -289,7 +306,7 @@ const handleUnwrapFromPolygonToFioChain = async ({
         textEncoder,
     });
 
-    const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', {
+    const pushResult = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction', {
         body: JSON.stringify(tx),
         method: 'POST',
     });
@@ -310,10 +327,10 @@ const handleBurnNFTInPolygon = async ({
 }) => {
   console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`);
 
-  const oraclePublicKey = process.env.POLYGON_ORACLE_PUBLIC;
-  const oraclePrivateKey = process.env.POLYGON_ORACLE_PRIVATE;
+  const oraclePublicKey = POLYGON_ORACLE_PUBLIC;
+  const oraclePrivateKey = POLYGON_ORACLE_PRIVATE;
 
-  const wrapDomainFunction = fioNftPolygonContract.methods.burnnft(
+  const wrapDomainFunction = polygonContract.methods.burnnft(
     tokenId,
     obtId
   );
@@ -332,7 +349,7 @@ const handleBurnNFTInPolygon = async ({
     action: ACTION_NAMES.BURN_NFT,
     chainName: POLYGON_CHAIN_NAME,
     common,
-    contract: config.FIO_NFT_POLYGON_CONTRACT,
+    contract: POLYGON_CONTRACT,
     contractName: CONTRACT_NAMES.ERC_721,
     data: wrapABI,
     defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
