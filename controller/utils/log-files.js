@@ -9,6 +9,8 @@ import { replaceNewLines } from '../utils/general.js';
 
 import config from '../../config/config.js';
 
+const { oracleCache } = config;
+
 export const createLogFile = ({ filePath, dataToWrite, showSuccessConsole }) => {
   fs.writeFileSync(filePath, dataToWrite, (err) => {
     //create new file
@@ -277,7 +279,7 @@ export const handleUpdatePendingPolygonItemsQueue = ({
   } else {
       console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
       fs.writeFileSync(logFilePath, "");
-      config.oracleCache.set(jobIsRunningCacheKey, false, 0);
+      oracleCache.set(jobIsRunningCacheKey, false, 0);
   }
 };
 

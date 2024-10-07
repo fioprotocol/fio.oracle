@@ -12,6 +12,12 @@ import {
 } from '../api/moralis.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 
+import config from '../../config/config.js';
+
+const {
+  gas: { USE_GAS_API, GAS_PRICE_LEVEL },
+} = config;
+
 export const convertWeiToGwei = (weiValue) => {
   return parseFloat(
     Web3.utils.fromWei(
@@ -115,7 +121,7 @@ export const getGasPrice = async ({
   logPrefix,
   retryCount,
 }) => {
-  const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
+  const isUsingGasApi = !!parseInt(USE_GAS_API);
 
   let gasPrice = 0;
   let gasPriceSuggestion = 0;
@@ -148,7 +154,7 @@ export const getGasPrice = async ({
       }
     }
 
-    switch (process.env.GASPRICELEVEL) {
+    switch (GAS_PRICE_LEVEL) {
       case 'low':
         gasPrice = gasPriceSuggestion;
         break;

@@ -25,6 +25,17 @@ import fioCtrl from './api/fio.js';
 
 import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
 
+import config from '../config/config.js';
+
+const {
+  gas: { USE_GAS_API },
+  eth: { ETH_ORACLE_PUBLIC, BLOCKS_OFFSET_ETH },
+  infura: { eth, polygon },
+  mode,
+  polygon: { POLYGON_ORACLE_PUBLIC },
+  JOB_TIMEOUT,
+} = config;
+
 const route = express.Router();
 
 class MainCtrl {
@@ -32,12 +43,12 @@ class MainCtrl {
     const logPrefix = `Startup --> `;
 
     try {
-      this.web3 = new Web3(process.env.ETHINFURA);
-      this.polyWeb3 = new Web3(process.env.POLYGON_INFURA);
+      this.web3 = new Web3(eth);
+      this.polyWeb3 = new Web3(polygon);
 
       // Check oracle addresses balances on ETH and Polygon chains
       await this.web3.eth.getBalance(
-        process.env.ETH_ORACLE_PUBLIC,
+        ETH_ORACLE_PUBLIC,
         'latest',
         (error, result) => {
           if (error) {
@@ -51,7 +62,7 @@ class MainCtrl {
         }
       );
       await this.polyWeb3.eth.getBalance(
-        process.env.POLYGON_ORACLE_PUBLIC,
+        POLYGON_ORACLE_PUBLIC,
         'latest',
         (error, result) => {
           if (error) {
@@ -65,8 +76,8 @@ class MainCtrl {
         }
       );
 
-      // Check is ETHINFURA and POLYGON_INFURA variables are valid
-      const isUsingGasApi = !!parseInt(process.env.USEGASAPI);
+      // Check is INFURA_ETH and INFURA_POLYGON variables are valid
+      const isUsingGasApi = !!parseInt(USE_GAS_API);
       if (isUsingGasApi) {
         const ethGasPriceSuggestion = await getMiddleEthGasPriceSuggestion();
 
@@ -76,7 +87,7 @@ class MainCtrl {
         );
         if (!ethGasPriceSuggestion)
           throw new Error(
-            'Please, check "ETHINFURA" variable: ' +
+            'Please, check "INFURA_ETH" variable: ' +
               JSON.stringify(ethGasPriceSuggestion)
           );
         const polyGasPriceSuggestion = await getMiddlePolygonGasPriceSuggestion();
@@ -86,7 +97,7 @@ class MainCtrl {
         );
         if (!polyGasPriceSuggestion)
           throw new Error(
-            'Please, check "POLYGON_INFURA" variable: ' +
+            'Please, check "INFURA_POLYGON" variable: ' +
               JSON.stringify(polyGasPriceSuggestion)
           );
       }
@@ -139,12 +150,12 @@ class MainCtrl {
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
         fetchLastBlockNumber: this.web3.eth.getBlockNumber,
-        offset: process.env.BLOCKS_OFFSET_ETH,
+        offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
         fetchLastBlockNumber: this.web3.eth.getBlockNumber,
-        offset: process.env.BLOCKS_OFFSET_ETH,
+        offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
@@ -167,22 +178,22 @@ class MainCtrl {
       fioCtrl.handleUnprocessedBurnNFTActions();
 
       // Start Jobs interval
-      setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(process.env.POLLTIME)); //execute wrap FIO tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions, parseInt(process.env.POLLTIME)); //execute unwrap tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(process.env.POLLTIME)); //execute unwrap domains action every 60 seconds
+      setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(JOB_TIMEOUT)); //execute wrap FIO tokens and domains action every 60 seconds
+      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions, parseInt(JOB_TIMEOUT)); //execute unwrap tokens and domains action every 60 seconds
+      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(JOB_TIMEOUT)); //execute unwrap domains action every 60 seconds
       setInterval(
         fioCtrl.handleUnprocessedBurnNFTActions,
-        parseInt(process.env.POLLTIME)
+        parseInt(JOB_TIMEOUT)
       );
 
       this.initRoutes(app);
 
       console.log(logPrefix + `success`);
-      console.log(logPrefix + `Mode: ${process.env.MODE}`);
+      console.log(logPrefix + `Mode: ${mode}`);
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
-        'In case failing any request, please, check env variables: ETHINFURA, POLYGON_INFURA, POLLTIME'
+        'In case failing any request, please, check env variables: INFURA_ETH, INFURA_POLYGON, JOB_TIMEOUT'
       );
     }
   }

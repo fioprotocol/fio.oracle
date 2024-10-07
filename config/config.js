@@ -1,55 +1,87 @@
-import 'dotenv/config';
-import { config as load } from 'dotenv-safe';
-import { join } from 'path';
+import dotenv from 'dotenv-safe';
 import NodeCache from 'node-cache';
+import path from 'path';
+
 const oracleCache = new NodeCache();
 
-import conf_mainnet from './config-mainnet.js';
-import conf_testnet from './config-testnet.js';
+const mode = process.env.NODE_ENV;
+const isTestnet = mode === 'testnet';
 
-const NFT_TESTNET_CHAIN_NAME =
-  process.env.NFT_DEFAULT_TESTNET_CHAIN_NAME || 'POLYGON_AMOY';
-const NFT_MAINNET_CHAIN_NAME = process.env.NFT_MAINNET_CHAIN_NAME || 'POLYGON';
+const envFile = mode ? `.env.${mode}` : '.env';
 
-const NFT_CHAIN_NAME =
-  process.env.MODE === 'testnet'
-    ? NFT_TESTNET_CHAIN_NAME
-    : NFT_MAINNET_CHAIN_NAME;
-
-const MORALIS_API_KEY = process.env.MORALIS_API_KEY;
-
-load({
-  example: join(process.cwd(), '.env'),
+dotenv.config({
+  path: path.resolve(process.cwd(), envFile),
+  allowEmptyValues: false,
 });
-
-let config = conf_testnet;
-let mode = 'testnet';
-if (
-  // leaving process.argv for backwards compability consider using .env or corss-env and setting MODE
-  (process.argv && process.argv[2] === 'mainnet') ||
-  process.env.MODE === 'mainnet'
-) {
-  config = conf_mainnet;
-  mode = 'mainnet';
-}
 
 console.log('Uses ' + mode + ' configuration.');
 
 export default {
   mode,
-  ...config,
+  isTestnet,
+  port: process.env.PORT,
   oracleCache,
-  FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION || 'active',
-  NFTS: {
-    NFT_CHAIN_NAME: NFT_CHAIN_NAME,
-    NFT_PROVIDER_API_KEY: MORALIS_API_KEY,
+  fio: {
+    FIO_SERVER_HISTORY_VERSION: process.env.FIO_SERVER_HISTORY_VERSION,
+    FIO_SERVER_URL_HISTORY: process.env.FIO_SERVER_URL_HISTORY,
+    FIO_SERVER_URL_ACTION: process.env.FIO_SERVER_URL_ACTION,
+    FIO_SERVER_URL_HISTORY_BACKUP: process.env.FIO_SERVER_URL_ACTION_BACKUP,
+    FIO_SERVER_HISTORY_VERSION_BACKUP:
+      process.env.FIO_SERVER_HISTORY_VERSION_BACKUP,
+    FIO_ORACLE_PRIVATE_KEY: process.env.FIO_ORACLE_PRIVATE_KEY,
+    FIO_ORACLE_ACCOUNT: process.env.FIO_ORACLE_ACCOUNT,
+    FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION,
+    FIO_TRANSACTION_MAX_RETRIES: parseInt(
+      process.env.FIO_TRANSACTION_MAX_RETRIES
+    ),
+    FIO_HISTORY_OFFSET: process.env.FIO_HISTORY_OFFSET,
+    FIO_HISTORY_HYPERION_OFFSET: process.env.FIO_HISTORY_HYPERION_OFFSET,
   },
-  THIRDWEB_API_KEY: process.env.THIRDWEB_API_KEY,
-  MORALIS_RPC_BASE_URL: process.env.MORALIS_RPC_BASE_URL,
-  MORALIS_RPC_BASE_URL_FALLBACK: process.env.MORALIS_RPC_BASE_URL_FALLBACK,
-  MORALIS_RPC_ETH_CHAIN_NAME: process.env.MORALIS_RPC_ETH_CHAIN_NAME,
-  MORALIS_RPC_POLYGON_CHAIN_NAME: process.env.MORALIS_RPC_POLYGON_CHAIN_NAME,
-  MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS: process.env.MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS || 1000,
-  FIO_TRANSACTION_MAX_RETRIES: parseInt(process.env.FIO_TRANSACTION_MAX_RETRIES),
-  DEFAULT_FIO_SERVER_HISTORY_VERSION: process.env.FIO_SERVER_HISTORY_VERSION,
+  gas: {
+    GAS_PRICE_LEVEL: process.env.GAS_PRICE_LEVEL,
+    T_GAS_LIMIT: process.env.T_GAS_LIMIT,
+    T_GAS_PRICE: process.env.T_GAS_PRICE,
+    P_GAS_LIMIT: process.env.P_GAS_LIMIT,
+    P_GAS_PRICE: process.env.P_GAS_PRICE,
+    USE_GAS_API: process.env.USE_GAS_API,
+  },
+  eth: {
+    ETH_ORACLE_PUBLIC: process.env.ETH_ORACLE_PUBLIC,
+    ETH_ORACLE_PRIVATE: process.env.ETH_ORACLE_PRIVATE,
+    BLOCKS_RANGE_LIMIT_ETH: process.env.BLOCKS_RANGE_LIMIT_ETH,
+    BLOCKS_OFFSET_ETH: process.env.BLOCKS_OFFSET_ETH,
+    ETH_CONTRACT: process.env.ETH_CONTRACT,
+    ETH_NFT_CONTRACT: process.env.ETH_NFT_CONTRACT,
+    ETH_CHAIN_NAME: process.env.ETH_CHAIN_NAME,
+  },
+  infura: {
+    eth: process.env.INFURA_ETH,
+    polygon: process.env.INFURA_POLYGON,
+  },
+  polygon: {
+    POLYGON_ORACLE_PUBLIC: process.env.POLYGON_ORACLE_PUBLIC,
+    POLYGON_ORACLE_PRIVATE: process.env.POLYGON_ORACLE_PRIVATE,
+    BLOCKS_RANGE_LIMIT_POLY: process.env.BLOCKS_RANGE_LIMIT_POLY,
+    POLYGON_CONTRACT: process.env.POLYGON_CONTRACT,
+  },
+  nfts: {
+    NFT_CHAIN_NAME: process.env.NFT_CHAIN_NAME,
+    NFT_PROVIDER_API_KEY: process.env.MORALIS_API_KEY,
+  },
+  moralis: {
+    MORALIS_RPC_BASE_URL: process.env.MORALIS_RPC_BASE_URL,
+    MORALIS_RPC_BASE_URL_FALLBACK: process.env.MORALIS_RPC_BASE_URL_FALLBACK,
+    MORALIS_RPC_ETH_CHAIN_NAME: process.env.MORALIS_RPC_ETH_CHAIN_NAME,
+    MORALIS_RPC_POLYGON_CHAIN_NAME: process.env.MORALIS_RPC_POLYGON_CHAIN_NAME,
+    MORALIS_RPC_NODE_API_KEY_ETHEREUM:
+      process.env.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
+    MORALIS_RPC_NODE_API_KEY_POLYGON:
+      process.env.MORALIS_RPC_NODE_API_KEY_POLYGON,
+    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS:
+      process.env.MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
+  },
+  thirdWeb: {
+    THIRDWEB_API_KEY: process.env.THIRDWEB_API_KEY,
+  },
+  JOB_TIMEOUT: process.env.JOB_TIMEOUT,
 };
