@@ -1,18 +1,12 @@
-import Web3 from 'web3';
 import fs from 'fs';
 
-import {
-  getThirdwebEthGasPrice,
-  getThirdwebPolygonGasPrice,
-} from '../api/thirdweb.js';
-import { getInfuraPolygonGasPrice, getInfuraEthGasPrice } from '../api/infura.js';
-import {
-  getMoralisEthGasPrice,
-  getMoralisPolygonGasPrice,
-} from '../api/moralis.js';
-import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import Web3 from 'web3';
 
 import config from '../../config/config.js';
+import { getInfuraPolygonGasPrice, getInfuraEthGasPrice } from '../api/infura.js';
+import { getMoralisEthGasPrice, getMoralisPolygonGasPrice } from '../api/moralis.js';
+import { getThirdwebEthGasPrice, getThirdwebPolygonGasPrice } from '../api/thirdweb.js';
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 
 const {
   gas: { USE_GAS_API, GAS_PRICE_LEVEL },
@@ -20,10 +14,7 @@ const {
 
 export const convertWeiToGwei = (weiValue) => {
   return parseFloat(
-    Web3.utils.fromWei(
-      typeof weiValue === 'number' ? weiValue + '' : weiValue,
-      'gwei'
-    )
+    Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '' : weiValue, 'gwei'),
   );
 };
 
@@ -33,17 +24,12 @@ export const convertGweiToWei = (gweiValue) => {
 
 export const convertWeiToEth = (weiValue) => {
   return parseFloat(
-    Web3.utils.fromWei(
-      typeof weiValue === 'number' ? weiValue + '' : weiValue,
-      'ether'
-    )
+    Web3.utils.fromWei(typeof weiValue === 'number' ? weiValue + '' : weiValue, 'ether'),
   );
 };
 
 const handleSuggestedGasPrices = async (gasPricePromises) => {
-  const suggestedGasPricesPromises = await Promise.allSettled(
-    gasPricePromises
-  );
+  const suggestedGasPricesPromises = await Promise.allSettled(gasPricePromises);
 
   const resolvedGasPricesResults = suggestedGasPricesPromises
     .filter((result) => result.status === 'fulfilled')
@@ -91,8 +77,8 @@ const getMiddleGasPriceValue = (gasPriceSuggestions) => {
       gasPriceSuggestion = Math.max(...gasPriceSuggestions);
       break;
     case 3: {
-        gasPriceSuggestions.sort((a, b) => a - b);
-        gasPriceSuggestion = gasPriceSuggestions[1];
+      gasPriceSuggestions.sort((a, b) => a - b);
+      gasPriceSuggestion = gasPriceSuggestions[1];
       break;
     }
     default: {
@@ -176,14 +162,14 @@ export const getGasPrice = async ({
     throw new Error(`${logPrefix} Cannot set valid Gas Price value`);
 
   console.log(
-    `${logPrefix} gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice.toString())} GWEI)`
+    `${logPrefix} gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice.toString())} GWEI)`,
   );
 
   return gasPrice;
 };
 
 export const getWeb3Balance = async ({
-  chainName, 
+  chainName,
   gasLimit,
   gasPrice,
   logPrefix,
@@ -195,22 +181,19 @@ export const getWeb3Balance = async ({
     if (error) {
       console.log(logPrefix + error.stack);
     } else {
-      if (
-        convertWeiToEth(walletBalance) <
-        convertWeiToEth(gasLimit * gasPrice) * 5
-      ) {
+      if (convertWeiToEth(walletBalance) < convertWeiToEth(gasLimit * gasPrice) * 5) {
         const timeStamp = new Date().toISOString();
         console.log(
           `${logPrefix} Warning: Low Oracle ${chainName} Address Balance: ${convertWeiToEth(
-            walletBalance
-          )} ${tokenCode}`
+            walletBalance,
+          )} ${tokenCode}`,
         );
         fs.writeFile(
           LOG_FILES_PATH_NAMES.oracleErrors,
           `${timeStamp} ${logPrefix} Warning: Low Oracle ${chainName} Address Balance: ${convertWeiToEth(
-            walletBalance
+            walletBalance,
           )} ${tokenCode}`,
-          () => {}
+          () => {},
         );
       }
     }

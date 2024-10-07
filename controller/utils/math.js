@@ -70,7 +70,7 @@ class MathOp {
     return this;
   }
 
-  eq(x){
+  eq(x) {
     try {
       return Big(this.value).eq(x || 0);
     } catch (err) {
@@ -79,7 +79,7 @@ class MathOp {
     }
   }
 
-  gt(x){
+  gt(x) {
     try {
       return Big(this.value).gt(x || 0);
     } catch (err) {
@@ -88,7 +88,7 @@ class MathOp {
     }
   }
 
-  gte(x){
+  gte(x) {
     try {
       return Big(this.value).gte(x || 0);
     } catch (err) {
@@ -97,7 +97,7 @@ class MathOp {
     }
   }
 
-  lt(x){
+  lt(x) {
     try {
       return Big(this.value).lt(x || 0);
     } catch (err) {
@@ -106,7 +106,7 @@ class MathOp {
     }
   }
 
-  lte(x){
+  lte(x) {
     try {
       return Big(this.value).lte(x || 0);
     } catch (err) {

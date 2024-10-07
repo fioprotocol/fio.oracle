@@ -9,13 +9,8 @@ import {
   LOW_GAS_PRICE,
 } from '../constants/transactions.js';
 
-import {
-  getGasPrice,
-  getWeb3Balance,
-  convertWeiToGwei,
-} from '../utils/prices.js';
-
 import { addLogMessage } from '../utils/log-files.js';
+import { getGasPrice, getWeb3Balance, convertWeiToGwei } from '../utils/prices.js';
 
 export const polygonTransaction = async ({
   amount,
@@ -46,7 +41,9 @@ export const polygonTransaction = async ({
 
     if (manualSetGasPrice) {
       gasPrice = manualSetGasPrice;
-      console.log(`${logPrefix} gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI)`);
+      console.log(
+        `${logPrefix} gasPrice = ${gasPrice} (${convertWeiToGwei(gasPrice)} GWEI)`,
+      );
     } else {
       gasPrice = await getGasPrice({
         defaultGasPrice,
@@ -97,27 +94,23 @@ export const polygonTransaction = async ({
         from: oraclePublicKey,
         nonce: web3Instance.utils.toHex(txNonce),
       },
-      { common }
+      { common },
     );
 
     const privateKey = Buffer.from(oraclePrivateKey, 'hex');
-    const serializedTx = preparedTransaction
-      .sign(privateKey)
-      .serialize()
-      .toString('hex');
+    const serializedTx = preparedTransaction.sign(privateKey).serialize().toString('hex');
 
     try {
       await web3Instance.eth
         .sendSignedTransaction('0x' + serializedTx)
         .on('transactionHash', (hash) => {
           console.log(
-            `Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce}`
+            `Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce}`,
           );
         })
         .on('receipt', (receipt) => {
           console.log(
-            logPrefix +
-              'Transaction has been successfully completed in the chain.'
+            logPrefix + 'Transaction has been successfully completed in the chain.',
           );
           if (handleSuccessedResult) {
             try {
@@ -133,16 +126,14 @@ export const polygonTransaction = async ({
           if (receipt && receipt.blockHash && !receipt.status)
             console.log(
               logPrefix +
-                'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value'
+                'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value',
             );
         });
     } catch (error) {
       console.log(logPrefix + error.stack);
 
       const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
-      const transactionAlreadyKnown = error.message.includes(
-        ALREADY_KNOWN_TRANSACTION
-      );
+      const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);
       const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
       const revertedByTheEvm = error.message.includes(REVERTED_BY_THE_EVM);
 
@@ -155,9 +146,7 @@ export const polygonTransaction = async ({
       ) {
         // Retry with an incremented nonce
         console.log(
-          `Retrying (attempt ${
-            retryCount + 1
-          }/${MAX_RETRY_TRANSACTION_ATTEMPTS}).`
+          `Retrying (attempt ${retryCount + 1}/${MAX_RETRY_TRANSACTION_ATTEMPTS}).`,
         );
 
         const incrementedNonce = txNonce + 1;
