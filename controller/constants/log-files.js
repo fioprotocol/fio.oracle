@@ -1,4 +1,8 @@
-export const LOG_DIRECTORY_PATH_NAME = 'controller/api/logs/'; //log events and errors on FIO side
+import config from '../../config/config.js';
+
+const { mode } = config;
+
+export const LOG_DIRECTORY_PATH_NAME = `controller/api/logs-${mode}/`; //log events and errors on FIO side
 
 export const LOG_FILES_PATH_NAMES = {
   FIO: LOG_DIRECTORY_PATH_NAME + 'FIO.log', //log events and errors on FIO side
