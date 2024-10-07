@@ -4,7 +4,7 @@ export const replaceNewLines = (stringValue, replaceChar = ', ') => {
 
 export const checkHttpResponseStatus = async (
   response,
-  additionalErrorMessage = null
+  additionalErrorMessage = null,
 ) => {
   if (response.ok) {
     // response.status >= 200 && response.status < 300
@@ -35,5 +35,5 @@ export const handleBackups = async (callback, isRetry, backupParams) => {
 };
 
 export const sleep = async (ms) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};

@@ -1,8 +1,13 @@
 import 'dotenv/config';
-import Web3 from 'web3';
 import cors from 'cors';
 import express from 'express';
+import Web3 from 'web3';
 
+import fioCtrl from './api/fio.js';
+
+import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
+import fioRoute from './routes/fio.js';
+import { getLastIrreversibleBlockOnFioChain } from './utils/fio-chain.js';
 import {
   prepareLogDirectory,
   prepareLogFile,
@@ -10,20 +15,12 @@ import {
   getLatestEthNonce,
   getLatestPolygonNonce,
 } from './utils/log-files.js';
-
 import {
   convertWeiToEth,
   convertWeiToGwei,
   getMiddleEthGasPriceSuggestion,
   getMiddlePolygonGasPriceSuggestion,
 } from './utils/prices.js';
-
-import { getLastIrreversibleBlockOnFioChain } from './utils/fio-chain.js';
-
-import fioRoute from './routes/fio.js';
-import fioCtrl from './api/fio.js';
-
-import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
 
 import config from '../config/config.js';
 
@@ -47,20 +44,15 @@ class MainCtrl {
       this.polyWeb3 = new Web3(polygon);
 
       // Check oracle addresses balances on ETH and Polygon chains
-      await this.web3.eth.getBalance(
-        ETH_ORACLE_PUBLIC,
-        'latest',
-        (error, result) => {
-          if (error) {
-            console.log(logPrefix + error.stack);
-          } else {
-            console.log(
-              logPrefix +
-                `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`
-            );
-          }
+      await this.web3.eth.getBalance(ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
+        if (error) {
+          console.log(logPrefix + error.stack);
+        } else {
+          console.log(
+            logPrefix + `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`,
+          );
         }
-      );
+      });
       await this.polyWeb3.eth.getBalance(
         POLYGON_ORACLE_PUBLIC,
         'latest',
@@ -70,10 +62,10 @@ class MainCtrl {
           } else {
             console.log(
               logPrefix +
-                `Oracle MATIC Address Balance: ${convertWeiToEth(result)} MATIC`
+                `Oracle MATIC Address Balance: ${convertWeiToEth(result)} MATIC`,
             );
           }
-        }
+        },
       );
 
       // Check is INFURA_ETH and INFURA_POLYGON variables are valid
@@ -83,22 +75,22 @@ class MainCtrl {
 
         console.log(
           convertWeiToGwei(ethGasPriceSuggestion),
-          'GWEI - safe gas price for ETH'
+          'GWEI - safe gas price for ETH',
         );
         if (!ethGasPriceSuggestion)
           throw new Error(
             'Please, check "INFURA_ETH" variable: ' +
-              JSON.stringify(ethGasPriceSuggestion)
+              JSON.stringify(ethGasPriceSuggestion),
           );
         const polyGasPriceSuggestion = await getMiddlePolygonGasPriceSuggestion();
         console.log(
           convertWeiToGwei(polyGasPriceSuggestion),
-          'GWEI - safe gas price for Polygon'
+          'GWEI - safe gas price for Polygon',
         );
         if (!polyGasPriceSuggestion)
           throw new Error(
             'Please, check "INFURA_POLYGON" variable: ' +
-              JSON.stringify(polyGasPriceSuggestion)
+              JSON.stringify(polyGasPriceSuggestion),
           );
       }
 
@@ -132,13 +124,21 @@ class MainCtrl {
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions });
+      await prepareLogFile({
+        filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
+      });
+      await prepareLogFile({
+        filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
+      });
 
       console.log(logPrefix + 'logs folders are ready');
 
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.fioOraclePosition });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.fioAddressPosition });
+      await prepareLogFile({
+        filePath: LOG_FILES_PATH_NAMES.fioOraclePosition,
+      });
+      await prepareLogFile({
+        filePath: LOG_FILES_PATH_NAMES.fioAddressPosition,
+      });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
         fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
@@ -179,12 +179,12 @@ class MainCtrl {
 
       // Start Jobs interval
       setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(JOB_TIMEOUT)); //execute wrap FIO tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions, parseInt(JOB_TIMEOUT)); //execute unwrap tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(JOB_TIMEOUT)); //execute unwrap domains action every 60 seconds
       setInterval(
-        fioCtrl.handleUnprocessedBurnNFTActions,
-        parseInt(JOB_TIMEOUT)
-      );
+        fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions,
+        parseInt(JOB_TIMEOUT),
+      ); //execute unwrap tokens and domains action every 60 seconds
+      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(JOB_TIMEOUT)); //execute unwrap domains action every 60 seconds
+      setInterval(fioCtrl.handleUnprocessedBurnNFTActions, parseInt(JOB_TIMEOUT));
 
       this.initRoutes(app);
 
@@ -193,15 +193,15 @@ class MainCtrl {
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
-        'In case failing any request, please, check env variables: INFURA_ETH, INFURA_POLYGON, JOB_TIMEOUT'
+        'In case failing any request, please, check env variables: INFURA_ETH, INFURA_POLYGON, JOB_TIMEOUT',
       );
     }
   }
 
-    initRoutes(app) {
-        route.use(cors({ origin: "*" }));
-        app.use(fioRoute);
-    }
+  initRoutes(app) {
+    route.use(cors({ origin: '*' }));
+    app.use(fioRoute);
+  }
 }
 
 export default new MainCtrl();

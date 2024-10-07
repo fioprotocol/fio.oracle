@@ -1,9 +1,9 @@
 import {
-    handleUnwrapFromEthToFioChain,
-    handleUnwrapFromPolygonToFioChain,
-    handleWrapEthAction,
-    handleWrapPolygonAction,
-    handleBurnNFTInPolygon,
+  handleUnwrapFromEthToFioChain,
+  handleUnwrapFromPolygonToFioChain,
+  handleWrapEthAction,
+  handleWrapPolygonAction,
+  handleBurnNFTInPolygon,
 } from './oracleutils.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 import {
@@ -38,118 +38,144 @@ const oracle = {
 // when wrap\unwrap jobs from files queue are running.
 // So the best way to run transaction would be to append it directly into log file queue or stop oracle job before script executing.
 const main = async () => {
-    try {
-        let result;
-        switch (oracle.action) {
-            case 'help':
-                console.log(oracle.usage + '\n');
-                break;
-            case 'wraptokens':
-                 await prepareLogFile({
-                   filePath: LOG_FILES_PATH_NAMES.ethNonce,
-                   fetchLastBlockNumber: getLatestEthNonce,
-                 });
+  try {
+    switch (oracle.action) {
+      case 'help':
+        console.log(oracle.usage + '\n');
+        break;
+      case 'wraptokens':
+        await prepareLogFile({
+          filePath: LOG_FILES_PATH_NAMES.ethNonce,
+          fetchLastBlockNumber: getLatestEthNonce,
+        });
 
-                if (oracle.isClean) {
-                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
-                        amount: oracle.amount,
-                        chain_code: "ETH",
-                        public_address: oracle.address,
-                    });
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
-                        message: wrapText,
-                        addTimestamp: false
-                    });
-                } else await handleWrapEthAction({
-                  amount: oracle.amount,
-                  address: oracle.address,
-                  obtId: oracle.obtid,
-                  manualSetGasPrice: oracle.manualSetGasPrice,
-                });
-                break;
-            case 'wrapdomain':
-                await prepareLogFile({
-                    filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-                    fetchLastBlockNumber: getLatestPolygonNonce,
-                });
-                if (oracle.isClean) {
-                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
-                        fio_domain: oracle.domain,
-                        chain_code: "MATIC",
-                        public_address: oracle.address,
-                    });
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
-                        message: wrapText,
-                        addTimestamp: false
-                    });
-                } else await handleWrapPolygonAction({
-                  domain: oracle.domain,
-                  address: oracle.address,
-                  obtId: oracle.obtid,
-                  manualSetGasPrice: oracle.manualSetGasPrice,
-                });
-                break;
-            case 'unwraptokens':
-                if (oracle.isClean) {
-                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
-                        amount: oracle.amount,
-                        fioaddress: oracle.address,
-                    });
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
-                        message: wrapText,
-                        addTimestamp: false
-                    });
-                } else await handleUnwrapFromEthToFioChain({amount: oracle.amount, address: oracle.address, obtId: oracle.obtid});
-                break;
-            case 'unwrapdomain':
-                if (oracle.isClean) {
-                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
-                        domain: oracle.domain,
-                        fioaddress: oracle.address,
-                    });
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
-                        message: wrapText,
-                        addTimestamp: false
-                    });
-                } else await handleUnwrapFromPolygonToFioChain({domain: oracle.domain, address: oracle.address, obtId: oracle.obtid});
-                break;
-            case 'burndomain':
-                await prepareLogFile({
-                  filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-                  fetchLastBlockNumber: getLatestPolygonNonce,
-                });
-                
-                if (oracle.isClean) {
-                    const wrapText = oracle.obtid + ' ' + JSON.stringify({
-                        domain: oracle.domain,
-                        fioaddress: oracle.address,
-                    });
-                    addLogMessage({
-                        filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
-                        message: wrapText,
-                        addTimestamp: false
-                    });
-                } else await handleBurnNFTInPolygon({
-                  tokenId: oracle.tokenId,
-                  obtId: oracle.obtid,
-                  manualSetGasPrice: oracle.manualSetGasPrice,
-                });
-                break;
-            default:
-                console.log(`\nAction ${oracle.action} not found\n`);
-                console.log(oracle.usage + '\n');
-        }
+        if (oracle.isClean) {
+          const wrapText =
+            oracle.obtid +
+            ' ' +
+            JSON.stringify({
+              amount: oracle.amount,
+              chain_code: 'ETH',
+              public_address: oracle.address,
+            });
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
+            message: wrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleWrapEthAction({
+            amount: oracle.amount,
+            address: oracle.address,
+            obtId: oracle.obtid,
+            manualSetGasPrice: oracle.manualSetGasPrice,
+          });
+        break;
+      case 'wrapdomain':
+        await prepareLogFile({
+          filePath: LOG_FILES_PATH_NAMES.polygonNonce,
+          fetchLastBlockNumber: getLatestPolygonNonce,
+        });
+        if (oracle.isClean) {
+          const wrapText =
+            oracle.obtid +
+            ' ' +
+            JSON.stringify({
+              fio_domain: oracle.domain,
+              chain_code: 'MATIC',
+              public_address: oracle.address,
+            });
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
+            message: wrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleWrapPolygonAction({
+            domain: oracle.domain,
+            address: oracle.address,
+            obtId: oracle.obtid,
+            manualSetGasPrice: oracle.manualSetGasPrice,
+          });
+        break;
+      case 'unwraptokens':
+        if (oracle.isClean) {
+          const wrapText =
+            oracle.obtid +
+            ' ' +
+            JSON.stringify({
+              amount: oracle.amount,
+              fioaddress: oracle.address,
+            });
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
+            message: wrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleUnwrapFromEthToFioChain({
+            amount: oracle.amount,
+            address: oracle.address,
+            obtId: oracle.obtid,
+          });
+        break;
+      case 'unwrapdomain':
+        if (oracle.isClean) {
+          const wrapText =
+            oracle.obtid +
+            ' ' +
+            JSON.stringify({
+              domain: oracle.domain,
+              fioaddress: oracle.address,
+            });
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
+            message: wrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleUnwrapFromPolygonToFioChain({
+            domain: oracle.domain,
+            address: oracle.address,
+            obtId: oracle.obtid,
+          });
+        break;
+      case 'burndomain':
+        await prepareLogFile({
+          filePath: LOG_FILES_PATH_NAMES.polygonNonce,
+          fetchLastBlockNumber: getLatestPolygonNonce,
+        });
 
-    } catch (err) {
-        console.log('\nError: ', err);
-        if (err.json) {
-            console.log('\nDetails: ', err.json);
-        }
+        if (oracle.isClean) {
+          const wrapText =
+            oracle.obtid +
+            ' ' +
+            JSON.stringify({
+              domain: oracle.domain,
+              fioaddress: oracle.address,
+            });
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
+            message: wrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleBurnNFTInPolygon({
+            tokenId: oracle.tokenId,
+            obtId: oracle.obtid,
+            manualSetGasPrice: oracle.manualSetGasPrice,
+          });
+        break;
+      default:
+        console.log(`\nAction ${oracle.action} not found\n`);
+        console.log(oracle.usage + '\n');
     }
-}
+  } catch (err) {
+    console.log('\nError: ', err);
+    if (err.json) {
+      console.log('\nDetails: ', err.json);
+    }
+  }
+};
 
 main();

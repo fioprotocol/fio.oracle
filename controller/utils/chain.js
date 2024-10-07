@@ -2,8 +2,8 @@ import { Common, CustomChain } from '@ethereumjs/common';
 import Web3 from 'web3';
 
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioMaticNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 
 const {
@@ -29,20 +29,16 @@ export const handlePolygonChainCommon = () => {
   return Common.custom(CustomChain.PolygonMainnet);
 };
 
-export const handleEthChainCommon = () => new Common({ chain: ETH_CHAIN_NAME })
+export const handleEthChainCommon = () => new Common({ chain: ETH_CHAIN_NAME });
 
 export const isOracleEthAddressValid = async (isTokens = true) => {
   const web3 = new Web3(eth);
   const contract = new web3.eth.Contract(
     isTokens ? fioABI : fioNftABI,
-    isTokens
-      ? ETH_CONTRACT
-      : ETH_NFT_CONTRACT
+    isTokens ? ETH_CONTRACT : ETH_NFT_CONTRACT,
   );
 
-  const registeredOraclesPublicKeys = await contract.methods
-    .getOracles()
-    .call();
+  const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
 
   return !!registeredOraclesPublicKeys
     .map((registeredOracle) => registeredOracle.toLowerCase())
@@ -51,14 +47,9 @@ export const isOracleEthAddressValid = async (isTokens = true) => {
 
 export const isOraclePolygonAddressValid = async () => {
   const web3 = new Web3(polygon);
-  const contract = new web3.eth.Contract(
-    fioMaticNftABI,
-    POLYGON_CONTRACT
-  );
+  const contract = new web3.eth.Contract(fioMaticNftABI, POLYGON_CONTRACT);
 
-  const registeredOraclesPublicKeys = await contract.methods
-    .getOracles()
-    .call();
+  const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
 
   return !!registeredOraclesPublicKeys
     .map((registeredOracle) => registeredOracle.toLowerCase())

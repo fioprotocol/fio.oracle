@@ -9,6 +9,5 @@ export const ORACLE_CACHE_KEYS = {
     'isUnprocessedUnwrapActionsOnPolygonExecuting',
   isUnprocessedUnwrapActionsOnEthJobExecuting:
     'isUnprocessedUnwrapActionsOnEthJobExecuting',
-  isUnprocessedBurnNFTActionsJobExecuting:
-    'isUnprocessedBurnNFTActionsJobExecuting',
+  isUnprocessedBurnNFTActionsJobExecuting: 'isUnprocessedBurnNFTActionsJobExecuting',
 };
