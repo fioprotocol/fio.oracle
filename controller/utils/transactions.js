@@ -144,10 +144,14 @@ export const polygonTransaction = async ({
         ALREADY_KNOWN_TRANSACTION
       );
       const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
+      const revertedByTheEvm = error.message.includes(REVERTED_BY_THE_EVM);
 
       if (
         retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS &&
-        (nonceTooLowError || transactionAlreadyKnown || lowGasPriceError)
+        (nonceTooLowError ||
+          transactionAlreadyKnown ||
+          lowGasPriceError ||
+          revertedByTheEvm)
       ) {
         // Retry with an incremented nonce
         console.log(
