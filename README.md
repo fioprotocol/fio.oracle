@@ -12,7 +12,7 @@ Ubuntu Server 20.04
 
 ## Environment variables
 
-To configure your  application, create a .env file with the following parameters in the root of the fio.oracle directory.
+To configure your application, create a .env files with the following parameters in the root of the fio.oracle directory.
 There are 2 types of .env files:
 1) `.env.mainnet` - for mainnet env vars
 2) `.env.testnet` - for testnet env vars
@@ -87,3 +87,9 @@ To run testnet you need to run
 ```
 npm run start:testnet
 ```
+
+## Log files
+
+Log files for different environments are in different folders:
+- controller/api/logs-mainnet
+- controller/api/logs-testnet
