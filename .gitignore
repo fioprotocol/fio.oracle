@@ -23,4 +23,4 @@ yarn-error.log*
 template
 
 # log directory
-controller/api/logs
+controller/api/logs*
