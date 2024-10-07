@@ -1,5 +1,5 @@
-import Moralis from 'moralis';
 import { EvmChain } from '@moralisweb3/common-evm-utils';
+import Moralis from 'moralis';
 import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
@@ -43,25 +43,24 @@ class GetMoralis {
     } catch (error) {
       console.error(
         `MORALIS ERROR: Resync metadata error for token id - ${nftItem.token_id}: `,
-        error.message
+        error.message,
       );
     }
 
     try {
-      const nftItemWithFreshMetadataRes =
-        await Moralis.EvmApi.nft.getNFTMetadata({
-          chain,
-          address: nftItem.token_address,
-          tokenId: nftItem.token_id,
-          normalizeMetadata: true,
-          format: 'decimal',
-          mediaItems: false,
-        });
+      const nftItemWithFreshMetadataRes = await Moralis.EvmApi.nft.getNFTMetadata({
+        chain,
+        address: nftItem.token_address,
+        tokenId: nftItem.token_id,
+        normalizeMetadata: true,
+        format: 'decimal',
+        mediaItems: false,
+      });
       return nftItemWithFreshMetadataRes.toJSON();
     } catch (error) {
       console.error(
         `MORALIS ERROR: Get metadata for token id - ${nftItem.token_id}: `,
-        error.message
+        error.message,
       );
     }
   }
@@ -121,13 +120,13 @@ class GetMoralis {
 
       if (nftsList.some((nftItem) => nftItem.metadata == null)) {
         const nftItemsWithNoMetadata = nftsList.filter(
-          (nftItem) => nftItem.metadata == null
+          (nftItem) => nftItem.metadata == null,
         );
         const nftItemsWithSyncedMetadata = [];
 
         const processChunk = async (chunk) => {
           const nftMetadataPromises = chunk.map((nftItem) =>
-            this.resyncNftMetadata(nftItem)
+            this.resyncNftMetadata(nftItem),
           );
 
           const chunkResults = await Promise.allSettled(nftMetadataPromises);
@@ -145,22 +144,18 @@ class GetMoralis {
           await processChunk(chunk);
 
           if (i + CHUNK_SIZE < nftItemsWithNoMetadata.length) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, DELAY_BETWEEN_CHUNKS)
-            );
+            await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_CHUNKS));
           }
         }
 
         if (nftItemsWithSyncedMetadata.length) {
           for (const nftItemWithSyncedMetadata of nftItemsWithSyncedMetadata) {
             const nonUpdatedMetadataNftItem = nftsList.find(
-              (nftItem) =>
-                nftItem.token_id === nftItemWithSyncedMetadata.token_id
+              (nftItem) => nftItem.token_id === nftItemWithSyncedMetadata.token_id,
             );
 
             if (nonUpdatedMetadataNftItem) {
-              nonUpdatedMetadataNftItem.metadata =
-                nftItemWithSyncedMetadata.metadata;
+              nonUpdatedMetadataNftItem.metadata = nftItemWithSyncedMetadata.metadata;
               nonUpdatedMetadataNftItem.normalized_metadata =
                 nftItemWithSyncedMetadata.normalized_metadata;
             }
@@ -212,17 +207,12 @@ const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
     return gasPrice;
   };
 
-
   try {
-    return await handleBackups(
-      fetchGasPrice,
-      isRetry,
-      fallbackUrl
-    );
+    return await handleBackups(fetchGasPrice, isRetry, fallbackUrl);
   } catch (error) {
     console.error('MORALIS Both primary and fallback RPC URLs failed:', error);
     throw new Error(
-      'MORALIS Failed to fetch gas prices from both primary and fallback RPC URLs.'
+      'MORALIS Failed to fetch gas prices from both primary and fallback RPC URLs.',
     );
   }
 };
@@ -237,7 +227,7 @@ export const getMoralisEthGasPrice = async () => {
     console.log('MORALIS ERROR: ETH GAS PRICE', error);
     throw error;
   }
-}
+};
 
 export const getMoralisPolygonGasPrice = async () => {
   try {
@@ -249,6 +239,6 @@ export const getMoralisPolygonGasPrice = async () => {
     console.log('MORALIS ERROR: POLYGON GAS PRICE', error);
     throw error;
   }
-}
+};
 
 export default new GetMoralis();

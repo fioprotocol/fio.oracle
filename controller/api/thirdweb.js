@@ -1,6 +1,6 @@
-import { getRpcClient, eth_gasPrice } from 'thirdweb/rpc';
 import { createThirdwebClient } from 'thirdweb';
 import { ethereum, sepolia, polygon, polygonAmoy } from 'thirdweb/chains';
+import { getRpcClient, eth_gasPrice } from 'thirdweb/rpc';
 
 import config from '../../config/config.js';
 
@@ -14,7 +14,8 @@ const client = createThirdwebClient({
 });
 
 const getChainRpcRequest = (chain) => getRpcClient({ client, chain });
-const getChainGasPrice = async (chainRpcRequest) => await eth_gasPrice(chainRpcRequest, {});
+const getChainGasPrice = async (chainRpcRequest) =>
+  await eth_gasPrice(chainRpcRequest, {});
 
 const testnetEthereumRpcRequest = () => getChainRpcRequest(sepolia);
 const mainnetEthereumRpcRequest = () => getChainRpcRequest(ethereum);
@@ -23,16 +24,19 @@ const testnetPolygonRpcRequest = () => getChainRpcRequest(polygonAmoy);
 const mainnetPolygonRpcRequest = () => getChainRpcRequest(polygon);
 
 export const getThirdwebEthGasPrice = async () => {
-  const chainRpcRequest = isTestnet ? testnetEthereumRpcRequest(): mainnetEthereumRpcRequest();
+  const chainRpcRequest = isTestnet
+    ? testnetEthereumRpcRequest()
+    : mainnetEthereumRpcRequest();
 
   const gasPrice = await getChainGasPrice(chainRpcRequest);
   return gasPrice ? parseInt(gasPrice) : gasPrice;
 };
 
 export const getThirdwebPolygonGasPrice = async () => {
-  const chainRpcRequest = isTestnet ? testnetPolygonRpcRequest() : mainnetPolygonRpcRequest(); 
+  const chainRpcRequest = isTestnet
+    ? testnetPolygonRpcRequest()
+    : mainnetPolygonRpcRequest();
 
   const gasPrice = await getChainGasPrice(chainRpcRequest);
   return gasPrice ? parseInt(gasPrice) : gasPrice;
 };
-

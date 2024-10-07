@@ -1,14 +1,22 @@
 import 'dotenv/config';
-import Web3 from 'web3';
 import fs from 'fs';
 
-import config from '../../config/config.js';
+import Web3 from 'web3';
+
 import fioNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import config from '../../config/config.js';
 
 import {
-  handlePolygonChainCommon,
-  isOraclePolygonAddressValid,
-} from '../utils/chain.js';
+  ACTION_NAMES,
+  CONTRACT_NAMES,
+  POLYGON_CHAIN_NAME,
+  POLYGON_TOKEN_CODE,
+} from '../constants/chain.js';
+import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
+import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
+import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { DEFAULT_POLYGON_GAS_PRICE, POLYGON_GAS_LIMIT } from '../constants/prices.js';
+import { handlePolygonChainCommon, isOraclePolygonAddressValid } from '../utils/chain.js';
 import {
   addLogMessage,
   updatePolygonNonce,
@@ -23,17 +31,6 @@ import { getPolygonGasPriceSuggestion } from '../utils/prices.js';
 
 import { polygonTransaction } from '../utils/transactions.js';
 
-import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
-import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
-import {
-  ACTION_NAMES,
-  CONTRACT_NAMES,
-  POLYGON_CHAIN_NAME,
-  POLYGON_TOKEN_CODE,
-} from '../constants/chain.js';
-import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
-import { DEFAULT_POLYGON_GAS_PRICE, POLYGON_GAS_LIMIT } from '../constants/prices.js';
-
 const {
   infura: { polygon },
   oracleCache,
@@ -42,16 +39,20 @@ const {
 
 class PolyCtrl {
   constructor() {
-      this.web3 = new Web3(polygon);
-      this.fioNftContract = new this.web3.eth.Contract(fioNftABI, POLYGON_CONTRACT);
-      this.contractName = CONTRACT_NAMES.ERC_721;
+    this.web3 = new Web3(polygon);
+    this.fioNftContract = new this.web3.eth.Contract(fioNftABI, POLYGON_CONTRACT);
+    this.contractName = CONTRACT_NAMES.ERC_721;
   }
 
-  async wrapFioDomain() { // execute wrap action
+  async wrapFioDomain() {
+    // execute wrap action
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting))
       oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, true, 0);
 
-    const transactionToProceed = fs.readFileSync(LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue).toString().split('\r\n')[0];
+    const transactionToProceed = fs
+      .readFileSync(LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue)
+      .toString()
+      .split('\r\n')[0];
 
     if (transactionToProceed === '') {
       oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
@@ -70,8 +71,8 @@ class PolyCtrl {
       const isOracleAddressValid = await isOraclePolygonAddressValid();
 
       if (!isOracleAddressValid) {
-          console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS}`);
-          oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
+        console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS}`);
+        oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
       } else {
         let isTransactionProceededSuccessfully = false;
         const domainName = wrapData.fio_domain;
@@ -91,20 +92,22 @@ class PolyCtrl {
           if (
             this.web3.utils.isAddress(wrapData.public_address) === true &&
             wrapData.chain_code === POLYGON_TOKEN_CODE
-          ) { //check validation if the address is ERC20 address
+          ) {
+            //check validation if the address is ERC20 address
 
-            console.log(`${logPrefix} requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`);
+            console.log(
+              `${logPrefix} requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`,
+            );
 
-            const wrapDomainFunction =
-              this.fioNftContract.methods.wrapnft(
-                wrapData.public_address,
-                wrapData.fio_domain,
-                txIdOnFioChain
-              );
-            
-            let wrapABI = wrapDomainFunction.encodeABI();
+            const wrapDomainFunction = this.fioNftContract.methods.wrapnft(
+              wrapData.public_address,
+              wrapData.fio_domain,
+              txIdOnFioChain,
+            );
 
-            const chainNonce = await this.web3.eth.getTransactionCount(pubKey,'pending');
+            const wrapABI = wrapDomainFunction.encodeABI();
+
+            const chainNonce = await this.web3.eth.getTransactionCount(pubKey, 'pending');
 
             const txNonce = handlePolygonNonceValue({ chainNonce });
 
@@ -154,8 +157,7 @@ class PolyCtrl {
         if (!isTransactionProceededSuccessfully) {
           handleLogFailedWrapItem({
             logPrefix,
-            errorLogFilePath:
-              LOG_FILES_PATH_NAMES.wrapPolygonTransactionErrorQueue,
+            errorLogFilePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionErrorQueue,
             txId: txIdOnFioChain,
             wrapData,
           });
@@ -165,25 +167,27 @@ class PolyCtrl {
           action: this.wrapFioDomain.bind(this),
           logPrefix,
           logFilePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
-          jobIsRunningCacheKey:
-            ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting,
+          jobIsRunningCacheKey: ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting,
         });
       }
     } catch (err) {
-        oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
+      oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
 
-        handleServerError(err, `${POLYGON_CHAIN_NAME}, ${actionName}`)
+      handleServerError(err, `${POLYGON_CHAIN_NAME}, ${actionName}`);
     }
   }
 
   async burnNFTOnPolygon() {
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting))
-        oracleCache.set(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting, true, 0);
+      oracleCache.set(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting, true, 0);
 
-    const transactionToProceed = fs.readFileSync(LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue).toString().split('\r\n')[0];
+    const transactionToProceed = fs
+      .readFileSync(LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue)
+      .toString()
+      .split('\r\n')[0];
     if (transactionToProceed === '') {
-        oracleCache.set(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting, false, 0);
-        return;
+      oracleCache.set(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting, false, 0);
+      return;
     }
 
     const burnNFTData = JSON.parse(transactionToProceed);
@@ -207,14 +211,14 @@ class PolyCtrl {
           const oraclePublicKey = POLYGON_ORACLE_PUBLIC;
           const oraclePrivateKey = POLYGON_ORACLE_PRIVATE;
 
-          const burnNFTFunction = this.fioNftContract.methods.burnnft(
-            tokenId,
-            obtId
+          const burnNFTFunction = this.fioNftContract.methods.burnnft(tokenId, obtId);
+
+          const burnABI = burnNFTFunction.encodeABI();
+
+          const chainNonce = await this.web3.eth.getTransactionCount(
+            oraclePublicKey,
+            'pending',
           );
-
-          let burnABI = burnNFTFunction.encodeABI();
-
-          const chainNonce = await this.web3.eth.getTransactionCount(oraclePublicKey, 'pending');
 
           const txNonce = handlePolygonNonceValue({ chainNonce });
 
@@ -258,11 +262,11 @@ class PolyCtrl {
         }
 
         if (!isTransactionProceededSuccessfully) {
-            handleLogFailedBurnNFTItem({
-              logPrefix,
-              errorLogFilePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
-              burnData: JSON.stringify(burnNFTData),
-            });
+          handleLogFailedBurnNFTItem({
+            logPrefix,
+            errorLogFilePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
+            burnData: JSON.stringify(burnNFTData),
+          });
         }
 
         handleUpdatePendingPolygonItemsQueue({
@@ -273,6 +277,7 @@ class PolyCtrl {
         });
       }
     } catch (error) {
+      console.error(error);
       oracleCache.set(ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting, false, 0);
 
       handleServerError(err, `${POLYGON_CHAIN_NAME}, ${actionName}`);

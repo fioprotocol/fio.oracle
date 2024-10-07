@@ -2,10 +2,9 @@ import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
 
-const { infura: {
-  eth,
-  polygon,
-}} = config;
+const {
+  infura: { eth, polygon },
+} = config;
 
 export const getInfuraPolygonGasPrice = async () => {
   const gasPriceSuggestion = await (
@@ -25,7 +24,7 @@ export const getInfuraPolygonGasPrice = async () => {
   if (gasPriceSuggestion && gasPriceSuggestion.result) {
     value = parseInt(gasPriceSuggestion.result);
   }
-  
+
   return value;
 };
 
