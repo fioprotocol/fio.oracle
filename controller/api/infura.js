@@ -1,8 +1,15 @@
 import fetch from 'node-fetch';
 
+import config from '../../config/config.js';
+
+const { infura: {
+  eth,
+  polygon,
+}} = config;
+
 export const getInfuraPolygonGasPrice = async () => {
   const gasPriceSuggestion = await (
-    await fetch(process.env.POLYGON_INFURA, {
+    await fetch(polygon, {
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'eth_gasPrice',
@@ -24,7 +31,7 @@ export const getInfuraPolygonGasPrice = async () => {
 
 export const getInfuraEthGasPrice = async () => {
   const gasPriceSuggestion = await (
-    await fetch(process.env.ETHINFURA, {
+    await fetch(eth, {
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'eth_gasPrice',

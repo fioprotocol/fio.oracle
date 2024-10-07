@@ -1,63 +1,73 @@
 # fio.oracle
-Oracle for wrapping FIO tokens and FIO domains to and from the FIO chain
+Oracle:
+- wrapping FIO tokens and FIO domains from the FIO chain to other chains
+- unwrapping FIO tokens and FIO domains from other chains to FIO chain
+- burn FIO domains from FIO chain to selected NFT chain
 
 ## Dependencies to install
 
-node 20.0.9
+node 20.14.0
 
 Ubuntu Server 20.04
 
 ## Environment variables
 
 To configure your  application, create a .env file with the following parameters in the root of the fio.oracle directory.
+There are 2 types of .env files:
+1) `.env.mainnet` - for mainnet env vars
+2) `.env.testnet` - for testnet env vars
 
 ```
-MODE=                        # testnet or mainnet
 PORT=                        # The port that the fio.oracle service will run on when started
-FIO_SERVER_URL_HISTORY=      # URL of FIO history node
+
 FIO_SERVER_HISTORY_VERSION=  # Version of FIO history node, (“hyperion” or “v1”, defaults to “v1”)
+FIO_SERVER_URL_HISTORY=      # URL of FIO history node
 FIO_SERVER_URL_ACTION=       # URL of FIO API node
-FIO_ORACLE_PUBLIC_KEY=       # The FIO public key used for approving unwrap transactions
+FIO_HISTORY_OFFSET=          # The number of transactions to get on FIO side in each call (If you set 20, you can get 20 actions on FIO side)
+FIO_HISTORY_HYPERION_OFFSET= # The number of actions to get from history when using hyperion version
+FIO_TRANSACTION_MAX_RETRIES= # The number of retries when FIO action call fails
+
 FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
 FIO_ORACLE_ACCOUNT=          # The FIO account used for approving unwrap transactions
-FIO_ORACLE_ADDRESS=          # The FIO Crypto Handle for the oracle
+FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
+
 ETH_ORACLE_PUBLIC=           # The ETH oracle public key used for signing ERC20 transactions
 ETH_ORACLE_PRIVATE=          # The ETH oracle private key used for signing ERC20 transactions
+ETH_CHAIN_NAME=              # The Ethereum chain name for mainnet = 'mainnet' for testnet = 'sepolia' (any other ETH testnet name)
+ETH_CONTRACT=                # Ethereum address of the erc20 token contract
+ETH_NFT_CONTRACT=            # Ethereum address of the erc721 NFT contract (Legacy, only supporting Polygon NFT for V1)
+BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
+BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
+
 POLYGON_ORACLE_PUBLIC=       # The POLYGON oracle public key used for signing ERC721 transactions
 POLYGON_ORACLE_PRIVATE=      # The POLYGON oracle private key used for signing ERC721 transactions
-POLLTIME=                    # Seconds between poll for wrap and unwrap events (60 seconds=60000)
-POLLOFFSET=                  # The number of wrap transactions to get on FIO side in each call (If you set 20, you can get 20 latest actions on FIO side)
-HYPERION_LIMIT=              # The number of actions to get from history when using hyperion version
-USEGASAPI=                   # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
-GASPRICELEVEL=               # Which price to use from the gas price API (low/average/high)
-TGASLIMIT=                   # Manual gas limit for ETH erc20
-TGASPRICE=                   # Manual gas price for ETH erc20
-PGASLIMIT=                   # Manual gas limit for Polygon erc721
-PGASPRICE=                   # Manual gas price for Polygon erc721
-ETHINFURA=                   # The Ethereum chain Infura API URL
-FIO_TOKEN_ETH_CONTRACT=      # Ethereum address of the erc20 token contract
-FIO_NFT_ETH_CONTRACT=        # Ethereum address of the erc721 NFT contract (Legacy, only supporting Polygon NFT for V1)
-POLYGON_INFURA=              # The Polygon chain Infura API URL
-FIO_NFT_POLYGON_CONTRACT=    # The Polygon address of the erc721 NFT contract
-ETH_TESTNET_CHAIN_NAME=      # The Ethereum testnet chain name (e.g., sepolia)
-ETH_NFT_TESTNET_CHAIN_NAME=  # The Ethereum testnet chain name for Nft (e.g., rinkeby)
-POLYGON_TESTNET_CHAIN_NAME=  # The Polygon testnet chain name (e.g., matic-amoy)
-BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
+POLYGON_CONTRACT=            # The Polygon address of the erc721 NFT contract
 BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
-BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
-FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
+
+NFT_CHAIN_NAME=              # NFT chain name (POLYGON|POLYGON-AMOY)
+
+JOB_TIMEOUT=                 # Seconds between running job events (60 seconds=60000)
+
+USE_GAS_API=                 # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
+GAS_PRICE_LEVEL=             # Which price to use from the gas price API (low/average/high)
+T_GAS_LIMIT=                 # Manual gas limit for ETH erc20
+T_GAS_PRICE=                 # Manual gas price for ETH erc20
+P_GAS_LIMIT=                 # Manual gas limit for Polygon erc721
+P_GAS_PRICE=                 # Manual gas price for Polygon erc721
+
 MORALIS_API_KEY=             # Moralis API Key
 MORALIS_RPC_BASE_URL=        # Moralis RPC Base Url
-MORALIS_RPC_BASE_URL_FALLBACK= # Moralis Fallback RPC Base Url
-MORALIS_RPC_NODE_API_KEY_ETHEREUM_MAINNET= # Moralis RPC Node API key for ETH mainnet
-MORALIS_RPC_NODE_API_KEY_ETHEREUM_TESTNET= # Moralis RPC Node API key for ETH testnet
-MORALIS_RPC_NODE_API_KEY_POLYGON_MAINNET=  # Moralis RPC Node API key for Polygon mainnet
-MORALIS_RPC_NODE_API_KEY_POLYGON_TESTNET=  # Moralis RPC Node API key for Polygon testnet
-MORALIS_RPC_ETH_CHAIN_NAME=  # Moralis RPC ETH chain name (ethereum|sepolia)
-MORALIS_RPC_POLYGON_CHAIN_NAME= # Moralis RPC Polygon RPC chain name (polygon|amoy)
-NFT_DEFAULT_TESTNET_CHAIN_NAME= # Default NFT chain name (POLYGON_AMOY)
-NFT_MAINNET_CHAIN_NAME=     # NFT chain name mainnet (POLYGON)
-THIRDWEB_API_KEY=           # Thirdweb API key
+MORALIS_RPC_BASE_URL_FALLBACK=      # Moralis Fallback RPC Base Url
+MORALIS_RPC_NODE_API_KEY_ETHEREUM=  # Moralis RPC Node API key for ETH
+MORALIS_RPC_NODE_API_KEY_POLYGON=   # Moralis RPC Node API key for Polygon
+MORALIS_RPC_ETH_CHAIN_NAME=         # Moralis RPC ETH chain name (ethereum|sepolia)
+MORALIS_RPC_POLYGON_CHAIN_NAME=     # Moralis RPC Polygon RPC chain name (polygon|amoy)
+MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS= # Moralis timeout between calls
+
+THIRDWEB_API_KEY=            # Thirdweb API key
+
+INFURA_ETH=                  # The Ethereum chain Infura API URL
+INFURA_POLYGON=              # The Polygon chain Infura API URL
 
 # Optional
 FIO_SERVER_URL_HISTORY_BACKUP= # Backup URL of FIO history node
@@ -70,5 +80,10 @@ Navigate to the directory where the files are and run the following commands:
 
 ```
 npm install
-npm run dev
+npm run start
+```
+
+To run testnet you need to run
+```
+npm run start:testnet
 ```

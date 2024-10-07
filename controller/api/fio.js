@@ -52,21 +52,34 @@ const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
 const {
-  NFTS: { NFT_CHAIN_NAME },
-  FIO_NFT_ETH_CONTRACT,
-  FIO_NFT_POLYGON_CONTRACT,
-  FIO_ORACLE_PERMISSION,
+  eth: {
+    BLOCKS_RANGE_LIMIT_ETH,
+    BLOCKS_OFFSET_ETH,
+    ETH_CONTRACT,
+    ETH_NFT_CONTRACT,
+  },
+  fio: {
+    FIO_ORACLE_PERMISSION,
+    FIO_SERVER_HISTORY_VERSION,
+    FIO_TRANSACTION_MAX_RETRIES,
+    FIO_SERVER_URL_ACTION,
+    FIO_SERVER_HISTORY_VERSION_BACKUP,
+    FIO_ORACLE_PRIVATE_KEY,
+    FIO_ORACLE_ACCOUNT,
+    FIO_HISTORY_OFFSET,
+    FIO_HISTORY_HYPERION_OFFSET,
+  },
+  infura: { eth, polygon },
+  nfts: { NFT_CHAIN_NAME },
   oracleCache,
-  FIO_TRANSACTION_MAX_RETRIES,
-  DEFAULT_FIO_SERVER_HISTORY_VERSION,
+  polygon: { BLOCKS_RANGE_LIMIT_POLY, POLYGON_CONTRACT },
 } = config;
 
-const web3 = new Web3(process.env.ETHINFURA);
-const polyWeb3 = new Web3(process.env.POLYGON_INFURA);
-const fioTokenContractOnEthChain = new web3.eth.Contract(fioABI, process.env.FIO_TOKEN_ETH_CONTRACT);
-const fioNftContract = new web3.eth.Contract(fioNftABI, FIO_NFT_ETH_CONTRACT);
-const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, FIO_NFT_POLYGON_CONTRACT)
-const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
+const web3 = new Web3(eth);
+const polyWeb3 = new Web3(polygon);
+const fioTokenContractOnEthChain = new web3.eth.Contract(fioABI, ETH_CONTRACT);
+const fioNftContract = new web3.eth.Contract(fioNftABI, ETH_NFT_CONTRACT);
+const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, POLYGON_CONTRACT)
 
 // execute unwrap action job
 const handleUnwrapFromEthToFioChainJob = async () => {
@@ -95,13 +108,13 @@ const handleUnwrapFromEthToFioChainJob = async () => {
         try {
             let contract = 'fio.oracle',
                 actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
-                oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-                oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+                oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
+                oracleAccount = FIO_ORACLE_ACCOUNT,
                 amount = parseInt(unwrapData.amount),
                 obtId = txIdOnEthChain,
                 domain = unwrapData.domain;
-            const fioChainInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-            const fioLastBlockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+            const fioChainInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')).json();
+            const fioLastBlockInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
                 body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
                 method: 'POST'
             })).json()
@@ -137,7 +150,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
                 }]
             };
             const abiMap = new Map();
-            const tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+            const tokenRawAbi = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
                 body: `{"account_name": "fio.oracle"}`,
                 method: 'POST'
             })).json()
@@ -154,7 +167,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
                 textEncoder,
             });
 
-            const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //execute transaction for unwrap
+            const pushResult = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction', { //execute transaction for unwrap
                 body: JSON.stringify(tx),
                 method: 'POST',
             });
@@ -230,12 +243,12 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
         try {
             let contract = 'fio.oracle',
                 action = 'unwrapdomain', //action name
-                oraclePrivateKey = process.env.FIO_ORACLE_PRIVATE_KEY,
-                oracleAccount = process.env.FIO_ORACLE_ACCOUNT,
+                oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
+                oracleAccount = FIO_ORACLE_ACCOUNT,
                 domain = unwrapData.domain,
                 obtId = txIdOnPolygonChain;
-            const info = await (await fetch(fioHttpEndpoint + 'v1/chain/get_info')).json();
-            const blockInfo = await (await fetch(fioHttpEndpoint + 'v1/chain/get_block', {
+            const info = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')).json();
+            const blockInfo = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
                 body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`,
                 method: 'POST'
             })).json()
@@ -265,7 +278,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
                 }]
             };
             let abiMap = new Map();
-            let tokenRawAbi = await (await fetch(fioHttpEndpoint + 'v1/chain/get_raw_abi', {
+            let tokenRawAbi = await (await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
                 body: `{"account_name": "fio.oracle"}`,
                 method: 'POST'
             })).json()
@@ -282,7 +295,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
                 textEncoder,
             });
 
-            const pushResult = await fetch(fioHttpEndpoint + 'v1/chain/push_transaction', { //excute transaction for unwrap
+            const pushResult = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction', { //excute transaction for unwrap
                 body: JSON.stringify(tx),
                 method: 'POST',
             });
@@ -351,8 +364,8 @@ class FIOCtrl {
             const isV2 = fioServerHistoryVersion === 'hyperion';
 
             const offset = isV2
-                ? parseInt(process.env.HYPERION_LIMIT)
-                : parseInt(process.env.POLLOFFSET);
+                ? parseInt(FIO_HISTORY_HYPERION_OFFSET)
+                : parseInt(FIO_HISTORY_OFFSET);
 
             const lastFioOraclePosition = getLastProceededFioOraclePositionFioChain() || 0;
             const lastProcessedFioBlockNumber = getLastProceededBlockNumberOnFioChain() || 0;
@@ -539,7 +552,7 @@ class FIOCtrl {
         }
 
         try {
-            await handleBackups(handleWrapAction, false, { fioServerHistoryVersion: process.env.FIO_SERVER_HISTORY_VERSION_BACKUP });
+            await handleBackups(handleWrapAction, false, { fioServerHistoryVersion: FIO_SERVER_HISTORY_VERSION_BACKUP });
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
         }
@@ -558,8 +571,8 @@ class FIOCtrl {
         }
 
         try {
-            const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_ETH);
-            const blocksOffset = parseInt(process.env.BLOCKS_OFFSET_ETH) || 0;
+            const blocksRangeLimit = parseInt(BLOCKS_RANGE_LIMIT_ETH);
+            const blocksOffset = parseInt(BLOCKS_OFFSET_ETH) || 0;
 
             const getEthActionsLogs = async (from, to, isTokens = false) => {
                 return await (isTokens ? fioTokenContractOnEthChain : fioNftContract).getPastEvents(
@@ -692,7 +705,7 @@ class FIOCtrl {
         console.log(logPrefix + 'Executing');
 
         try {
-            const blocksRangeLimit = parseInt(process.env.BLOCKS_RANGE_LIMIT_POLY);
+            const blocksRangeLimit = parseInt(BLOCKS_RANGE_LIMIT_POLY);
 
             const getPolygonActionsLogs = async (from, to) => {
                 return await fioPolygonNftContract.getPastEvents(
@@ -804,11 +817,11 @@ class FIOCtrl {
         }
 
         const handleBurnNFTAction = async (fioServerHistoryVersion) => {
-            const serverType = fioServerHistoryVersion || DEFAULT_FIO_SERVER_HISTORY_VERSION;
+            const serverType = fioServerHistoryVersion || FIO_SERVER_HISTORY_VERSION;
             const isV2 = serverType === 'hyperion';
             const offset = isV2
-                ? parseInt(process.env.HYPERION_LIMIT)
-                : parseInt(process.env.POLLOFFSET);
+                ? parseInt(FIO_HISTORY_HYPERION_OFFSET)
+                : parseInt(FIO_HISTORY_OFFSET);
 
             const lastFioAddressPosition =
               getLastProceededFioAddressPositionFioChain() || 0;
@@ -925,7 +938,7 @@ class FIOCtrl {
                 console.log('START GETTING MORALIS NFTS');
                 const nftsList = await moralis.getAllContractNFTs({
                     chainName: NFT_CHAIN_NAME,
-                    contract: FIO_NFT_POLYGON_CONTRACT,
+                    contract: POLYGON_CONTRACT,
                 });
                 console.log('NFTS LENGTH', nftsList && nftsList.length);
 
@@ -1021,7 +1034,7 @@ class FIOCtrl {
         };
 
         try {
-            await handleBackups(handleBurnNFTAction, false, process.env.FIO_SERVER_HISTORY_VERSION_BACKUP);
+            await handleBackups(handleBurnNFTAction, false, FIO_SERVER_HISTORY_VERSION_BACKUP);
         } catch (err) {
             handleServerError(err, 'FIO, handleUnprocessedBurnNFTActions');
         }

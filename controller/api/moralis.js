@@ -7,9 +7,17 @@ import config from '../../config/config.js';
 import { handleBackups, sleep } from '../utils/general.js';
 
 const {
-  FIO_NFT_POLYGON_CONTRACT,
-  NFTS: { NFT_CHAIN_NAME, NFT_PROVIDER_API_KEY },
-  MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
+  nfts: { NFT_CHAIN_NAME, NFT_PROVIDER_API_KEY },
+  moralis: {
+    MORALIS_RPC_BASE_URL,
+    MORALIS_RPC_BASE_URL_FALLBACK,
+    MORALIS_RPC_ETH_CHAIN_NAME,
+    MORALIS_RPC_POLYGON_CHAIN_NAME,
+    MORALIS_RPC_NODE_API_KEY_ETHEREUM,
+    MORALIS_RPC_NODE_API_KEY_POLYGON,
+    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
+  },
+  polygon: { POLYGON_CONTRACT },
 } = config;
 
 const CHUNK_SIZE = 2;
@@ -60,7 +68,7 @@ class GetMoralis {
 
   async getContractNFTs({
     chainName = NFT_CHAIN_NAME,
-    contractAddress = FIO_NFT_POLYGON_CONTRACT,
+    contractAddress = POLYGON_CONTRACT,
     cursor,
   }) {
     const chain = EvmChain[chainName];
@@ -76,7 +84,7 @@ class GetMoralis {
 
   async getAllContractNFTs({
     chainName = NFT_CHAIN_NAME,
-    contractAddress = FIO_NFT_POLYGON_CONTRACT,
+    contractAddress = POLYGON_CONTRACT,
     cursor,
     nftsList = [],
   }) {
@@ -171,8 +179,8 @@ class GetMoralis {
 const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
   const urlParams = `${chainName}/${rpcNodeApiKey}`;
 
-  const primaryUrl = `${config.MORALIS_RPC_BASE_URL}/${urlParams}`;
-  const fallbackUrl = `${config.MORALIS_RPC_BASE_URL_FALLBACK}/${urlParams}`;
+  const primaryUrl = `${MORALIS_RPC_BASE_URL}/${urlParams}`;
+  const fallbackUrl = `${MORALIS_RPC_BASE_URL_FALLBACK}/${urlParams}`;
 
   const fetchGasPrice = async (url) => {
     const options = {
@@ -222,8 +230,8 @@ const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
 export const getMoralisEthGasPrice = async () => {
   try {
     return await getGasPrices({
-      chainName: config.MORALIS_RPC_ETH_CHAIN_NAME,
-      rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
+      chainName: MORALIS_RPC_ETH_CHAIN_NAME,
+      rpcNodeApiKey: MORALIS_RPC_NODE_API_KEY_ETHEREUM,
     });
   } catch (error) {
     console.log('MORALIS ERROR: ETH GAS PRICE', error);
@@ -234,8 +242,8 @@ export const getMoralisEthGasPrice = async () => {
 export const getMoralisPolygonGasPrice = async () => {
   try {
     return await getGasPrices({
-      chainName: config.MORALIS_RPC_POLYGON_CHAIN_NAME,
-      rpcNodeApiKey: config.MORALIS_RPC_NODE_API_KEY_POLYGON,
+      chainName: MORALIS_RPC_POLYGON_CHAIN_NAME,
+      rpcNodeApiKey: MORALIS_RPC_NODE_API_KEY_POLYGON,
     });
   } catch (error) {
     console.log('MORALIS ERROR: POLYGON GAS PRICE', error);

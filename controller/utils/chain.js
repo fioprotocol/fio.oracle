@@ -4,11 +4,19 @@ import Web3 from 'web3';
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import fioMaticNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+import config from '../../config/config.js';
+
+const {
+  eth: { ETH_ORACLE_PUBLIC, ETH_CONTRACT, ETH_NFT_CONTRACT, ETH_CHAIN_NAME },
+  infura: { eth, polygon },
+  isTestnet,
+  polygon: { POLYGON_ORACLE_PUBLIC, POLYGON_CONTRACT },
+} = config;
 
 import { POLYGON_TESTNET_CHAIN_ID } from '../constants/chain.js';
 
 export const handlePolygonChainCommon = () => {
-  if (process.env.MODE === 'testnet') {
+  if (isTestnet) {
     const customChainInstance = Common.custom(CustomChain.PolygonMumbai);
     // Polygon Mumbai has been deprecated from 13th of April 2024.
     // Using Polygon Amoy instead but it's missing on CustomChain. So chainId and networkId should be updated
@@ -21,15 +29,15 @@ export const handlePolygonChainCommon = () => {
   return Common.custom(CustomChain.PolygonMainnet);
 };
 
-export const handleEthChainCommon = () => new Common({ chain: process.env.MODE === 'testnet' ? process.env.ETH_TESTNET_CHAIN_NAME : 'mainnet' })
+export const handleEthChainCommon = () => new Common({ chain: ETH_CHAIN_NAME })
 
 export const isOracleEthAddressValid = async (isTokens = true) => {
-  const web3 = new Web3(process.env.ETHINFURA);
+  const web3 = new Web3(eth);
   const contract = new web3.eth.Contract(
     isTokens ? fioABI : fioNftABI,
     isTokens
-      ? process.env.FIO_TOKEN_ETH_CONTRACT
-      : process.env.FIO_NFT_ETH_CONTRACT
+      ? ETH_CONTRACT
+      : ETH_NFT_CONTRACT
   );
 
   const registeredOraclesPublicKeys = await contract.methods
@@ -38,14 +46,14 @@ export const isOracleEthAddressValid = async (isTokens = true) => {
 
   return !!registeredOraclesPublicKeys
     .map((registeredOracle) => registeredOracle.toLowerCase())
-    .includes(process.env.ETH_ORACLE_PUBLIC.toLowerCase());
+    .includes(ETH_ORACLE_PUBLIC.toLowerCase());
 };
 
 export const isOraclePolygonAddressValid = async () => {
-  const web3 = new Web3(process.env.POLYGON_INFURA);
+  const web3 = new Web3(polygon);
   const contract = new web3.eth.Contract(
     fioMaticNftABI,
-    process.env.FIO_NFT_POLYGON_CONTRACT
+    POLYGON_CONTRACT
   );
 
   const registeredOraclesPublicKeys = await contract.methods
@@ -54,7 +62,7 @@ export const isOraclePolygonAddressValid = async () => {
 
   return !!registeredOraclesPublicKeys
     .map((registeredOracle) => registeredOracle.toLowerCase())
-    .includes(process.env.POLYGON_ORACLE_PUBLIC.toLowerCase());
+    .includes(POLYGON_ORACLE_PUBLIC.toLowerCase());
 };
 
 export const convertNativeFioIntoFio = (nativeFioValue) => {

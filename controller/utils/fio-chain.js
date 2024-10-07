@@ -4,11 +4,19 @@ import fetch from 'node-fetch';
 
 import { checkHttpResponseStatus } from '../utils/general.js';
 
-const fioHttpEndpoint = process.env.FIO_SERVER_URL_ACTION;
-const DEFAULT_FIO_SERVER_HISTORY_VERSION = process.env.FIO_SERVER_HISTORY_VERSION;
+import config from '../../config/config.js';
+
+const {
+  fio: {
+    FIO_SERVER_HISTORY_VERSION,
+    FIO_SERVER_URL_HISTORY,
+    FIO_SERVER_URL_ACTION,
+    FIO_SERVER_URL_HISTORY_BACKUP,
+  },
+} = config;
     
 export const getLastIrreversibleBlockOnFioChain = async () => {
-  const fioChainInfoResponse = await fetch(fioHttpEndpoint + 'v1/chain/get_info')
+  const fioChainInfoResponse = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')
 
   await checkHttpResponseStatus(fioChainInfoResponse, 'Getting FIO chain info went wrong.');
 
@@ -23,14 +31,14 @@ export const getLastIrreversibleBlockOnFioChain = async () => {
 const getActions = async (accountName, pos, offset) => {
   let actionsHistoryResponse
   try {
-    actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
+    actionsHistoryResponse = await fetch(FIO_SERVER_URL_HISTORY + 'v1/history/get_actions', {
         body: JSON.stringify({"account_name": accountName, pos, offset }),
         method: 'POST'
     });
     await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
   } catch (e) {
-    if (process.env.FIO_SERVER_URL_HISTORY_BACKUP) {
-      actionsHistoryResponse = await fetch(process.env.FIO_SERVER_URL_HISTORY_BACKUP + 'v1/history/get_actions', {
+    if (FIO_SERVER_URL_HISTORY_BACKUP) {
+      actionsHistoryResponse = await fetch(FIO_SERVER_URL_HISTORY_BACKUP + 'v1/history/get_actions', {
         body: JSON.stringify({"account_name": accountName, pos, offset }),
         method: 'POST'
       });
@@ -45,11 +53,11 @@ const getActions = async (accountName, pos, offset) => {
 const getActionsV2 = async ({ accountName, before, after, limit }) => {
   let actionsHistoryResponse
   try {
-    actionsHistoryResponse = await fetch(`${process.env.FIO_SERVER_URL_HISTORY}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`)
+    actionsHistoryResponse = await fetch(`${FIO_SERVER_URL_HISTORY}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`)
     await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
   } catch (e) {
-    if (process.env.FIO_SERVER_URL_HISTORY_BACKUP) {
-      actionsHistoryResponse = await fetch(`${process.env.FIO_SERVER_URL_HISTORY}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`)
+    if (FIO_SERVER_URL_HISTORY_BACKUP) {
+      actionsHistoryResponse = await fetch(`${FIO_SERVER_URL_HISTORY_BACKUP}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`)
       await checkHttpResponseStatus(actionsHistoryResponse, 'Getting FIO actions history went wrong.');
     }
   }
@@ -72,7 +80,7 @@ const getActionsV2 = async ({ accountName, before, after, limit }) => {
     : actionsHistory;
 };
 
-export const getUnprocessedActionsOnFioChain = async ({ accountName, before, after, fioServerHistoryVersion = DEFAULT_FIO_SERVER_HISTORY_VERSION, pos, offset }) => {
+export const getUnprocessedActionsOnFioChain = async ({ accountName, before, after, fioServerHistoryVersion = FIO_SERVER_HISTORY_VERSION, pos, offset }) => {
   const isV2 = fioServerHistoryVersion === 'hyperion';
 
   if (isV2) {
