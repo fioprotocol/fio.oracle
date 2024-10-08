@@ -981,11 +981,11 @@ class FIOCtrl {
 
           const actionsLogsResultLength =
             burnActionsToProcess && burnActionsToProcess.length;
-          console.log(
-            `${logPrefix} burn domains events data length: ${burnActionsToProcess.length}`,
-          );
 
           if (actionsLogsResultLength) {
+            console.log(
+              `${logPrefix} burn domains events data length: ${burnActionsToProcess.length}`,
+            );
             for (const actionsToProcessItem of burnActionsToProcess) {
               if (
                 actionsToProcessItem &&
