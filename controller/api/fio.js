@@ -971,7 +971,6 @@ class FIOCtrl {
                   new MathOp(actionItem.block_num).lte(lastIrreversibleBlock),
                 )
               : [];
-          console.log('actionsToProcess ===', actionsToProcess.length);
 
           const burnActionsToProcess = actionsToProcess.filter(
             (actionsLogsItem) =>
