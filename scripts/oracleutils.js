@@ -16,6 +16,7 @@ import {
   POLYGON_CHAIN_NAME,
   POLYGON_TOKEN_CODE,
 } from '../controller/constants/chain.js';
+import { FIO_ACCOUNT_NAMES } from '../controller/constants/chain.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 import {
   DEFAULT_ETH_GAS_PRICE,
@@ -165,7 +166,7 @@ const handleUnwrapFromEthToFioChain = async ({ address, amount, domain, obtId })
   const isUnwrappingTokens = !!parseInt(amount || '');
   const fioAddress = address;
 
-  const contract = 'fio.oracle',
+  const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
     actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain',
     oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
     oracleAccount = FIO_ORACLE_ACCOUNT;
@@ -217,11 +218,11 @@ const handleUnwrapFromEthToFioChain = async ({ address, amount, domain, obtId })
   const abiMap = new Map();
   const tokenRawAbi = await (
     await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-      body: `{"account_name": "fio.oracle"}`,
+      body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
       method: 'POST',
     })
   ).json();
-  abiMap.set('fio.oracle', tokenRawAbi);
+  abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
 
   const privateKeys = [oraclePrivateKey];
 
@@ -252,7 +253,7 @@ const handleUnwrapFromPolygonToFioChain = async ({ address, domain, obtId }) => 
   console.log(
     `POLYGON UNWRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`,
   );
-  const contract = 'fio.oracle',
+  const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
     action = 'unwrapdomain',
     oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
     oracleAccount = FIO_ORACLE_ACCOUNT;
@@ -295,11 +296,11 @@ const handleUnwrapFromPolygonToFioChain = async ({ address, domain, obtId }) => 
   const abiMap = new Map();
   const tokenRawAbi = await (
     await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-      body: `{"account_name": "fio.oracle"}`,
+      body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
       method: 'POST',
     })
   ).json();
-  abiMap.set('fio.oracle', tokenRawAbi);
+  abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
 
   const privateKeys = [oraclePrivateKey];
 

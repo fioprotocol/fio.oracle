@@ -3,6 +3,7 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
+import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
 import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
 import {
   checkHttpResponseStatus,
@@ -165,3 +166,17 @@ export const getUnprocessedActionsOnFioChain = async ({
     return await getActions(accountName, pos, offset);
   }
 };
+
+export const getLastAccountPosition = async (accountName) => {
+  const res = await getActions(accountName, -1, -1);
+
+  if (!res || (res && !res.actions)) return 0;
+
+  return res.actions[0].account_action_seq;
+};
+
+export const getLastFioAddressAccountPosition = async () =>
+  await getLastAccountPosition(FIO_ACCOUNT_NAMES.FIO_ADDRESS);
+
+export const getLastFioOracleAccountPosition = async () =>
+  await getLastAccountPosition(FIO_ACCOUNT_NAMES.FIO_ORACLE);

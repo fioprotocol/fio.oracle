@@ -15,6 +15,7 @@ import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'js
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 
+import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 
@@ -108,7 +109,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
 
   while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
     try {
-      const contract = 'fio.oracle',
+      const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
         actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
         oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
         oracleAccount = FIO_ORACLE_ACCOUNT,
@@ -162,11 +163,11 @@ const handleUnwrapFromEthToFioChainJob = async () => {
       const abiMap = new Map();
       const tokenRawAbi = await (
         await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-          body: `{"account_name": "fio.oracle"}`,
+          body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
           method: 'POST',
         })
       ).json();
-      abiMap.set('fio.oracle', tokenRawAbi);
+      abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
 
       const privateKeys = [oraclePrivateKey];
 
@@ -204,7 +205,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
         filePath: LOG_FILES_PATH_NAMES.FIO,
         message: {
           chain: 'FIO',
-          contract: 'fio.oracle',
+          contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
           action: isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomains',
           transaction: transactionResult,
         },
@@ -260,7 +261,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
 
   while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
     try {
-      const contract = 'fio.oracle',
+      const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
         action = 'unwrapdomain', //action name
         oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
         oracleAccount = FIO_ORACLE_ACCOUNT,
@@ -307,11 +308,11 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
       const abiMap = new Map();
       const tokenRawAbi = await (
         await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-          body: `{"account_name": "fio.oracle"}`,
+          body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
           method: 'POST',
         })
       ).json();
-      abiMap.set('fio.oracle', tokenRawAbi);
+      abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
 
       const privateKeys = [oraclePrivateKey];
 
@@ -351,7 +352,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
         filePath: LOG_FILES_PATH_NAMES.FIO,
         message: {
           chain: 'FIO',
-          contract: 'fio.oracle',
+          contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
           action: 'unwrapdomain Polygon',
           transaction: transactionResult,
         },
@@ -417,7 +418,7 @@ class FIOCtrl {
 
       while (hasMoreActions) {
         const actionsLogsResult = await getUnprocessedActionsOnFioChain({
-          accountName: 'fio.oracle',
+          accountName: FIO_ACCOUNT_NAMES.FIO_ORACLE,
           fioServerHistoryVersion,
           pos: nextPos,
           offset,
@@ -479,7 +480,7 @@ class FIOCtrl {
                   filePath: LOG_FILES_PATH_NAMES.FIO,
                   message: {
                     chain: 'FIO',
-                    contract: 'fio.oracle',
+                    contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
                     action: isWrappingTokens ? 'wraptokens' : 'wrapdomain ETH',
                     transaction: eventData,
                   },
@@ -515,7 +516,7 @@ class FIOCtrl {
                   filePath: LOG_FILES_PATH_NAMES.FIO,
                   message: {
                     chain: 'FIO',
-                    contract: 'fio.oracle',
+                    contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
                     action: 'wrapdomain MATIC',
                     transaction: eventData,
                   },
@@ -955,7 +956,7 @@ class FIOCtrl {
 
         while (hasMoreActions) {
           const actionsLogsResult = await getUnprocessedActionsOnFioChain({
-            accountName: 'fio.address',
+            accountName: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
             fioServerHistoryVersion: serverType,
             pos: nextPos,
             offset,
@@ -1091,7 +1092,7 @@ class FIOCtrl {
                   filePath: LOG_FILES_PATH_NAMES.FIO,
                   message: {
                     chain: 'FIO',
-                    contract: 'fio.address',
+                    contract: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
                     action: 'burnDomain MATIC',
                     transaction: JSON.stringify(data),
                   },
