@@ -1,4 +1,5 @@
-import { MAX_1000_COUNT_REQUESTS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+import config from '../../config/config.js';
+import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
 
 export const replaceNewLines = (stringValue, replaceChar = ', ') => {
   return stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -82,6 +83,6 @@ export const createRateLimiter = ({ maxRequestsPerTime, resetTime }) => {
 };
 
 export const rateLimiterFor1000Rpm = createRateLimiter({
-  maxRequestsPerTime: MAX_1000_COUNT_REQUESTS,
+  maxRequestsPerTime: config.SERVER_RATE_LIMITER_COUNT,
   resetTime: MINUTE_IN_MILLISECONDS,
 });
