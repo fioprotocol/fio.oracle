@@ -16,3 +16,8 @@ export const CONTRACT_NAMES = {
   ERC_20: 'fio.erc20',
   ERC_721: 'fio.erc721',
 };
+
+export const FIO_ACCOUNT_NAMES = {
+  FIO_ADDRESS: 'fio.address',
+  FIO_ORACLE: 'fio.oracle',
+};
