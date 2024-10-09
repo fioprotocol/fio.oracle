@@ -1,3 +1,5 @@
+import { MAX_1000_COUNT_REQUESTS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+
 export const replaceNewLines = (stringValue, replaceChar = ', ') => {
   return stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
 };
@@ -37,3 +39,49 @@ export const handleBackups = async (callback, isRetry, backupParams) => {
 export const sleep = async (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
+
+export const createRateLimiter = ({ maxRequestsPerTime, resetTime }) => {
+  let currentRequestCount = 0;
+  const requestQueue = [];
+
+  // Reset the counter every specified time
+  const resetInterval = () => {
+    setInterval(() => {
+      currentRequestCount = 0;
+      processQueue();
+    }, resetTime);
+  };
+
+  // Process the queued requests
+  const processQueue = () => {
+    while (requestQueue.length > 0 && currentRequestCount < maxRequestsPerTime) {
+      const { resolve } = requestQueue.shift();
+      currentRequestCount++;
+      resolve();
+    }
+  };
+
+  // Schedule requests based on the limiter
+  const scheduleRequest = async () => {
+    if (currentRequestCount < maxRequestsPerTime) {
+      currentRequestCount++;
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      requestQueue.push({ resolve });
+    });
+  };
+
+  // Initialize the rate limiter
+  resetInterval();
+
+  return {
+    scheduleRequest,
+  };
+};
+
+export const rateLimiterFor1000Rpm = createRateLimiter({
+  maxRequestsPerTime: MAX_1000_COUNT_REQUESTS,
+  resetTime: MINUTE_IN_MILLISECONDS,
+});

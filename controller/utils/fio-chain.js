@@ -3,7 +3,12 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
-import { checkHttpResponseStatus } from '../utils/general.js';
+import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+import {
+  checkHttpResponseStatus,
+  sleep,
+  rateLimiterFor1000Rpm,
+} from '../utils/general.js';
 
 const {
   fio: {
@@ -33,6 +38,10 @@ export const getLastIrreversibleBlockOnFioChain = async () => {
 
 const getActions = async (accountName, pos, offset) => {
   let actionsHistoryResponse;
+
+  // Schedule the request based on the rate limiter
+  await rateLimiterFor1000Rpm.scheduleRequest();
+
   try {
     actionsHistoryResponse = await fetch(
       FIO_SERVER_URL_HISTORY + 'v1/history/get_actions',
@@ -41,6 +50,13 @@ const getActions = async (accountName, pos, offset) => {
         method: 'POST',
       },
     );
+
+    if (actionsHistoryResponse.status === 429) {
+      console.log('Rate limit exceeded (429), waiting for 60 seconds...');
+      await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
+      return await getActions(accountName, pos, offset); // Retry the request
+    }
+
     await checkHttpResponseStatus(
       actionsHistoryResponse,
       'Getting FIO actions history went wrong.',
@@ -55,6 +71,13 @@ const getActions = async (accountName, pos, offset) => {
           method: 'POST',
         },
       );
+
+      if (actionsHistoryResponse.status === 429) {
+        console.log('Rate limit exceeded (429), waiting for 60 seconds...');
+        await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
+        return await getActions(accountName, pos, offset); // Retry the request
+      }
+
       await checkHttpResponseStatus(
         actionsHistoryResponse,
         'Getting FIO actions history went wrong.',
@@ -70,10 +93,21 @@ const getActions = async (accountName, pos, offset) => {
 
 const getActionsV2 = async ({ accountName, before, after, limit }) => {
   let actionsHistoryResponse;
+
+  // Schedule the request based on the rate limiter
+  await rateLimiterFor1000Rpm.scheduleRequest();
+
   try {
     actionsHistoryResponse = await fetch(
       `${FIO_SERVER_URL_HISTORY}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`,
     );
+
+    if (actionsHistoryResponse.status === 429) {
+      console.log('Rate limit exceeded (429), waiting for 60 seconds...');
+      await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
+      return await getActionsV2({ accountName, before, after, limit }); // Retry the request
+    }
+
     await checkHttpResponseStatus(
       actionsHistoryResponse,
       'Getting FIO actions history went wrong.',
@@ -84,6 +118,13 @@ const getActionsV2 = async ({ accountName, before, after, limit }) => {
       actionsHistoryResponse = await fetch(
         `${FIO_SERVER_URL_HISTORY_BACKUP}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`,
       );
+
+      if (actionsHistoryResponse.status === 429) {
+        console.log('Rate limit exceeded (429), waiting for 60 seconds...');
+        await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
+        return await getActionsV2({ accountName, before, after, limit }); // Retry the request
+      }
+
       await checkHttpResponseStatus(
         actionsHistoryResponse,
         'Getting FIO actions history went wrong.',

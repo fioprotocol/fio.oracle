@@ -1,0 +1,3 @@
+export const MAX_1000_COUNT_REQUESTS = 1000;
+
+export const MINUTE_IN_MILLISECONDS = 60000;
