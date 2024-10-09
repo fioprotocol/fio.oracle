@@ -7,7 +7,11 @@ import fioCtrl from './api/fio.js';
 
 import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
 import fioRoute from './routes/fio.js';
-import { getLastIrreversibleBlockOnFioChain } from './utils/fio-chain.js';
+import {
+  getLastIrreversibleBlockOnFioChain,
+  getLastFioAddressAccountPosition,
+  getLastFioOracleAccountPosition,
+} from './utils/fio-chain.js';
 import {
   prepareLogDirectory,
   prepareLogFile,
@@ -135,9 +139,11 @@ class MainCtrl {
 
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.fioOraclePosition,
+        fetchLastBlockNumber: getLastFioOracleAccountPosition,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.fioAddressPosition,
+        fetchLastBlockNumber: getLastFioAddressAccountPosition,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
