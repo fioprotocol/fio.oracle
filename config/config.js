@@ -80,4 +80,5 @@ export default {
     THIRDWEB_API_KEY: process.env.THIRDWEB_API_KEY,
   },
   JOB_TIMEOUT: process.env.JOB_TIMEOUT,
+  SERVER_RATE_LIMITER_COUNT: process.env.SERVER_RATE_LIMITER_COUNT || 1000,
 };
