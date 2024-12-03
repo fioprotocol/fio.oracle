@@ -7,12 +7,11 @@ export const LOG_DIRECTORY_PATH_NAME = `controller/api/logs-${mode}/`; //log eve
 export const LOG_FILES_PATH_NAMES = {
   FIO: LOG_DIRECTORY_PATH_NAME + 'FIO.log', //log events and errors on FIO side
   ETH: LOG_DIRECTORY_PATH_NAME + 'ETH.log', //log events and errors on ETH side
-  MATIC: LOG_DIRECTORY_PATH_NAME + 'MATIC.log',
+  POLYGON: LOG_DIRECTORY_PATH_NAME + 'POLYGON.log',
   ethNonce: LOG_DIRECTORY_PATH_NAME + 'ethNonce.log', // store last used ETH nonce to aviod too low nonce issue on concurrency calls
   polygonNonce: LOG_DIRECTORY_PATH_NAME + 'polygonNonce.log', // store last used Polygon nonce to aviod too low nonce issue on concurrency calls
   fioAddressPosition: LOG_DIRECTORY_PATH_NAME + 'fioAddressPosition.log', // store last processed fio.address position of FIO actions
-  fioOraclePosition: LOG_DIRECTORY_PATH_NAME + 'fioOraclePosition.log', // store last processed fio.oracle position of FIO actions
-  blockNumberFIO: LOG_DIRECTORY_PATH_NAME + 'blockNumberFIO.log', //store FIO blockNumber for the wrapAction history v2 (hyperion)
+  fioOracleItemId: LOG_DIRECTORY_PATH_NAME + 'fioOracleItemId.log', // store last processed fio.oracle wrapped item
   blockNumberFIOForBurnNFT: LOG_DIRECTORY_PATH_NAME + 'blockNumberFIOForBurnNFT.log', // store FIO block number for burn domain action
   blockNumberUnwrapTokensETH: LOG_DIRECTORY_PATH_NAME + 'blockNumberETH.log', //store ETH blockNumber for unwrap tokens action
   blockNumberUnwrapDomainETH: LOG_DIRECTORY_PATH_NAME + 'blockNumberDomainETH.log', //store ETH blockNumber for the unwrap domain action

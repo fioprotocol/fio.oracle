@@ -11,6 +11,7 @@ import {
   CONTRACT_NAMES,
   POLYGON_CHAIN_NAME,
   POLYGON_TOKEN_CODE,
+  MATIC_TOKEN_CODE,
 } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
@@ -59,12 +60,13 @@ class PolyCtrl {
       return;
     }
 
-    const txIdOnFioChain = transactionToProceed.split(' ')[0];
+    const wrapOracleId = transactionToProceed.split(' ')[0];
     const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
+    const { chaincode, nftname, pubaddress } = wrapData || {};
 
     const actionName = ACTION_NAMES.WRAP_DOMAIN;
 
-    const logPrefix = `MATIC, ${actionName}, FIO tx_id: ${txIdOnFioChain}, domain: "${wrapData.fio_domain}", public_address: "${wrapData.public_address}": --> `;
+    const logPrefix = `${POLYGON_TOKEN_CODE}, ${actionName}, FIO oracle id: ${wrapOracleId}, nftname: "${nftname}", pubaddress: "${pubaddress}": --> `;
     console.log(`${logPrefix} Executing ${actionName}.`);
 
     try {
@@ -75,34 +77,25 @@ class PolyCtrl {
         oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting, false, 0);
       } else {
         let isTransactionProceededSuccessfully = false;
-        const domainName = wrapData.fio_domain;
 
         try {
           const pubKey = POLYGON_ORACLE_PUBLIC;
           const signKey = POLYGON_ORACLE_PRIVATE;
 
-          //Commented this out. It was throwing an uncaught exception.
-          // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
-          //this.fioNftContract.methods.getApproval(txIdOnFioChain).call()
-          //    .then((response) => {
-          //        console.log(logPrefix + 'Oracles Approvals:');
-          //        console.log(response);
-          //    });
-
           if (
-            this.web3.utils.isAddress(wrapData.public_address) === true &&
-            wrapData.chain_code === POLYGON_TOKEN_CODE
+            this.web3.utils.isAddress(pubaddress) === true &&
+            (chaincode === MATIC_TOKEN_CODE || chaincode === POLYGON_TOKEN_CODE)
           ) {
             //check validation if the address is ERC20 address
 
             console.log(
-              `${logPrefix} requesting wrap domain action for ${domainName} FIO domain to ${wrapData.public_address}`,
+              `${logPrefix} requesting wrap domain action for ${nftname} FIO domain to ${pubaddress}`,
             );
 
             const wrapDomainFunction = this.fioNftContract.methods.wrapnft(
-              wrapData.public_address,
-              wrapData.fio_domain,
-              txIdOnFioChain,
+              pubaddress,
+              nftname,
+              wrapOracleId,
             );
 
             const wrapABI = wrapDomainFunction.encodeABI();
@@ -113,7 +106,7 @@ class PolyCtrl {
 
             const onSussessTransaction = (receipt) => {
               addLogMessage({
-                filePath: LOG_FILES_PATH_NAMES.MATIC,
+                filePath: LOG_FILES_PATH_NAMES.POLYGON,
                 message: `${POLYGON_CHAIN_NAME} ${this.contractName} ${actionName} ${JSON.stringify(receipt)}`,
               });
 
@@ -130,11 +123,11 @@ class PolyCtrl {
               contractName: this.contractName,
               data: wrapABI,
               defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
-              domain: wrapData.fio_domain,
+              domain: nftname,
               getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
               gasLimit: POLYGON_GAS_LIMIT,
               handleSuccessedResult: onSussessTransaction,
-              logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+              logFilePath: LOG_FILES_PATH_NAMES.POLYGON,
               logPrefix,
               oraclePrivateKey: signKey,
               oraclePublicKey: pubKey,
@@ -158,7 +151,7 @@ class PolyCtrl {
           handleLogFailedWrapItem({
             logPrefix,
             errorLogFilePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionErrorQueue,
-            txId: txIdOnFioChain,
+            txId: wrapOracleId,
             wrapData,
           });
         }
@@ -195,7 +188,7 @@ class PolyCtrl {
     const { tokenId, obtId, domainName } = burnNFTData || {};
     const actionName = ACTION_NAMES.BURN_NFT;
 
-    const logPrefix = `MATIC, ${actionName}, FIO obtId: ${obtId}, domain: ${domainName}, tokenId: ${tokenId}: --> `;
+    const logPrefix = `${POLYGON_CHAIN_NAME}, ${actionName}, FIO obtId: ${obtId}, domain: ${domainName}, tokenId: ${tokenId}: --> `;
     console.log(logPrefix + `Executing ${actionName}.`);
 
     try {
@@ -224,7 +217,7 @@ class PolyCtrl {
 
           const onSussessTransaction = (receipt) => {
             addLogMessage({
-              filePath: LOG_FILES_PATH_NAMES.MATIC,
+              filePath: LOG_FILES_PATH_NAMES.POLYGON,
               message: `${POLYGON_CHAIN_NAME} ${this.contractName} ${actionName} ${JSON.stringify(receipt)}`,
             });
 
@@ -244,7 +237,7 @@ class PolyCtrl {
             getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
             gasLimit: POLYGON_GAS_LIMIT,
             handleSuccessedResult: onSussessTransaction,
-            logFilePath: LOG_FILES_PATH_NAMES.MATIC,
+            logFilePath: LOG_FILES_PATH_NAMES.POLYGON,
             logPrefix,
             oraclePrivateKey,
             oraclePublicKey,
