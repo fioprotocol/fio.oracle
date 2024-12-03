@@ -5,12 +5,19 @@ import Web3 from 'web3';
 
 import fioCtrl from './api/fio.js';
 
+import {
+  ETH_CHAIN_NAME_CONSTANT,
+  ETH_TOKEN_CODE,
+  POLYGON_CHAIN_NAME,
+  POLYGON_TOKEN_CODE,
+} from './constants/chain.js';
 import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
+
 import fioRoute from './routes/fio.js';
 import {
   getLastIrreversibleBlockOnFioChain,
   getLastFioAddressAccountPosition,
-  getLastFioOracleAccountPosition,
+  getLastFioOracleItemId,
 } from './utils/fio-chain.js';
 import {
   prepareLogDirectory,
@@ -53,7 +60,8 @@ class MainCtrl {
           console.log(logPrefix + error.stack);
         } else {
           console.log(
-            logPrefix + `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`,
+            logPrefix +
+              `Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
           );
         }
       });
@@ -66,7 +74,7 @@ class MainCtrl {
           } else {
             console.log(
               logPrefix +
-                `Oracle MATIC Address Balance: ${convertWeiToEth(result)} MATIC`,
+                `Oracle ${POLYGON_CHAIN_NAME} Address Balance: ${convertWeiToEth(result)} ${POLYGON_TOKEN_CODE}`,
             );
           }
         },
@@ -127,7 +135,7 @@ class MainCtrl {
       });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.POLYGON });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
       });
@@ -138,42 +146,38 @@ class MainCtrl {
       console.log(logPrefix + 'logs folders are ready');
 
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.fioOraclePosition,
-        fetchLastBlockNumber: getLastFioOracleAccountPosition,
+        filePath: LOG_FILES_PATH_NAMES.fioOracleItemId,
+        fetchAction: getLastFioOracleItemId,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.fioAddressPosition,
-        fetchLastBlockNumber: getLastFioAddressAccountPosition,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
+        fetchAction: getLastFioAddressAccountPosition,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
-        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
+        fetchAction: getLastIrreversibleBlockOnFioChain,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
-        fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+        fetchAction: this.web3.eth.getBlockNumber,
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-        fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+        fetchAction: this.web3.eth.getBlockNumber,
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
-        fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber,
+        fetchAction: this.polyWeb3.eth.getBlockNumber,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.ethNonce,
-        fetchLastBlockNumber: getLatestEthNonce,
+        fetchAction: getLatestEthNonce,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-        fetchLastBlockNumber: getLatestPolygonNonce,
+        fetchAction: getLatestPolygonNonce,
       });
       console.log(logPrefix + 'blocks folders are ready');
 

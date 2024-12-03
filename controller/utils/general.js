@@ -86,3 +86,21 @@ export const rateLimiterFor1000Rpm = createRateLimiter({
   maxRequestsPerTime: config.SERVER_RATE_LIMITER_COUNT,
   resetTime: MINUTE_IN_MILLISECONDS,
 });
+
+export const convertTimestampIntoMs = (timestamp) => {
+  const timestampNumber = Number(timestamp);
+
+  if (!isNaN(timestampNumber)) {
+    // If it's a valid numeric timestamp (seconds or milliseconds)
+    if (timestampNumber.toString().length === 13) {
+      // It's in milliseconds
+      return timestampNumber;
+    } else {
+      // It's in seconds, convert to milliseconds
+      return timestampNumber * 1000;
+    }
+  }
+
+  // If it's neither a valid timestamp nor a valid Date string
+  throw new Error('Invalid input: Unable to convert timestamp into milliseconds.');
+};

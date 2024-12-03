@@ -15,7 +15,15 @@ import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'js
 import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 
-import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
+import {
+  CONTRACT_NAMES,
+  ETH_CHAIN_NAME_CONSTANT,
+  ETH_TOKEN_CODE,
+  FIO_ACCOUNT_NAMES,
+  FIO_CHAIN_NAME,
+  POLYGON_CHAIN_NAME,
+  POLYGON_TOKEN_CODE,
+} from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 
@@ -23,23 +31,22 @@ import { convertNativeFioIntoFio } from '../utils/chain.js';
 import {
   getUnprocessedActionsOnFioChain,
   getLastIrreversibleBlockOnFioChain,
+  getOracleItems,
 } from '../utils/fio-chain.js';
-import { handleBackups, sleep } from '../utils/general.js';
+import { handleBackups, sleep, convertTimestampIntoMs } from '../utils/general.js';
 import {
   addLogMessage,
-  updateBlockNumberFIO,
   updateBlockNumberFIOForBurnNFT,
   updateBlockNumberForTokensUnwrappingOnETH,
   updateBlockNumberForDomainsUnwrappingOnETH,
   updateBlockNumberMATIC,
-  updatefioOraclePositionFIO,
   getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
   getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
-  getLastProceededBlockNumberOnFioChain,
-  getLastProceededFioOraclePositionFioChain,
   getLastProceededFioAddressPositionFioChain,
   getLastProceededBlockNumberOnFioChainForBurnNFT,
   getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
+  getLastProcessedFioOracleItemId,
+  updateFioOracleId,
   handleLogFailedWrapItem,
   handleUpdatePendingPolygonItemsQueue,
   handleServerError,
@@ -395,159 +402,85 @@ class FIOCtrl {
       return;
     }
 
-    const handleWrapAction = async ({ fioServerHistoryVersion }) => {
-      const isV2 = fioServerHistoryVersion === 'hyperion';
+    const handleWrapAction = async () => {
+      const lastProcessedFioOracleItemId = getLastProcessedFioOracleItemId();
 
-      const offset = isV2
-        ? parseInt(FIO_HISTORY_HYPERION_OFFSET)
-        : parseInt(FIO_HISTORY_OFFSET);
+      console.log(logPrefix + `start oracle from id = ${lastProcessedFioOracleItemId}`);
 
-      const lastFioOraclePosition = getLastProceededFioOraclePositionFioChain() || 0;
-      const lastProcessedFioBlockNumber = getLastProceededBlockNumberOnFioChain() || 0;
-      const lastIrreversibleBlock = (await getLastIrreversibleBlockOnFioChain()) || 0;
+      const oracleItems = await getOracleItems({
+        logPrefix,
+        lowerBound: lastProcessedFioOracleItemId,
+      });
 
-      console.log(
-        logPrefix +
-          `start Position = ${isV2 ? lastProcessedFioBlockNumber : lastFioOraclePosition}`,
-      );
+      const irreversibleBlockTimeInTimestamp = Date.now() - 181 * 1000; // irreversibility of block number takes 180 seconds. Take 181 second to be sure it has been submitted.
 
-      let nextPos = lastFioOraclePosition;
-      let nextBefore = lastIrreversibleBlock;
+      const irreversibleOracleItems = oracleItems.filter(({ timestamp }) => {
+        const timestampMs = convertTimestampIntoMs(timestamp);
 
-      let hasMoreActions = true;
+        return timestampMs < irreversibleBlockTimeInTimestamp;
+      });
 
-      while (hasMoreActions) {
-        const actionsLogsResult = await getUnprocessedActionsOnFioChain({
-          accountName: FIO_ACCOUNT_NAMES.FIO_ORACLE,
-          fioServerHistoryVersion,
-          pos: nextPos,
-          offset,
-          before: nextBefore,
-          after: lastProcessedFioBlockNumber,
-        });
+      if (!irreversibleOracleItems || !irreversibleOracleItems.length) {
+        console.log(`${logPrefix}No items to wrap`);
 
-        const actionsToProcess =
-          actionsLogsResult &&
-          actionsLogsResult.actions &&
-          actionsLogsResult.actions.length > 0
-            ? actionsLogsResult.actions.filter((actionItem) =>
-                new MathOp(actionItem.block_num).lte(lastIrreversibleBlock),
-              )
-            : [];
+        return;
+      }
 
-        const wrapActionsToProcess = actionsToProcess.filter(
-          (actionsToProcessItem) =>
-            (actionsToProcessItem.action_trace.act.name === 'wraptokens' ||
-              actionsToProcessItem.action_trace.act.name === 'wrapdomain') &&
-            (actionsToProcessItem.action_trace.act.data.chain_code === 'MATIC' ||
-              actionsToProcessItem.action_trace.act.data.chain_code === 'POL' ||
-              actionsToProcessItem.action_trace.act.data.chain_code === 'ETH'),
-        );
+      console.log(`${logPrefix}process items count: ${irreversibleOracleItems.length}`);
 
-        const actionsToProcessLength = wrapActionsToProcess
-          ? wrapActionsToProcess.length
-          : 0;
+      for (const irreversibleOracleItem of irreversibleOracleItems) {
+        const { amount, chaincode, id, nftname, pubaddress } = irreversibleOracleItem;
 
-        console.log(logPrefix + `wrap events data length : ${actionsToProcessLength}`);
-
-        if (actionsToProcessLength > 0) {
-          const processedWrapDataArray = [];
-          for (const eventData of wrapActionsToProcess) {
-            if (
-              (eventData.action_trace.act.name === 'wraptokens' ||
-                eventData.action_trace.act.name === 'wrapdomain') &&
-              eventData.action_trace.act.data.chain_code === 'ETH'
-            ) {
-              const isWrappingTokens = eventData.action_trace.act.name === 'wraptokens';
-              const tx_id = eventData.action_trace.trx_id;
-              const wrapText =
-                tx_id + ' ' + JSON.stringify(eventData.action_trace.act.data);
-              if (processedWrapDataArray.includes(tx_id)) {
-                return;
-              } else {
-                processedWrapDataArray.push(tx_id);
-              }
-
-              const existingFIOLogs = fs
-                .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
-                .toString();
-
-              const isEventDataExists = existingFIOLogs.includes(tx_id);
-
-              // save tx data into wrap tokens and domains queue log file
-              if (!isEventDataExists) {
-                addLogMessage({
-                  filePath: LOG_FILES_PATH_NAMES.FIO,
-                  message: {
-                    chain: 'FIO',
-                    contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
-                    action: isWrappingTokens ? 'wraptokens' : 'wrapdomain ETH',
-                    transaction: eventData,
-                  },
-                });
-                addLogMessage({
-                  filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
-                  message: wrapText,
-                  addTimestamp: false,
-                });
-              }
-            } else if (
-              eventData.action_trace.act.name === 'wrapdomain' &&
-              (eventData.action_trace.act.data.chain_code === 'MATIC' ||
-                eventData.action_trace.act.data.chain_code === 'POL')
-            ) {
-              const tx_id = eventData.action_trace.trx_id;
-              const wrapText =
-                tx_id + ' ' + JSON.stringify(eventData.action_trace.act.data);
-              if (processedWrapDataArray.includes(tx_id)) {
-                return;
-              } else {
-                processedWrapDataArray.push(tx_id);
-              }
-
-              const existingFIOLogs = fs
-                .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
-                .toString();
-
-              const isEventDataExists = existingFIOLogs.includes(tx_id);
-
-              if (!isEventDataExists) {
-                addLogMessage({
-                  filePath: LOG_FILES_PATH_NAMES.FIO,
-                  message: {
-                    chain: 'FIO',
-                    contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
-                    action: 'wrapdomain MATIC',
-                    transaction: eventData,
-                  },
-                });
-                // save tx data into wrap domain on Polygon queue log file
-                addLogMessage({
-                  filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
-                  message: wrapText,
-                  addTimestamp: false,
-                });
-              }
-            }
-          }
-
-          const lastAction = actionsToProcess[actionsToProcess.length - 1];
-
-          nextPos = new MathOp(nextPos).add(actionsToProcess.length).toString();
-
-          nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-        } else {
-          hasMoreActions = false;
-          if (actionsToProcess && actionsToProcess.length > 0) {
-            nextPos = new MathOp(nextPos).add(actionsToProcess.length).toString();
-          }
+        if (!nftname && !amount) {
+          console.log('No data to process');
+          return;
         }
 
-        if (!isV2) {
-          console.log(`${logPrefix}update FIO Oracle position to ${nextPos}`);
-          updatefioOraclePositionFIO(nextPos.toString());
+        let action, wrapQueueFile;
+
+        const transactionData = {
+          chaincode,
+          id,
+          pubaddress,
+        };
+
+        if (nftname) {
+          action = 'wrapdomain POL';
+          wrapQueueFile = LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue;
+          transactionData.nftname = nftname;
+        } else if (amount) {
+          action = 'wraptokens';
+          wrapQueueFile = LOG_FILES_PATH_NAMES.wrapEthTransactionQueue;
+          transactionData.amount = amount;
+        }
+
+        const existingFIOLogs = fs
+          .readFileSync(LOG_FILES_PATH_NAMES.FIO, 'utf-8')
+          .toString();
+
+        const isEventDataExists = existingFIOLogs.includes(`"id":${id}`);
+
+        if (!isEventDataExists) {
+          addLogMessage({
+            filePath: LOG_FILES_PATH_NAMES.FIO,
+            message: {
+              chain: FIO_CHAIN_NAME,
+              contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+              action,
+              transaction: transactionData,
+            },
+          });
+
+          // save tx data into wrap queue log files
+          addLogMessage({
+            filePath: wrapQueueFile,
+            message: `${id} ${JSON.stringify(transactionData)}`,
+            addTimestamp: false,
+          });
         }
       }
+
+      updateFioOracleId((irreversibleOracleItems[0].id + 1).toString());
 
       const isWrapOnEthJobExecuting = oracleCache.get(
         ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting,
@@ -559,13 +492,6 @@ class FIOCtrl {
       console.log(
         logPrefix + 'isWrapOnPolygonJobExecuting: ' + !!isWrapOnPolygonJobExecuting,
       );
-
-      if (isV2) {
-        console.log(
-          `${logPrefix}update FIO Oracle Block Number to ${lastIrreversibleBlock}`,
-        );
-        updateBlockNumberFIO(lastIrreversibleBlock.toString());
-      }
 
       // start wrap job on Eth if it's not running
       if (!isWrapOnEthJobExecuting) {
@@ -622,12 +548,12 @@ class FIOCtrl {
               // also this error will be caught in the catch block
               console.log(
                 logPrefix +
-                  `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, requesting past unwrap events, Blocks Numbers from ${from} to ${to} ETH Error:`,
+                  `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${ETH_CHAIN_NAME_CONSTANT} Error:`,
               );
 
               handleChainError({
                 logMessage:
-                  `ETH ${isTokens ? 'fio.erc20 unwraptokens' : 'fio.erc721 unwrapdomains'} getPastEvents ` +
+                  `${ETH_CHAIN_NAME_CONSTANT} ${isTokens ? `${CONTRACT_NAMES.ERC_20} unwraptokens` : `${CONTRACT_NAMES.ERC_721} unwrapdomains`} getPastEvents ` +
                   error,
                 consoleMessage: error,
               });
@@ -647,15 +573,13 @@ class FIOCtrl {
 
         if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
           throw new Error(
-            logPrefix +
-              `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, Wrong start blockNumber, pls check stored value.`,
+            `${logPrefix} Unwrap ${isTokens ? 'Tokens' : 'Domain'}, Wrong start blockNumber, pls check stored value.`,
           );
 
         let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
         console.log(
-          logPrefix +
-            `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`,
+          `${logPrefix} Unwrap ${isTokens ? 'Tokens' : 'Domain'}, start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`,
         );
 
         let result = [];
@@ -688,8 +612,7 @@ class FIOCtrl {
         }
 
         console.log(
-          logPrefix +
-            `Unwrap ${isTokens ? 'Tokens' : 'Domain'} events list length: ${result.length}`,
+          `${logPrefix} Unwrap ${isTokens ? 'Tokens' : 'Domain'} events list length: ${result.length}`,
         );
         return result;
       };
@@ -699,18 +622,11 @@ class FIOCtrl {
 
       if (unwrapTokensData.length > 0) {
         unwrapTokensData.forEach((item) => {
-          const logText = item.transactionHash + ' ' + JSON.stringify(item.returnValues);
+          const logText = `${item.transactionHash} ${JSON.stringify(item.returnValues)}`;
 
           addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.ETH,
-            message:
-              'ETH' +
-              ' ' +
-              'fio.erc20' +
-              ' ' +
-              'unwraptokens' +
-              ' ' +
-              JSON.stringify(item),
+            message: `${ETH_TOKEN_CODE} ${CONTRACT_NAMES.ERC_20} unwraptokens ${JSON.stringify(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
@@ -727,14 +643,7 @@ class FIOCtrl {
 
           addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.ETH,
-            message:
-              'ETH' +
-              ' ' +
-              'fio.erc721' +
-              ' ' +
-              'unwrapdomains' +
-              ' ' +
-              JSON.stringify(item),
+            message: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${JSON.stringify(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
@@ -804,20 +713,11 @@ class FIOCtrl {
               // also this error will be caught in the catch block
               console.log(
                 logPrefix +
-                  `requesting past unwrap events, Blocks Numbers from ${from} to ${to} MATIC Error:`,
+                  `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${POLYGON_CHAIN_NAME} Error:`,
               );
 
               handleChainError({
-                logMessage:
-                  'Polygon' +
-                  ' ' +
-                  'fio.erc721' +
-                  ' ' +
-                  'unwrapdomains' +
-                  ' ' +
-                  'getPastEvents' +
-                  ' ' +
-                  error,
+                logMessage: `${POLYGON_CHAIN_NAME} ${CONTRACT_NAMES.ERC_721} unwrapdomains getPastEvents ${error}`,
                 consoleMessage: error,
               });
             }
@@ -876,15 +776,8 @@ class FIOCtrl {
           const logText = item.transactionHash + ' ' + JSON.stringify(item.returnValues);
 
           addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.MATIC,
-            message:
-              'Polygon' +
-              ' ' +
-              'fio.erc721' +
-              ' ' +
-              'unwrapdomains' +
-              ' ' +
-              JSON.stringify(item),
+            filePath: LOG_FILES_PATH_NAMES.POLYGON,
+            message: `${POLYGON_CHAIN_NAME} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${JSON.stringify(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
@@ -1093,7 +986,7 @@ class FIOCtrl {
                   message: {
                     chain: 'FIO',
                     contract: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
-                    action: 'burnDomain MATIC',
+                    action: `burnDomain ${POLYGON_TOKEN_CODE}`,
                     transaction: JSON.stringify(data),
                   },
                 });

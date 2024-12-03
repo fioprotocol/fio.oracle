@@ -5,6 +5,7 @@ import {
   handleWrapPolygonAction,
   handleBurnNFTInPolygon,
 } from './oracleutils.js';
+import { ETH_TOKEN_CODE, POLYGON_TOKEN_CODE } from '../controller/constants/chain.js';
 import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
 import {
   addLogMessage,
@@ -55,7 +56,7 @@ const main = async () => {
             ' ' +
             JSON.stringify({
               amount: oracle.amount,
-              chain_code: 'ETH',
+              chain_code: ETH_TOKEN_CODE,
               public_address: oracle.address,
             });
           addLogMessage({
@@ -82,7 +83,7 @@ const main = async () => {
             ' ' +
             JSON.stringify({
               fio_domain: oracle.domain,
-              chain_code: 'MATIC',
+              chain_code: POLYGON_TOKEN_CODE,
               public_address: oracle.address,
             });
           addLogMessage({

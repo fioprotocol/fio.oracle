@@ -3,7 +3,7 @@ import 'dotenv/config';
 import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
-import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
+import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
 import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
 import {
   checkHttpResponseStatus,
@@ -17,6 +17,7 @@ const {
     FIO_SERVER_URL_HISTORY,
     FIO_SERVER_URL_ACTION,
     FIO_SERVER_URL_HISTORY_BACKUP,
+    FIO_GET_TABLE_ROWS_OFFSET,
   },
 } = config;
 
@@ -150,6 +151,7 @@ const getActionsV2 = async ({ accountName, before, after, limit }) => {
     : actionsHistory;
 };
 
+// todo: remove
 export const getUnprocessedActionsOnFioChain = async ({
   accountName,
   before,
@@ -178,5 +180,100 @@ export const getLastAccountPosition = async (accountName) => {
 export const getLastFioAddressAccountPosition = async () =>
   await getLastAccountPosition(FIO_ACCOUNT_NAMES.FIO_ADDRESS);
 
-export const getLastFioOracleAccountPosition = async () =>
-  await getLastAccountPosition(FIO_ACCOUNT_NAMES.FIO_ORACLE);
+export const getTableRows = async ({ logPrefix, tableRowsParams }) => {
+  try {
+    const tableRowsResponse = await fetch(
+      `${FIO_SERVER_URL_ACTION}v1/chain/get_table_rows`,
+      {
+        body: JSON.stringify(tableRowsParams),
+        method: 'POST',
+      },
+    );
+
+    return tableRowsResponse ? tableRowsResponse.json() : null;
+  } catch (error) {
+    handleChainError({
+      logMessage: `${logPrefix} ${error}`,
+      consoleMessage: `GET TABLE ROWS ERROR: ${error}`,
+    });
+  }
+};
+
+export const getLastFioOracleItemId = async () => {
+  const logPrefix = 'Get last FIO Oracle Item ID';
+  try {
+    const tableRowsParams = {
+      json: true,
+      code: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+      scope: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+      table: FIO_TABLE_NAMES.FIO_ORACLE_LDGRS,
+      limit: 1,
+      reverse: true,
+    };
+
+    const response = await getTableRows({
+      logPrefix,
+      tableRowsParams,
+    });
+
+    return response && response.rows[0] ? response.rows[0].id + 1 : null; // Set id + 1 because if we will set id as it is then it will process already processed wrap item
+  } catch (error) {
+    handleChainError({
+      logMessage: `${logPrefix} ${error}`,
+      consoleMessage: `${logPrefix} ERROR: ${error}`,
+    });
+  }
+};
+
+export const getOracleItems = async ({
+  accumulator = [],
+  logPrefix,
+  lowerBound,
+  upperBound,
+}) => {
+  const tableRowsParams = {
+    json: true,
+    code: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+    limit: FIO_GET_TABLE_ROWS_OFFSET,
+    scope: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+    table: FIO_TABLE_NAMES.FIO_ORACLE_LDGRS,
+    reverse: true,
+  };
+
+  if (lowerBound) {
+    tableRowsParams.lower_bound = lowerBound;
+  }
+
+  if (upperBound) {
+    tableRowsParams.upper_bound = upperBound;
+  }
+
+  const response = await getTableRows({ logPrefix, tableRowsParams });
+
+  try {
+    if (!response || !response.rows || response.rows.length === 0) {
+      return accumulator;
+    }
+
+    const { rows, more } = response;
+    const updatedItems = [...accumulator, ...rows];
+
+    if (!more) {
+      return updatedItems;
+    }
+
+    const lastRow = rows[rows.length - 1];
+
+    return getOracleItems({
+      accumulator: updatedItems,
+      logPrefix,
+      lowerBound,
+      upperBound: lastRow.id - 1,
+    });
+  } catch (error) {
+    handleChainError({
+      logMessage: `${logPrefix} ${error}`,
+      consoleMessage: `${logPrefix} ERROR: ${error}`,
+    });
+  }
+};

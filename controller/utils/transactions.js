@@ -1,6 +1,10 @@
 import { Transaction } from '@ethereumjs/tx';
 
-import { ETH_TOKEN_CODE, POLYGON_TOKEN_CODE } from '../constants/chain.js';
+import {
+  ETH_TOKEN_CODE,
+  MATIC_TOKEN_CODE,
+  POLYGON_TOKEN_CODE,
+} from '../constants/chain.js';
 
 import {
   ALREADY_KNOWN_TRANSACTION,
@@ -65,7 +69,7 @@ export const polygonTransaction = async ({
       submitLogData.amount = amount;
     }
 
-    if (tokenCode === POLYGON_TOKEN_CODE) {
+    if (tokenCode === MATIC_TOKEN_CODE || tokenCode === POLYGON_TOKEN_CODE) {
       submitLogData.domain = domain;
     }
 
