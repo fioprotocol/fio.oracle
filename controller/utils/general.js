@@ -1,5 +1,13 @@
+import fetch from 'node-fetch';
+
 import config from '../../config/config.js';
-import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+import { MINUTE_IN_MILLISECONDS, SECOND_IN_MILLISECONDS } from '../constants/general.js';
+
+import { handleServerError } from '../utils/log-files.js';
+
+const { DEFAULT_MAX_RETRIES } = config;
+
+const RATE_LIMIT_ERROR = 'RATE_LIMIT';
 
 export const replaceNewLines = (stringValue, replaceChar = ', ') => {
   return stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -41,51 +49,59 @@ export const sleep = async (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-export const createRateLimiter = ({ maxRequestsPerTime, resetTime }) => {
-  let currentRequestCount = 0;
-  const requestQueue = [];
+export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }) => {
+  const maxRetries = DEFAULT_MAX_RETRIES;
+  let retries = 0;
 
-  // Reset the counter every specified time
-  const resetInterval = () => {
-    setInterval(() => {
-      currentRequestCount = 0;
-      processQueue();
-    }, resetTime);
-  };
+  const makeRequest = async (targetUrl = url) => {
+    try {
+      const response = await fetch(targetUrl, options);
 
-  // Process the queued requests
-  const processQueue = () => {
-    while (requestQueue.length > 0 && currentRequestCount < maxRequestsPerTime) {
-      const { resolve } = requestQueue.shift();
-      currentRequestCount++;
-      resolve();
+      if (response.ok) return response;
+
+      if (response.status === 429) {
+        if (retries > maxRetries) {
+          throw new Error(`${RATE_LIMIT_ERROR}: Max retries (${maxRetries}) reached`);
+        }
+
+        retries++;
+        const backoffDelay =
+          retries === maxRetries
+            ? MINUTE_IN_MILLISECONDS
+            : SECOND_IN_MILLISECONDS * Math.pow(2, retries - 1); // Exponential backoff
+
+        console.log(
+          `RATE LIMIT FOR URL: ${targetUrl} ${options ? `OPTIONS: ${JSON.stringify(options)}` : ''}`,
+        );
+        console.log(`RETRY count: ${retries}, waiting ${backoffDelay}ms`);
+
+        await sleep(backoffDelay);
+        return makeRequest(targetUrl);
+      }
+
+      const responseJSON = response ? await response.json() : null;
+      console.log(responseJSON);
+      throw new Error(
+        `HTTP error! status: ${response.status}, response: ${responseJSON ? JSON.stringify(responseJSON, null, 4) : 'N/A'}`,
+      );
+    } catch (error) {
+      if (error.message.includes(RATE_LIMIT_ERROR) && backupUrl) {
+        retries = 0; // Reset retries count for backup url
+        console.log(`RUNING backup server: ${backupUrl}`);
+
+        return makeRequest(backupUrl);
+      }
+
+      throw error;
     }
   };
 
-  // Schedule requests based on the limiter
-  const scheduleRequest = async () => {
-    if (currentRequestCount < maxRequestsPerTime) {
-      currentRequestCount++;
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-      requestQueue.push({ resolve });
-    });
-  };
-
-  // Initialize the rate limiter
-  resetInterval();
-
-  return {
-    scheduleRequest,
-  };
+  try {
+    return await makeRequest(url);
+  } catch (error) {
+    handleServerError(error, 'Fetch with rate limit failed');
+  }
 };
-
-export const rateLimiterFor1000Rpm = createRateLimiter({
-  maxRequestsPerTime: config.SERVER_RATE_LIMITER_COUNT,
-  resetTime: MINUTE_IN_MILLISECONDS,
-});
 
 export const convertTimestampIntoMs = (timestamp) => {
   const timestampNumber = Number(timestamp);
@@ -97,10 +113,18 @@ export const convertTimestampIntoMs = (timestamp) => {
       return timestampNumber;
     } else {
       // It's in seconds, convert to milliseconds
-      return timestampNumber * 1000;
+      return timestampNumber * SECOND_IN_MILLISECONDS;
     }
   }
 
   // If it's neither a valid timestamp nor a valid Date string
   throw new Error('Invalid input: Unable to convert timestamp into milliseconds.');
+};
+
+export const formatDateYYYYMMDD = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // +1 because months are 0-indexed
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}${month}${day}`;
 };

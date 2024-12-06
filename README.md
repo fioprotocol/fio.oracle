@@ -20,12 +20,12 @@ There are 2 types of .env files:
 ```
 PORT=                        # The port that the fio.oracle service will run on when started
 
-FIO_SERVER_HISTORY_VERSION=  # Version of FIO history node, (“hyperion” or “v1”, defaults to “v1”)
 FIO_SERVER_URL_HISTORY=      # URL of FIO history node
 FIO_SERVER_URL_ACTION=       # URL of FIO API node
-FIO_HISTORY_OFFSET=          # The number of transactions to get on FIO side in each call (If you set 20, you can get 20 actions on FIO side)
+
 FIO_HISTORY_HYPERION_OFFSET= # The number of actions to get from history when using hyperion version
 FIO_TRANSACTION_MAX_RETRIES= # The number of retries when FIO action call fails
+FIO_GET_TABLE_ROWS_OFFSET=   # Offset for FIO get tables rows action
 
 FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
 FIO_ORACLE_ACCOUNT=          # The FIO account used for approving unwrap transactions
@@ -46,7 +46,9 @@ BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon
 
 NFT_CHAIN_NAME=              # NFT chain name (POLYGON|POLYGON-AMOY)
 
-JOB_TIMEOUT=                 # Seconds between running job events (60 seconds=60000)
+JOB_TIMEOUT=                 # Milliseconds between running job events (60 seconds=60000)
+BURN_DOMAINS_JOB_TIMEOUT=    # Milliseconds between running burn domains job event (3 hrs = 10800000)
+DEFAULT_MAX_RETRIES=         # Max retries for fetch actions (set 5 by default)
 
 USE_GAS_API=                 # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
 GAS_PRICE_LEVEL=             # Which price to use from the gas price API (low/average/high)
@@ -70,8 +72,8 @@ INFURA_ETH=                  # The Ethereum chain Infura API URL
 INFURA_POLYGON=              # The Polygon chain Infura API URL
 
 # Optional
+FIO_SERVER_URL_ACTION_BACKUP= # Backup URL of FIO action node
 FIO_SERVER_URL_HISTORY_BACKUP= # Backup URL of FIO history node
-FIO_SERVER_HISTORY_VERSION_BACKUP= # Backup version of FIO history node, (“hyperion” or “v1”)
 ```
 
 ## Installation

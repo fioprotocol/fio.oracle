@@ -16,7 +16,6 @@ import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-f
 import fioRoute from './routes/fio.js';
 import {
   getLastIrreversibleBlockOnFioChain,
-  getLastFioAddressAccountPosition,
   getLastFioOracleItemId,
 } from './utils/fio-chain.js';
 import {
@@ -41,7 +40,7 @@ const {
   infura: { eth, polygon },
   mode,
   polygon: { POLYGON_ORACLE_PUBLIC },
-  JOB_TIMEOUT,
+  jobTimeouts: { DEfAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
 } = config;
 
 const route = express.Router();
@@ -150,10 +149,6 @@ class MainCtrl {
         fetchAction: getLastFioOracleItemId,
       });
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.fioAddressPosition,
-        fetchAction: getLastFioAddressAccountPosition,
-      });
-      await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
         fetchAction: getLastIrreversibleBlockOnFioChain,
       });
@@ -188,13 +183,22 @@ class MainCtrl {
       fioCtrl.handleUnprocessedBurnNFTActions();
 
       // Start Jobs interval
-      setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(JOB_TIMEOUT)); //execute wrap FIO tokens and domains action every 60 seconds
+      setInterval(
+        fioCtrl.handleUnprocessedWrapActionsOnFioChain,
+        parseInt(DEfAULT_JOB_TIMEOUT),
+      ); //execute wrap FIO tokens and domains action every 60 seconds
       setInterval(
         fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions,
-        parseInt(JOB_TIMEOUT),
+        parseInt(DEfAULT_JOB_TIMEOUT),
       ); //execute unwrap tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(JOB_TIMEOUT)); //execute unwrap domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedBurnNFTActions, parseInt(JOB_TIMEOUT));
+      setInterval(
+        fioCtrl.handleUnprocessedUnwrapActionsOnPolygon,
+        parseInt(DEfAULT_JOB_TIMEOUT),
+      ); //execute unwrap domains action every 60 seconds
+      setInterval(
+        fioCtrl.handleUnprocessedBurnNFTActions,
+        parseInt(BURN_DOMAINS_JOB_TIMEOUT),
+      );
 
       this.initRoutes(app);
 
@@ -203,7 +207,7 @@ class MainCtrl {
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
-        'In case failing any request, please, check env variables: INFURA_ETH, INFURA_POLYGON, JOB_TIMEOUT',
+        'In case failing any request, please, check env variables values: INFURA_ETH, INFURA_POLYGON',
       );
     }
   }

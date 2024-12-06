@@ -10,7 +10,6 @@ export const LOG_FILES_PATH_NAMES = {
   POLYGON: LOG_DIRECTORY_PATH_NAME + 'POLYGON.log',
   ethNonce: LOG_DIRECTORY_PATH_NAME + 'ethNonce.log', // store last used ETH nonce to aviod too low nonce issue on concurrency calls
   polygonNonce: LOG_DIRECTORY_PATH_NAME + 'polygonNonce.log', // store last used Polygon nonce to aviod too low nonce issue on concurrency calls
-  fioAddressPosition: LOG_DIRECTORY_PATH_NAME + 'fioAddressPosition.log', // store last processed fio.address position of FIO actions
   fioOracleItemId: LOG_DIRECTORY_PATH_NAME + 'fioOracleItemId.log', // store last processed fio.oracle wrapped item
   blockNumberFIOForBurnNFT: LOG_DIRECTORY_PATH_NAME + 'blockNumberFIOForBurnNFT.log', // store FIO block number for burn domain action
   blockNumberUnwrapTokensETH: LOG_DIRECTORY_PATH_NAME + 'blockNumberETH.log', //store ETH blockNumber for unwrap tokens action

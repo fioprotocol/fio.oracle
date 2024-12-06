@@ -94,10 +94,6 @@ export const addLogMessage = ({
   }
 };
 
-export const updatefioAddressPositionFIO = (accountActionSequence) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, accountActionSequence);
-};
-
 export const updateFioOracleId = (oracleId) => {
   fs.writeFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, oracleId);
 };
@@ -134,10 +130,6 @@ export const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
 
 export const getLastProcessedFioOracleItemId = () => {
   return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, 'utf-8'));
-};
-
-export const getLastProceededFioAddressPositionFioChain = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, 'utf-8'));
 };
 
 export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
