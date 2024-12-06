@@ -1,1 +1,2 @@
 export const MINUTE_IN_MILLISECONDS = 60000;
+export const SECOND_IN_MILLISECONDS = 1000;

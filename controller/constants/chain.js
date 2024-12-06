@@ -28,4 +28,5 @@ export const FIO_ACCOUNT_NAMES = {
 
 export const FIO_TABLE_NAMES = {
   FIO_ORACLE_LDGRS: 'oracleldgrs',
+  FIO_DOMAINS: 'domains',
 };

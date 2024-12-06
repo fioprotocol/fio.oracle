@@ -11,6 +11,7 @@ import {
   MAX_RETRY_TRANSACTION_ATTEMPTS,
   NONCE_TOO_LOW_ERROR,
   LOW_GAS_PRICE,
+  REVERTED_BY_THE_EVM,
 } from '../constants/transactions.js';
 
 import { addLogMessage } from '../utils/log-files.js';

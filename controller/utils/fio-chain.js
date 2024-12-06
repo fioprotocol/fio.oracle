@@ -1,28 +1,101 @@
 import 'dotenv/config';
 
-import fetch from 'node-fetch';
+import { Fio } from '@fioprotocol/fiojs';
+import * as textEncoderObj from 'text-encoding';
 
 import config from '../../config/config.js';
+import { handleChainError } from '../../controller/utils/log-files.js';
 import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
-import { MINUTE_IN_MILLISECONDS } from '../constants/general.js';
-import {
-  checkHttpResponseStatus,
-  sleep,
-  rateLimiterFor1000Rpm,
-} from '../utils/general.js';
+import { checkHttpResponseStatus, fetchWithRateLimit } from '../utils/general.js';
+
+const defaultTextEncoderObj = textEncoderObj.default || {};
+
+const TextDecoder = defaultTextEncoderObj.TextDecoder;
+const TextEncoder = defaultTextEncoderObj.TextEncoder;
+
+const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 const {
   fio: {
-    FIO_SERVER_HISTORY_VERSION,
     FIO_SERVER_URL_HISTORY,
-    FIO_SERVER_URL_ACTION,
     FIO_SERVER_URL_HISTORY_BACKUP,
+    FIO_SERVER_URL_ACTION,
+    FIO_SERVER_URL_ACTION_BACKUP,
     FIO_GET_TABLE_ROWS_OFFSET,
+    FIO_ORACLE_PERMISSION,
+    FIO_ORACLE_PRIVATE_KEY,
+    FIO_ORACLE_ACCOUNT,
   },
 } = config;
 
+const makeGetInfoUrl = (baseUrl) => `${baseUrl}v1/chain/get_info`;
+const makeGetBlockUrl = (baseUrl) => `${baseUrl}v1/chain/get_block`;
+const makeGetRawAbiUrl = (baseUrl) => `${baseUrl}v1/chain/get_raw_abi`;
+const makePushTransactionUrl = (baseUrl) => `${baseUrl}v1/chain/push_transaction`;
+const makeTableRowsUrl = (baseUrl) => `${baseUrl}v1/chain/get_table_rows`;
+const makeDeltasUrl = ({ baseUrl, params }) => {
+  const queryString = new URLSearchParams(params).toString();
+  return `${baseUrl}v2/history/get_deltas?${queryString}`;
+};
+
+const getFioChainInfo = async () =>
+  await (
+    await fetchWithRateLimit({
+      url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
+      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+        ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
+        : null,
+    })
+  ).json();
+
+const getFioBlockInfo = async (lastIrreversibleBlock) =>
+  await (
+    await fetchWithRateLimit({
+      url: makeGetBlockUrl(FIO_SERVER_URL_ACTION),
+      options: {
+        body: `{"block_num_or_id": ${lastIrreversibleBlock}}`,
+        method: 'POST',
+      },
+      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+        ? makeGetBlockUrl(FIO_SERVER_URL_ACTION_BACKUP)
+        : null,
+    })
+  ).json();
+
+const getFioOracleRawAbi = async () =>
+  await (
+    await fetchWithRateLimit({
+      url: makeGetRawAbiUrl(FIO_SERVER_URL_ACTION),
+      options: {
+        body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
+        method: 'POST',
+      },
+      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+        ? makeGetRawAbiUrl(FIO_SERVER_URL_ACTION_BACKUP)
+        : null,
+    })
+  ).json();
+
+const pushFioTransaction = async (tx) =>
+  await fetchWithRateLimit({
+    url: makePushTransactionUrl(FIO_SERVER_URL_ACTION),
+    options: {
+      body: JSON.stringify(tx),
+      method: 'POST',
+    },
+    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+      ? makePushTransactionUrl(FIO_SERVER_URL_ACTION_BACKUP)
+      : null,
+  });
+
 export const getLastIrreversibleBlockOnFioChain = async () => {
-  const fioChainInfoResponse = await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info');
+  const fioChainInfoResponse = await fetchWithRateLimit({
+    url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
+    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+      ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
+      : null,
+  });
 
   await checkHttpResponseStatus(
     fioChainInfoResponse,
@@ -38,157 +111,18 @@ export const getLastIrreversibleBlockOnFioChain = async () => {
   return lastBlockNum;
 };
 
-const getActions = async (accountName, pos, offset) => {
-  let actionsHistoryResponse;
-
-  // Schedule the request based on the rate limiter
-  await rateLimiterFor1000Rpm.scheduleRequest();
-
-  try {
-    actionsHistoryResponse = await fetch(
-      FIO_SERVER_URL_HISTORY + 'v1/history/get_actions',
-      {
-        body: JSON.stringify({ account_name: accountName, pos, offset }),
-        method: 'POST',
-      },
-    );
-
-    if (actionsHistoryResponse.status === 429) {
-      console.log('Rate limit exceeded (429), waiting for 60 seconds...');
-      await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
-      return await getActions(accountName, pos, offset); // Retry the request
-    }
-
-    await checkHttpResponseStatus(
-      actionsHistoryResponse,
-      'Getting FIO actions history went wrong.',
-    );
-  } catch (e) {
-    console.error(e);
-    if (FIO_SERVER_URL_HISTORY_BACKUP) {
-      actionsHistoryResponse = await fetch(
-        FIO_SERVER_URL_HISTORY_BACKUP + 'v1/history/get_actions',
-        {
-          body: JSON.stringify({ account_name: accountName, pos, offset }),
-          method: 'POST',
-        },
-      );
-
-      if (actionsHistoryResponse.status === 429) {
-        console.log('Rate limit exceeded (429), waiting for 60 seconds...');
-        await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
-        return await getActions(accountName, pos, offset); // Retry the request
-      }
-
-      await checkHttpResponseStatus(
-        actionsHistoryResponse,
-        'Getting FIO actions history went wrong.',
-      );
-    }
-  }
-  const actionsHistory = actionsHistoryResponse
-    ? await actionsHistoryResponse.json()
-    : null;
-
-  return actionsHistory;
-};
-
-const getActionsV2 = async ({ accountName, before, after, limit }) => {
-  let actionsHistoryResponse;
-
-  // Schedule the request based on the rate limiter
-  await rateLimiterFor1000Rpm.scheduleRequest();
-
-  try {
-    actionsHistoryResponse = await fetch(
-      `${FIO_SERVER_URL_HISTORY}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`,
-    );
-
-    if (actionsHistoryResponse.status === 429) {
-      console.log('Rate limit exceeded (429), waiting for 60 seconds...');
-      await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
-      return await getActionsV2({ accountName, before, after, limit }); // Retry the request
-    }
-
-    await checkHttpResponseStatus(
-      actionsHistoryResponse,
-      'Getting FIO actions history went wrong.',
-    );
-  } catch (e) {
-    console.error(e);
-    if (FIO_SERVER_URL_HISTORY_BACKUP) {
-      actionsHistoryResponse = await fetch(
-        `${FIO_SERVER_URL_HISTORY_BACKUP}v2/history/get_actions?account=${accountName}&before=${before}&after=${after}&limit=${limit}`,
-      );
-
-      if (actionsHistoryResponse.status === 429) {
-        console.log('Rate limit exceeded (429), waiting for 60 seconds...');
-        await sleep(MINUTE_IN_MILLISECONDS); // Wait for 60 seconds before retrying
-        return await getActionsV2({ accountName, before, after, limit }); // Retry the request
-      }
-
-      await checkHttpResponseStatus(
-        actionsHistoryResponse,
-        'Getting FIO actions history went wrong.',
-      );
-    }
-  }
-  const actionsHistory = actionsHistoryResponse
-    ? await actionsHistoryResponse.json()
-    : null;
-
-  return actionsHistory && actionsHistory.actions && actionsHistory.actions.length
-    ? {
-        ...actionsHistory,
-        actions: actionsHistory.actions.map((elem) => ({
-          ...elem,
-          action_trace: {
-            act: elem.act,
-            trx_id: elem.trx_id,
-          },
-        })),
-      }
-    : actionsHistory;
-};
-
-// todo: remove
-export const getUnprocessedActionsOnFioChain = async ({
-  accountName,
-  before,
-  after,
-  fioServerHistoryVersion = FIO_SERVER_HISTORY_VERSION,
-  pos,
-  offset,
-}) => {
-  const isV2 = fioServerHistoryVersion === 'hyperion';
-
-  if (isV2) {
-    return await getActionsV2({ accountName, before, after, limit: offset });
-  } else {
-    return await getActions(accountName, pos, offset);
-  }
-};
-
-export const getLastAccountPosition = async (accountName) => {
-  const res = await getActions(accountName, -1, -1);
-
-  if (!res || (res && !res.actions)) return 0;
-
-  return res.actions[0].account_action_seq;
-};
-
-export const getLastFioAddressAccountPosition = async () =>
-  await getLastAccountPosition(FIO_ACCOUNT_NAMES.FIO_ADDRESS);
-
 export const getTableRows = async ({ logPrefix, tableRowsParams }) => {
   try {
-    const tableRowsResponse = await fetch(
-      `${FIO_SERVER_URL_ACTION}v1/chain/get_table_rows`,
-      {
+    const tableRowsResponse = await fetchWithRateLimit({
+      url: makeTableRowsUrl(FIO_SERVER_URL_ACTION),
+      options: {
         body: JSON.stringify(tableRowsParams),
         method: 'POST',
       },
-    );
+      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
+        ? makeTableRowsUrl(FIO_SERVER_URL_ACTION_BACKUP)
+        : null,
+    });
 
     return tableRowsResponse ? tableRowsResponse.json() : null;
   } catch (error) {
@@ -275,5 +209,95 @@ export const getOracleItems = async ({
       logMessage: `${logPrefix} ${error}`,
       consoleMessage: `${logPrefix} ERROR: ${error}`,
     });
+  }
+};
+
+export const getFioDeltasV2 = async (params) => {
+  let response = null;
+
+  const url = makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY, params });
+
+  try {
+    const res = await fetchWithRateLimit({
+      url,
+      backupUrl: FIO_SERVER_URL_HISTORY_BACKUP
+        ? makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY_BACKUP, params })
+        : null,
+    });
+    response = res.json();
+  } catch (error) {
+    console.log('error', error);
+    handleChainError({
+      logMessage: `Failed to fetch deltas from V2 ${url}: ${error.message}`,
+      consoleMessage: `Failed to fetch deltas from V2 ${url}: ${error}`,
+    });
+  }
+
+  return response;
+};
+
+export const runUnwrapFioTransaction = async ({ actionName, transactionActionData }) => {
+  try {
+    const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
+      oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY;
+
+    const fioChainInfo = await getFioChainInfo();
+    const fioLastBlockInfo = await getFioBlockInfo(
+      fioChainInfo.last_irreversible_block_num,
+    );
+
+    const chainId = fioChainInfo.chain_id;
+    const currentDate = new Date();
+    const timePlusTen = currentDate.getTime() + 10000;
+    const timeInISOString = new Date(timePlusTen).toISOString();
+    const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
+
+    const transaction = {
+      expiration,
+      ref_block_num: fioLastBlockInfo.block_num & 0xffff,
+      ref_block_prefix: fioLastBlockInfo.ref_block_prefix,
+      actions: [
+        {
+          account: contract,
+          name: actionName,
+          authorization: [
+            {
+              actor: FIO_ORACLE_ACCOUNT,
+              permission: FIO_ORACLE_PERMISSION,
+            },
+          ],
+          data: {
+            ...transactionActionData,
+            actor: FIO_ORACLE_ACCOUNT,
+          },
+        },
+      ],
+    };
+
+    const abiMap = new Map();
+    const tokenRawAbi = await getFioOracleRawAbi();
+    abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
+
+    const privateKeys = [oraclePrivateKey];
+
+    const tx = await Fio.prepareTransaction({
+      transaction,
+      chainId,
+      privateKeys,
+      abiMap,
+      textDecoder,
+      textEncoder,
+    });
+
+    const pushResult = await pushFioTransaction(tx);
+
+    if (!pushResult) throw new Error('No push transaction result.');
+
+    const transactionResult = await pushResult.json();
+
+    return transactionResult;
+  } catch (error) {
+    console.log('Unwrap FIO transaction fail:', error);
+    throw error;
   }
 };

@@ -47,7 +47,7 @@ const main = async () => {
       case 'wraptokens':
         await prepareLogFile({
           filePath: LOG_FILES_PATH_NAMES.ethNonce,
-          fetchLastBlockNumber: getLatestEthNonce,
+          fetchAction: getLatestEthNonce,
         });
 
         if (oracle.isClean) {
@@ -75,7 +75,7 @@ const main = async () => {
       case 'wrapdomain':
         await prepareLogFile({
           filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-          fetchLastBlockNumber: getLatestPolygonNonce,
+          fetchAction: getLatestPolygonNonce,
         });
         if (oracle.isClean) {
           const wrapText =
@@ -144,7 +144,7 @@ const main = async () => {
       case 'burndomain':
         await prepareLogFile({
           filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-          fetchLastBlockNumber: getLatestPolygonNonce,
+          fetchAction: getLatestPolygonNonce,
         });
 
         if (oracle.isClean) {

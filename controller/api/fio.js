@@ -2,9 +2,6 @@ import 'dotenv/config';
 
 import fs from 'fs';
 
-import { Fio } from '@fioprotocol/fiojs';
-import fetch from 'node-fetch';
-import * as textEncoderObj from 'text-encoding';
 import Web3 from 'web3';
 
 import ethCtrl from './eth.js';
@@ -23,17 +20,20 @@ import {
   FIO_CHAIN_NAME,
   POLYGON_CHAIN_NAME,
   POLYGON_TOKEN_CODE,
+  FIO_TABLE_NAMES,
 } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
+import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 
 import { convertNativeFioIntoFio } from '../utils/chain.js';
 import {
-  getUnprocessedActionsOnFioChain,
   getLastIrreversibleBlockOnFioChain,
   getOracleItems,
+  getFioDeltasV2,
+  runUnwrapFioTransaction,
 } from '../utils/fio-chain.js';
-import { handleBackups, sleep, convertTimestampIntoMs } from '../utils/general.js';
+import { sleep, convertTimestampIntoMs, formatDateYYYYMMDD } from '../utils/general.js';
 import {
   addLogMessage,
   updateBlockNumberFIOForBurnNFT,
@@ -42,7 +42,6 @@ import {
   updateBlockNumberMATIC,
   getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping,
   getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping,
-  getLastProceededFioAddressPositionFioChain,
   getLastProceededBlockNumberOnFioChainForBurnNFT,
   getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping,
   getLastProcessedFioOracleItemId,
@@ -51,31 +50,12 @@ import {
   handleUpdatePendingPolygonItemsQueue,
   handleServerError,
   handleChainError,
-  updatefioAddressPositionFIO,
 } from '../utils/log-files.js';
 import MathOp from '../utils/math.js';
 
-const defaultTextEncoderObj = textEncoderObj.default || {};
-
-const TextDecoder = defaultTextEncoderObj.TextDecoder;
-const TextEncoder = defaultTextEncoderObj.TextEncoder;
-
-const textDecoder = new TextDecoder();
-const textEncoder = new TextEncoder();
-
 const {
   eth: { BLOCKS_RANGE_LIMIT_ETH, BLOCKS_OFFSET_ETH, ETH_CONTRACT, ETH_NFT_CONTRACT },
-  fio: {
-    FIO_ORACLE_PERMISSION,
-    FIO_SERVER_HISTORY_VERSION,
-    FIO_TRANSACTION_MAX_RETRIES,
-    FIO_SERVER_URL_ACTION,
-    FIO_SERVER_HISTORY_VERSION_BACKUP,
-    FIO_ORACLE_PRIVATE_KEY,
-    FIO_ORACLE_ACCOUNT,
-    FIO_HISTORY_OFFSET,
-    FIO_HISTORY_HYPERION_OFFSET,
-  },
+  fio: { FIO_TRANSACTION_MAX_RETRIES, FIO_HISTORY_HYPERION_OFFSET },
   infura: { eth, polygon },
   nfts: { NFT_CHAIN_NAME },
   oracleCache,
@@ -116,86 +96,22 @@ const handleUnwrapFromEthToFioChainJob = async () => {
 
   while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
     try {
-      const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
-        actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain', //action name
-        oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
-        oracleAccount = FIO_ORACLE_ACCOUNT,
-        amount = parseInt(unwrapData.amount),
-        obtId = txIdOnEthChain,
-        domain = unwrapData.domain;
-      const fioChainInfo = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')
-      ).json();
-      const fioLastBlockInfo = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
-          body: `{"block_num_or_id": ${fioChainInfo.last_irreversible_block_num}}`,
-          method: 'POST',
-        })
-      ).json();
+      const actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain',
+        amount = parseInt(unwrapData.amount);
 
-      const chainId = fioChainInfo.chain_id;
-      const currentDate = new Date();
-      const timePlusTen = currentDate.getTime() + 10000;
-      const timeInISOString = new Date(timePlusTen).toISOString();
-      const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
-
-      const transactionActionsData = {
+      const transactionActionData = {
         fio_address: fioAddress,
-        obt_id: obtId,
-        actor: oracleAccount,
+        obt_id: txIdOnEthChain,
       };
 
       if (isUnwrappingTokens) {
-        transactionActionsData.amount = amount;
-      } else transactionActionsData.domain = domain;
+        transactionActionData.amount = amount;
+      } else transactionActionData.domain = unwrapData.domain;
 
-      const transaction = {
-        expiration,
-        ref_block_num: fioLastBlockInfo.block_num & 0xffff,
-        ref_block_prefix: fioLastBlockInfo.ref_block_prefix,
-        actions: [
-          {
-            account: contract,
-            name: actionName,
-            authorization: [
-              {
-                actor: oracleAccount,
-                permission: FIO_ORACLE_PERMISSION,
-              },
-            ],
-            data: transactionActionsData,
-          },
-        ],
-      };
-      const abiMap = new Map();
-      const tokenRawAbi = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-          body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
-          method: 'POST',
-        })
-      ).json();
-      abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
-
-      const privateKeys = [oraclePrivateKey];
-
-      const tx = await Fio.prepareTransaction({
-        transaction,
-        chainId,
-        privateKeys,
-        abiMap,
-        textDecoder,
-        textEncoder,
+      const transactionResult = await runUnwrapFioTransaction({
+        actionName,
+        transactionActionData,
       });
-
-      const pushResult = await fetch(
-        FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction',
-        {
-          //execute transaction for unwrap
-          body: JSON.stringify(tx),
-          method: 'POST',
-        },
-      );
-      const transactionResult = await pushResult.json();
 
       if (!(transactionResult.type || transactionResult.error)) {
         isTransactionProceededSuccessfully = true;
@@ -213,13 +129,13 @@ const handleUnwrapFromEthToFioChainJob = async () => {
         message: {
           chain: 'FIO',
           contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
-          action: isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomains',
+          action: actionName,
           transaction: transactionResult,
         },
       });
     } catch (err) {
       retries++;
-      await sleep(1000);
+      await sleep(SECOND_IN_MILLISECONDS);
       handleServerError(err, 'FIO, handleUnwrapFromEthToFioChainJob');
     }
   }
@@ -268,80 +184,16 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
 
   while (retries < FIO_TRANSACTION_MAX_RETRIES && !isTransactionProceededSuccessfully) {
     try {
-      const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
-        action = 'unwrapdomain', //action name
-        oraclePrivateKey = FIO_ORACLE_PRIVATE_KEY,
-        oracleAccount = FIO_ORACLE_ACCOUNT,
-        domain = unwrapData.domain,
-        obtId = txIdOnPolygonChain;
-      const info = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_info')
-      ).json();
-      const blockInfo = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_block', {
-          body: `{"block_num_or_id": ${info.last_irreversible_block_num}}`,
-          method: 'POST',
-        })
-      ).json();
-      const chainId = info.chain_id;
-      const currentDate = new Date();
-      const timePlusTen = currentDate.getTime() + 10000;
-      const timeInISOString = new Date(timePlusTen).toISOString();
-      const expiration = timeInISOString.substr(0, timeInISOString.length - 1);
-
-      const transaction = {
-        expiration,
-        ref_block_num: blockInfo.block_num & 0xffff,
-        ref_block_prefix: blockInfo.ref_block_prefix,
-        actions: [
-          {
-            account: contract,
-            name: action,
-            authorization: [
-              {
-                actor: oracleAccount,
-                permission: FIO_ORACLE_PERMISSION,
-              },
-            ],
-            data: {
-              fio_address: fioAddress,
-              fio_domain: domain,
-              obt_id: obtId,
-              actor: oracleAccount,
-            },
-          },
-        ],
+      const transactionActionData = {
+        fio_address: fioAddress,
+        fio_domain: unwrapData.domain,
+        obt_id: txIdOnPolygonChain,
       };
-      const abiMap = new Map();
-      const tokenRawAbi = await (
-        await fetch(FIO_SERVER_URL_ACTION + 'v1/chain/get_raw_abi', {
-          body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
-          method: 'POST',
-        })
-      ).json();
-      abiMap.set(FIO_ACCOUNT_NAMES.FIO_ORACLE, tokenRawAbi);
 
-      const privateKeys = [oraclePrivateKey];
-
-      const tx = await Fio.prepareTransaction({
-        transaction,
-        chainId,
-        privateKeys,
-        abiMap,
-        textDecoder,
-        textEncoder,
+      const transactionResult = await runUnwrapFioTransaction({
+        actionName: 'unwrapdomain',
+        transactionActionData,
       });
-
-      const pushResult = await fetch(
-        FIO_SERVER_URL_ACTION + 'v1/chain/push_transaction',
-        {
-          //excute transaction for unwrap
-          body: JSON.stringify(tx),
-          method: 'POST',
-        },
-      );
-
-      const transactionResult = await pushResult.json();
 
       if (!(transactionResult.type || transactionResult.error)) {
         isTransactionProceededSuccessfully = true;
@@ -366,7 +218,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
       });
     } catch (err) {
       retries++;
-      await sleep(1000);
+      await sleep(SECOND_IN_MILLISECONDS);
       handleServerError(err, 'FIO, handleUnwrapFromPolygonToFioChainJob');
     }
   }
@@ -412,7 +264,7 @@ class FIOCtrl {
         lowerBound: lastProcessedFioOracleItemId,
       });
 
-      const irreversibleBlockTimeInTimestamp = Date.now() - 181 * 1000; // irreversibility of block number takes 180 seconds. Take 181 second to be sure it has been submitted.
+      const irreversibleBlockTimeInTimestamp = Date.now() - 181 * SECOND_IN_MILLISECONDS; // irreversibility of block number takes 180 seconds. Take 181 second to be sure it has been submitted.
 
       const irreversibleOracleItems = oracleItems.filter(({ timestamp }) => {
         const timestampMs = convertTimestampIntoMs(timestamp);
@@ -504,9 +356,7 @@ class FIOCtrl {
     };
 
     try {
-      await handleBackups(handleWrapAction, false, {
-        fioServerHistoryVersion: FIO_SERVER_HISTORY_VERSION_BACKUP,
-      });
+      await handleWrapAction();
     } catch (err) {
       handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
     }
@@ -818,128 +668,81 @@ class FIOCtrl {
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting)) {
       oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, true, 0);
     } else {
-      console.log(logPrefix + 'Job is already running');
+      console.log(`${logPrefix}Job is already running`);
       return;
     }
 
-    const handleBurnNFTAction = async (fioServerHistoryVersion) => {
-      const serverType = fioServerHistoryVersion || FIO_SERVER_HISTORY_VERSION;
-      const isV2 = serverType === 'hyperion';
-      const offset = isV2
-        ? parseInt(FIO_HISTORY_HYPERION_OFFSET)
-        : parseInt(FIO_HISTORY_OFFSET);
-
-      const lastFioAddressPosition = getLastProceededFioAddressPositionFioChain() || 0;
+    const handleBurnNFTAction = async () => {
       const lastProcessedFioBlockNumber =
         getLastProceededBlockNumberOnFioChainForBurnNFT() || 0;
       const lastIrreversibleBlock = (await getLastIrreversibleBlockOnFioChain()) || 0;
 
-      console.log(
-        logPrefix +
-          `start Position = ${
-            isV2 ? lastProcessedFioBlockNumber : lastFioAddressPosition
-          }`,
-      );
+      console.log(`${logPrefix}start Position = ${lastProcessedFioBlockNumber}`);
 
-      const processActions = async () => {
-        let nextPos = lastFioAddressPosition;
-        let nextBefore = lastIrreversibleBlock;
-        let hasMoreActions = true;
-        const burnedDomainsListFromFio = [];
+      const unprocessedBurnedDomainsList = [];
 
-        while (hasMoreActions) {
-          const actionsLogsResult = await getUnprocessedActionsOnFioChain({
-            accountName: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
-            fioServerHistoryVersion: serverType,
-            pos: nextPos,
-            offset,
-            before: nextBefore,
-            after: lastProcessedFioBlockNumber,
-          });
+      const after = lastProcessedFioBlockNumber;
+      const before = lastIrreversibleBlock;
 
-          const actionsToProcess =
-            actionsLogsResult &&
-            actionsLogsResult.actions &&
-            actionsLogsResult.actions.length > 0
-              ? actionsLogsResult.actions.filter((actionItem) =>
-                  new MathOp(actionItem.block_num).lte(lastIrreversibleBlock),
-                )
-              : [];
+      const paramsToPass = {
+        code: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+        scope: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+        after,
+        before,
+        present: 0,
+        table: FIO_TABLE_NAMES.FIO_DOMAINS,
+        limit: FIO_HISTORY_HYPERION_OFFSET,
+        payer: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+      };
 
-          const burnActionsToProcess = actionsToProcess.filter(
-            (actionsLogsItem) =>
-              actionsLogsItem.action_trace &&
-              actionsLogsItem.action_trace.act &&
-              actionsLogsItem.action_trace.act.name === 'burndomain',
+      const getFioBurnedDomainsLogsAll = async (params) => {
+        const burnedDomainsLogs = await getFioDeltasV2(params);
+
+        if (
+          burnedDomainsLogs &&
+          burnedDomainsLogs.deltas &&
+          burnedDomainsLogs.deltas.length
+        ) {
+          const deltasLength = burnedDomainsLogs.deltas.length;
+
+          unprocessedBurnedDomainsList.push(
+            ...burnedDomainsLogs.deltas
+              .filter(
+                (deltaItem) => deltaItem.data.account === FIO_ACCOUNT_NAMES.FIO_ORACLE,
+              )
+              .map((deltaItem) => deltaItem.data.name),
           );
 
-          const actionsLogsResultLength =
-            burnActionsToProcess && burnActionsToProcess.length;
-
-          if (actionsLogsResultLength) {
-            console.log(
-              `${logPrefix} burn domains events data length: ${burnActionsToProcess.length}`,
-            );
-            for (const actionsToProcessItem of burnActionsToProcess) {
-              if (
-                actionsToProcessItem &&
-                actionsToProcessItem.action_trace &&
-                actionsToProcessItem.action_trace.act &&
-                actionsToProcessItem.action_trace.act.data &&
-                actionsToProcessItem.action_trace.act.data.domainname
-              ) {
-                const txId = actionsToProcessItem.action_trace.trx_id;
-                if (
-                  burnedDomainsListFromFio.includes(
-                    (burnedDomainsListItem) => burnedDomainsListItem.trxId === txId,
-                  )
-                ) {
-                  return;
-                }
-
-                burnedDomainsListFromFio.push({
-                  domainName: actionsToProcessItem.action_trace.act.data.domainname,
-                  trxId: txId,
-                  data: actionsToProcessItem,
-                });
-              }
+          if (deltasLength) {
+            const lastDeltasItem = burnedDomainsLogs.deltas[deltasLength - 1];
+            if (lastDeltasItem && lastDeltasItem.block_num) {
+              params.before = new MathOp(deltasLength).eq(burnedDomainsLogs.total.value)
+                ? lastDeltasItem.block_num - 1
+                : lastDeltasItem.block_num;
             }
 
-            const lastAction = actionsToProcess[actionsToProcess.length - 1];
-
-            nextPos = new MathOp(nextPos).add(actionsToProcess.length).toString();
-
-            updatefioAddressPositionFIO(nextPos);
-
-            nextBefore = lastAction ? lastAction.block_num - 1 : nextBefore;
-          } else {
-            if (actionsToProcess && actionsToProcess.length > 0) {
-              nextPos = new MathOp(nextPos).add(actionsToProcess.length).toString();
-            } else {
-              hasMoreActions = false;
-            }
-          }
-
-          if (!isV2) {
-            console.log(`${logPrefix} update FIO Address position to ${nextPos}`);
-            updatefioAddressPositionFIO(nextPos.toString());
+            await getFioBurnedDomainsLogsAll(params);
           }
         }
+      };
 
+      await getFioBurnedDomainsLogsAll(paramsToPass);
+
+      if (unprocessedBurnedDomainsList.length) {
         console.log(
-          'Burned Domains List From Fio Length: ',
-          burnedDomainsListFromFio.length,
+          `${logPrefix}Burned Domains List From Fio Length: ${unprocessedBurnedDomainsList.length}`,
         );
-        if (!burnedDomainsListFromFio.length) return;
 
         const nftsListToBurn = [];
 
         console.log('START GETTING MORALIS NFTS');
+
         const nftsList = await moralis.getAllContractNFTs({
           chainName: NFT_CHAIN_NAME,
           contract: POLYGON_CONTRACT,
         });
-        console.log('NFTS LENGTH', nftsList && nftsList.length);
+
+        console.log(`NFTS LENGTH ${nftsList && nftsList.length}`);
 
         for (const nftItem of nftsList) {
           const { metadata, token_id, normalized_metadata } = nftItem;
@@ -962,16 +765,17 @@ class FIOCtrl {
           const name = metadataName && metadataName.split(': ')[1];
 
           if (name) {
-            const existingInBurnList = burnedDomainsListFromFio.find(
-              (burnedDomainItem) => name === burnedDomainItem.domainName,
+            const existingDomainInBurnList = unprocessedBurnedDomainsList.find(
+              (burnedDomain) => name === burnedDomain,
             );
 
-            if (existingInBurnList) {
-              const { trxId, domainName, data } = existingInBurnList;
+            if (existingDomainInBurnList) {
+              const trxId = `AutomaticDomainBurn${formatDateYYYYMMDD(new Date())}${name}`;
+
               nftsListToBurn.push({
                 tokenId: token_id,
                 obtId: trxId,
-                domainName,
+                domainName: name,
               });
 
               const existingFIOLogs = fs
@@ -980,14 +784,14 @@ class FIOCtrl {
 
               const isActionDataExists = existingFIOLogs.includes(trxId);
 
-              if (!isActionDataExists && data) {
+              if (!isActionDataExists) {
                 addLogMessage({
                   filePath: LOG_FILES_PATH_NAMES.FIO,
                   message: {
-                    chain: 'FIO',
+                    chain: FIO_CHAIN_NAME,
                     contract: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
                     action: `burnDomain ${POLYGON_TOKEN_CODE}`,
-                    transaction: JSON.stringify(data),
+                    transaction: { trxId, domainName: name },
                   },
                 });
               }
@@ -995,7 +799,7 @@ class FIOCtrl {
           }
         }
 
-        console.log('Nfts List To Burn Lnegth: ', nftsListToBurn.length);
+        console.log(`Nfts List To Burn: length = ${nftsListToBurn.length}`);
 
         for (const nftsListToBurnItem of nftsListToBurn) {
           const existingNFTTransactionsQueue = fs
@@ -1014,22 +818,21 @@ class FIOCtrl {
             });
           }
         }
-      };
-
-      await processActions();
-
-      if (isV2) {
-        console.log(
-          `${logPrefix} update processed FIO Block Number to ${lastIrreversibleBlock}`,
-        );
-        updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());
+      } else {
+        console.log(`${logPrefix}No domains to burn.`);
       }
+
+      console.log(
+        `${logPrefix}Update FIO Block Number for burn NFTS: ${lastIrreversibleBlock}`,
+      );
+
+      updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());
 
       const isBurnNFTOnPolygonJobExecuting = oracleCache.get(
         ORACLE_CACHE_KEYS.isBurnNFTOnPolygonJobExecuting,
       );
       console.log(
-        logPrefix + 'isBurnNFTOnPolygonJobExecuting: ' + !!isBurnNFTOnPolygonJobExecuting,
+        `${logPrefix} isBurnNFTOnPolygonJobExecuting: ${!!isBurnNFTOnPolygonJobExecuting}`,
       );
 
       if (!isBurnNFTOnPolygonJobExecuting) {
@@ -1038,13 +841,13 @@ class FIOCtrl {
     };
 
     try {
-      await handleBackups(handleBurnNFTAction, false, FIO_SERVER_HISTORY_VERSION_BACKUP);
+      await handleBurnNFTAction();
     } catch (err) {
       handleServerError(err, 'FIO, handleUnprocessedBurnNFTActions');
     }
 
     oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, false, 0);
-    console.log(logPrefix + 'End');
+    console.log(`${logPrefix} End`);
   }
 }
 
