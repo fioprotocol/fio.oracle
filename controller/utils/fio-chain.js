@@ -54,7 +54,7 @@ const getFioBlockInfo = async (lastIrreversibleBlock) =>
     await fetchWithRateLimit({
       url: makeGetBlockUrl(FIO_SERVER_URL_ACTION),
       options: {
-        body: `{"block_num_or_id": ${lastIrreversibleBlock}}`,
+        body: JSON.stringify({ block_num_or_id: lastIrreversibleBlock }),
         method: 'POST',
       },
       backupUrl: FIO_SERVER_URL_ACTION_BACKUP
@@ -68,7 +68,7 @@ const getFioOracleRawAbi = async () =>
     await fetchWithRateLimit({
       url: makeGetRawAbiUrl(FIO_SERVER_URL_ACTION),
       options: {
-        body: `{"account_name": ${FIO_ACCOUNT_NAMES.FIO_ORACLE}}`,
+        body: JSON.stringify({ account_name: FIO_ACCOUNT_NAMES.FIO_ORACLE }),
         method: 'POST',
       },
       backupUrl: FIO_SERVER_URL_ACTION_BACKUP
