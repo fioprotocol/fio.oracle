@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { Fio } from '@fioprotocol/fiojs';
 import * as textEncoderObj from 'text-encoding';
 
+import MathOp from './math.js';
 import config from '../../config/config.js';
 import { handleChainError } from '../../controller/utils/log-files.js';
 import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
@@ -150,7 +151,9 @@ export const getLastFioOracleItemId = async () => {
       tableRowsParams,
     });
 
-    return response && response.rows[0] ? response.rows[0].id + 1 : null; // Set id + 1 because if we will set id as it is then it will process already processed wrap item
+    return response && response.rows[0]
+      ? new MathOp(response.rows[0].id).add(1).toNumber() // Use math operator to be sure we will have correct math operation
+      : null; // Set id + 1 because if we will set id as it is then it will process already processed wrap item
   } catch (error) {
     handleChainError({
       logMessage: `${logPrefix} ${error}`,
