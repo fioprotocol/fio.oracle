@@ -1,12 +1,17 @@
 import { Transaction } from '@ethereumjs/tx';
 
-import { ETH_TOKEN_CODE, POLYGON_TOKEN_CODE } from '../constants/chain.js';
+import {
+  ETH_TOKEN_CODE,
+  MATIC_TOKEN_CODE,
+  POLYGON_TOKEN_CODE,
+} from '../constants/chain.js';
 
 import {
   ALREADY_KNOWN_TRANSACTION,
   MAX_RETRY_TRANSACTION_ATTEMPTS,
   NONCE_TOO_LOW_ERROR,
   LOW_GAS_PRICE,
+  REVERTED_BY_THE_EVM,
 } from '../constants/transactions.js';
 
 import { addLogMessage } from '../utils/log-files.js';
@@ -65,7 +70,7 @@ export const polygonTransaction = async ({
       submitLogData.amount = amount;
     }
 
-    if (tokenCode === POLYGON_TOKEN_CODE) {
+    if (tokenCode === MATIC_TOKEN_CODE || tokenCode === POLYGON_TOKEN_CODE) {
       submitLogData.domain = domain;
     }
 
@@ -110,7 +115,7 @@ export const polygonTransaction = async ({
         })
         .on('receipt', (receipt) => {
           console.log(
-            logPrefix + 'Transaction has been successfully completed in the chain.',
+            `${logPrefix} Transaction has been successfully completed in the chain.`,
           );
           if (handleSuccessedResult) {
             try {
@@ -121,16 +126,15 @@ export const polygonTransaction = async ({
           }
         })
         .on('error', (error, receipt) => {
-          console.log(logPrefix + 'Transaction has been failed in the chain.');
+          console.log(`${logPrefix} Transaction has been failed in the chain.`);
 
           if (receipt && receipt.blockHash && !receipt.status)
             console.log(
-              logPrefix +
-                'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value',
+              `${logPrefix} It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value`,
             );
         });
     } catch (error) {
-      console.log(logPrefix + error.stack);
+      console.log(`${logPrefix} ${error.stack}`);
 
       const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
       const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);

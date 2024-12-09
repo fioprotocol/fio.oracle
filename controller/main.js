@@ -5,12 +5,18 @@ import Web3 from 'web3';
 
 import fioCtrl from './api/fio.js';
 
+import {
+  ETH_CHAIN_NAME_CONSTANT,
+  ETH_TOKEN_CODE,
+  POLYGON_CHAIN_NAME,
+  POLYGON_TOKEN_CODE,
+} from './constants/chain.js';
 import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
+
 import fioRoute from './routes/fio.js';
 import {
   getLastIrreversibleBlockOnFioChain,
-  getLastFioAddressAccountPosition,
-  getLastFioOracleAccountPosition,
+  getLastFioOracleItemId,
 } from './utils/fio-chain.js';
 import {
   prepareLogDirectory,
@@ -34,14 +40,14 @@ const {
   infura: { eth, polygon },
   mode,
   polygon: { POLYGON_ORACLE_PUBLIC },
-  JOB_TIMEOUT,
+  jobTimeouts: { DEfAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
 } = config;
 
 const route = express.Router();
 
 class MainCtrl {
   async start(app) {
-    const logPrefix = `Startup --> `;
+    const logPrefix = `Startup -->`;
 
     try {
       this.web3 = new Web3(eth);
@@ -50,10 +56,10 @@ class MainCtrl {
       // Check oracle addresses balances on ETH and Polygon chains
       await this.web3.eth.getBalance(ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
         if (error) {
-          console.log(logPrefix + error.stack);
+          console.log(`${logPrefix} ${error.stack}`);
         } else {
           console.log(
-            logPrefix + `Oracle ETH Address Balance: ${convertWeiToEth(result)} ETH`,
+            `${logPrefix} Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
           );
         }
       });
@@ -62,11 +68,10 @@ class MainCtrl {
         'latest',
         (error, result) => {
           if (error) {
-            console.log(logPrefix + error.stack);
+            console.log(`${logPrefix} ${error.stack}`);
           } else {
             console.log(
-              logPrefix +
-                `Oracle MATIC Address Balance: ${convertWeiToEth(result)} MATIC`,
+              `${logPrefix} Oracle ${POLYGON_CHAIN_NAME} Address Balance: ${convertWeiToEth(result)} ${POLYGON_TOKEN_CODE}`,
             );
           }
         },
@@ -127,7 +132,7 @@ class MainCtrl {
       });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
       await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.MATIC });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.POLYGON });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
       });
@@ -135,47 +140,39 @@ class MainCtrl {
         filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
       });
 
-      console.log(logPrefix + 'logs folders are ready');
+      console.log(`${logPrefix} logs folders are ready`);
 
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.fioOraclePosition,
-        fetchLastBlockNumber: getLastFioOracleAccountPosition,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.fioAddressPosition,
-        fetchLastBlockNumber: getLastFioAddressAccountPosition,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberFIO,
-        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
+        filePath: LOG_FILES_PATH_NAMES.fioOracleItemId,
+        fetchAction: getLastFioOracleItemId,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
-        fetchLastBlockNumber: getLastIrreversibleBlockOnFioChain,
+        fetchAction: getLastIrreversibleBlockOnFioChain,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
-        fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+        fetchAction: this.web3.eth.getBlockNumber,
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-        fetchLastBlockNumber: this.web3.eth.getBlockNumber,
+        fetchAction: this.web3.eth.getBlockNumber,
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
-        fetchLastBlockNumber: this.polyWeb3.eth.getBlockNumber,
+        fetchAction: this.polyWeb3.eth.getBlockNumber,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.ethNonce,
-        fetchLastBlockNumber: getLatestEthNonce,
+        fetchAction: getLatestEthNonce,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-        fetchLastBlockNumber: getLatestPolygonNonce,
+        fetchAction: getLatestPolygonNonce,
       });
-      console.log(logPrefix + 'blocks folders are ready');
+      console.log(`${logPrefix} blocks folders are ready`);
 
       // Start Jobs asynchronously immediately
       fioCtrl.handleUnprocessedWrapActionsOnFioChain();
@@ -184,22 +181,31 @@ class MainCtrl {
       fioCtrl.handleUnprocessedBurnNFTActions();
 
       // Start Jobs interval
-      setInterval(fioCtrl.handleUnprocessedWrapActionsOnFioChain, parseInt(JOB_TIMEOUT)); //execute wrap FIO tokens and domains action every 60 seconds
+      setInterval(
+        fioCtrl.handleUnprocessedWrapActionsOnFioChain,
+        parseInt(DEfAULT_JOB_TIMEOUT),
+      ); //execute wrap FIO tokens and domains action every 60 seconds
       setInterval(
         fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions,
-        parseInt(JOB_TIMEOUT),
+        parseInt(DEfAULT_JOB_TIMEOUT),
       ); //execute unwrap tokens and domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedUnwrapActionsOnPolygon, parseInt(JOB_TIMEOUT)); //execute unwrap domains action every 60 seconds
-      setInterval(fioCtrl.handleUnprocessedBurnNFTActions, parseInt(JOB_TIMEOUT));
+      setInterval(
+        fioCtrl.handleUnprocessedUnwrapActionsOnPolygon,
+        parseInt(DEfAULT_JOB_TIMEOUT),
+      ); //execute unwrap domains action every 60 seconds
+      setInterval(
+        fioCtrl.handleUnprocessedBurnNFTActions,
+        parseInt(BURN_DOMAINS_JOB_TIMEOUT),
+      );
 
       this.initRoutes(app);
 
-      console.log(logPrefix + `success`);
-      console.log(logPrefix + `Mode: ${mode}`);
+      console.log(`${logPrefix} success`);
+      console.log(`${logPrefix} Mode: ${mode}`);
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
-        'In case failing any request, please, check env variables: INFURA_ETH, INFURA_POLYGON, JOB_TIMEOUT',
+        'In case failing any request, please, check env variables values: INFURA_ETH, INFURA_POLYGON',
       );
     }
   }

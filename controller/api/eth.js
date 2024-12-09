@@ -63,10 +63,11 @@ class EthCtrl {
       return;
     }
 
-    const txIdOnFioChain = transactionToProceed.split(' ')[0];
+    const wrapOracleId = transactionToProceed.split(' ')[0];
     const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
+    const { amount, chaincode, pubaddress } = wrapData || {};
 
-    const logPrefix = `${ETH_CHAIN_NAME_CONSTANT}, ${ACTION_NAMES.WRAP_TOKENS}, FIO tx_id: "${txIdOnFioChain}", amount: ${convertNativeFioIntoFio(wrapData.amount)} FIO, public_address: "${wrapData.public_address}": --> `;
+    const logPrefix = `${ETH_CHAIN_NAME_CONSTANT}, ${ACTION_NAMES.WRAP_TOKENS}, FIO oracle id: "${wrapOracleId}", amount: ${convertNativeFioIntoFio(amount)} FIO, pubaddress: "${pubaddress}": -->`;
     console.log(`${logPrefix} Executing ${ACTION_NAMES.WRAP_TOKENS}.`);
 
     try {
@@ -82,25 +83,16 @@ class EthCtrl {
           const oraclePublicKey = ETH_ORACLE_PUBLIC;
           const oraclePrivateKey = ETH_ORACLE_PRIVATE;
 
-          // todo: check if we should make wrap call (maybe just jump to read logs file) in case of already approved transaction by current oracle (do not forget to await)
-          // this.fioContract.methods.getApproval(txIdOnFioChain).call()
-          //     .then((response) => {
-          //         console.log(logPrefix + 'Oracles Approvals:');
-          //         console.log(response);
-          //     }).catch(err => {
-          //         console.log ('Error: ', err);
-          //     });
-
           if (
-            this.web3.utils.isAddress(wrapData.public_address) === true &&
-            wrapData.chain_code === ETH_TOKEN_CODE
+            this.web3.utils.isAddress(pubaddress) === true &&
+            chaincode === ETH_TOKEN_CODE
           ) {
             //check validation if the address is ERC20 address
             console.log(`${logPrefix} preparing wrap action.`);
             const wrapFunction = this.fioContract.methods.wrap(
-              wrapData.public_address,
-              wrapData.amount,
-              txIdOnFioChain,
+              pubaddress,
+              amount,
+              wrapOracleId,
             );
 
             const wrapABI = wrapFunction.encodeABI();
@@ -123,7 +115,7 @@ class EthCtrl {
             };
 
             await polygonTransaction({
-              amount: wrapData.amount,
+              amount: amount,
               action: ACTION_NAMES.WRAP_TOKENS,
               chainName: ETH_CHAIN_NAME_CONSTANT,
               common,
@@ -145,12 +137,12 @@ class EthCtrl {
               web3Instance: this.web3,
             });
           } else {
-            console.log(logPrefix + 'Invalid Address');
+            console.log(`${logPrefix} Invalid Address`);
           }
         } catch (error) {
           handleChainError({
             logMessage: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} ${error}`,
-            consoleMessage: logPrefix + error.stack,
+            consoleMessage: `${logPrefix} ${error.stack}`,
           });
         }
 
@@ -158,7 +150,7 @@ class EthCtrl {
           handleLogFailedWrapItem({
             logPrefix,
             errorLogFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionErrorQueue,
-            txId: txIdOnFioChain,
+            txId: wrapOracleId,
             wrapData,
           });
         }

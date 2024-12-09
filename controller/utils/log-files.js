@@ -35,20 +35,20 @@ export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => 
 };
 
 export const prepareLogFile = async (
-  { filePath, fetchLastBlockNumber = null, offset = null },
+  { filePath, fetchAction = null, offset = null },
   withLogsInConsole = true,
 ) => {
   if (fs.existsSync(filePath)) {
     //check file exist
     if (withLogsInConsole) console.log(`The file ${filePath} exists.`);
-    if (fetchLastBlockNumber) {
+    if (fetchAction) {
       const lastProcessedBlockNumber = fs.readFileSync(filePath, 'utf8');
 
       if (!lastProcessedBlockNumber) {
         let lastBlockNumberInChain;
-        if (fetchLastBlockNumber) {
+        if (fetchAction) {
           const blocksOffset = parseInt(offset) || 0;
-          lastBlockNumberInChain = (await fetchLastBlockNumber()) - blocksOffset;
+          lastBlockNumberInChain = (await fetchAction()) - blocksOffset;
         }
         createLogFile({
           filePath,
@@ -60,9 +60,9 @@ export const prepareLogFile = async (
   } else {
     if (withLogsInConsole) console.log(`The file ${filePath} does not exist.`);
     let lastBlockNumberInChain;
-    if (fetchLastBlockNumber) {
+    if (fetchAction) {
       const blocksOffset = parseInt(offset) || 0;
-      lastBlockNumberInChain = (await fetchLastBlockNumber()) - blocksOffset;
+      lastBlockNumberInChain = (await fetchAction()) - blocksOffset;
     }
     createLogFile({
       filePath,
@@ -94,16 +94,8 @@ export const addLogMessage = ({
   }
 };
 
-export const updatefioOraclePositionFIO = (accountActionSequence) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.fioOraclePosition, accountActionSequence);
-};
-
-export const updatefioAddressPositionFIO = (accountActionSequence) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, accountActionSequence);
-};
-
-export const updateBlockNumberFIO = (blockNumber) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, blockNumber);
+export const updateFioOracleId = (oracleId) => {
+  fs.writeFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, oracleId);
 };
 
 export const updateBlockNumberFIOForBurnNFT = (blockNumber) => {
@@ -130,22 +122,14 @@ export const updatePolygonNonce = (nonce) => {
   fs.writeFileSync(LOG_FILES_PATH_NAMES.polygonNonce, nonce ? nonce.toString() : '');
 };
 
-export const getLastProceededBlockNumberOnFioChain = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIO, 'utf8'));
-};
-
 export const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
   return parseFloat(
     fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, 'utf8'),
   );
 };
 
-export const getLastProceededFioOraclePositionFioChain = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioOraclePosition));
-};
-
-export const getLastProceededFioAddressPositionFioChain = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioAddressPosition, 'utf-8'));
+export const getLastProcessedFioOracleItemId = () => {
+  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, 'utf-8'));
 };
 
 export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
@@ -181,8 +165,7 @@ export const handleLogFailedWrapItem = ({
   errorLogFilePath,
 }) => {
   console.log(
-    logPrefix +
-      `Something went wrong with the current wrapping action. Storing transaction data into ${errorLogFilePath}`,
+    `${logPrefix} Something went wrong with the current wrapping action. Storing transaction data into ${errorLogFilePath}`,
   );
   const wrapText = txId + ' ' + JSON.stringify(wrapData) + '\r\n';
   fs.appendFileSync(errorLogFilePath, wrapText); // store issued transaction to errored log file queue by line-break
@@ -190,8 +173,7 @@ export const handleLogFailedWrapItem = ({
 
 export const handleLogFailedBurnNFTItem = ({ logPrefix, burnData, errorLogFilePath }) => {
   console.log(
-    logPrefix +
-      `Something went wrong with the current burnNFT action. Storing transaction data into ${errorLogFilePath}`,
+    `${logPrefix} Something went wrong with the current burnNFT action. Storing transaction data into ${errorLogFilePath}`,
   );
   const burnText = burnData + '\r\n';
   fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
@@ -235,10 +217,10 @@ export const handleUpdatePendingPolygonItemsQueue = ({
   if (csvContent.length > 0 && csvContent[0] !== '') {
     const newLogFileDataToSave = csvContent.join('\r\n'); // convert array back to string
     fs.writeFileSync(logFilePath, newLogFileDataToSave);
-    console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
+    console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
     action();
   } else {
-    console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
+    console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
     fs.writeFileSync(logFilePath, '');
     oracleCache.set(jobIsRunningCacheKey, false, 0);
   }
