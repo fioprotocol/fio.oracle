@@ -47,7 +47,7 @@ const route = express.Router();
 
 class MainCtrl {
   async start(app) {
-    const logPrefix = `Startup --> `;
+    const logPrefix = `Startup -->`;
 
     try {
       this.web3 = new Web3(eth);
@@ -56,11 +56,10 @@ class MainCtrl {
       // Check oracle addresses balances on ETH and Polygon chains
       await this.web3.eth.getBalance(ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
         if (error) {
-          console.log(logPrefix + error.stack);
+          console.log(`${logPrefix} ${error.stack}`);
         } else {
           console.log(
-            logPrefix +
-              `Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
+            `${logPrefix} Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
           );
         }
       });
@@ -69,11 +68,10 @@ class MainCtrl {
         'latest',
         (error, result) => {
           if (error) {
-            console.log(logPrefix + error.stack);
+            console.log(`${logPrefix} ${error.stack}`);
           } else {
             console.log(
-              logPrefix +
-                `Oracle ${POLYGON_CHAIN_NAME} Address Balance: ${convertWeiToEth(result)} ${POLYGON_TOKEN_CODE}`,
+              `${logPrefix} Oracle ${POLYGON_CHAIN_NAME} Address Balance: ${convertWeiToEth(result)} ${POLYGON_TOKEN_CODE}`,
             );
           }
         },
@@ -142,7 +140,7 @@ class MainCtrl {
         filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
       });
 
-      console.log(logPrefix + 'logs folders are ready');
+      console.log(`${logPrefix} logs folders are ready`);
 
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.fioOracleItemId,
@@ -174,7 +172,7 @@ class MainCtrl {
         filePath: LOG_FILES_PATH_NAMES.polygonNonce,
         fetchAction: getLatestPolygonNonce,
       });
-      console.log(logPrefix + 'blocks folders are ready');
+      console.log(`${logPrefix} blocks folders are ready`);
 
       // Start Jobs asynchronously immediately
       fioCtrl.handleUnprocessedWrapActionsOnFioChain();
@@ -202,8 +200,8 @@ class MainCtrl {
 
       this.initRoutes(app);
 
-      console.log(logPrefix + `success`);
-      console.log(logPrefix + `Mode: ${mode}`);
+      console.log(`${logPrefix} success`);
+      console.log(`${logPrefix} Mode: ${mode}`);
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
