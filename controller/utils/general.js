@@ -53,7 +53,7 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
   const maxRetries = DEFAULT_MAX_RETRIES;
   let retries = 0;
 
-  const makeRequest = async (targetUrl = url) => {
+  const makeRequest = async ({ targetUrl, isBackupRetry }) => {
     try {
       const response = await fetch(targetUrl, options);
 
@@ -76,7 +76,7 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
         console.log(`RETRY count: ${retries}, waiting ${backoffDelay}ms`);
 
         await sleep(backoffDelay);
-        return makeRequest(targetUrl);
+        return makeRequest({ targetUrl });
       }
 
       const responseJSON = response ? await response.json() : null;
@@ -85,11 +85,13 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
         `HTTP error! status: ${response.status}, response: ${responseJSON ? JSON.stringify(responseJSON, null, 4) : 'N/A'}`,
       );
     } catch (error) {
-      if (error.message.includes(RATE_LIMIT_ERROR) && backupUrl) {
+      if (!isBackupRetry && backupUrl) {
+        handleServerError(error, 'Fetch server failed');
+
         retries = 0; // Reset retries count for backup url
         console.log(`RUNING backup server: ${backupUrl}`);
 
-        return makeRequest(backupUrl);
+        return makeRequest({ targetUrl: backupUrl, isBackupRetry: true });
       }
 
       throw error;
@@ -97,9 +99,10 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
   };
 
   try {
-    return await makeRequest(url);
+    return await makeRequest({ targetUrl: url });
   } catch (error) {
     handleServerError(error, 'Fetch with rate limit failed');
+    throw error;
   }
 };
 
