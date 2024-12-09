@@ -165,8 +165,7 @@ export const handleLogFailedWrapItem = ({
   errorLogFilePath,
 }) => {
   console.log(
-    logPrefix +
-      `Something went wrong with the current wrapping action. Storing transaction data into ${errorLogFilePath}`,
+    `${logPrefix} Something went wrong with the current wrapping action. Storing transaction data into ${errorLogFilePath}`,
   );
   const wrapText = txId + ' ' + JSON.stringify(wrapData) + '\r\n';
   fs.appendFileSync(errorLogFilePath, wrapText); // store issued transaction to errored log file queue by line-break
@@ -174,8 +173,7 @@ export const handleLogFailedWrapItem = ({
 
 export const handleLogFailedBurnNFTItem = ({ logPrefix, burnData, errorLogFilePath }) => {
   console.log(
-    logPrefix +
-      `Something went wrong with the current burnNFT action. Storing transaction data into ${errorLogFilePath}`,
+    `${logPrefix} Something went wrong with the current burnNFT action. Storing transaction data into ${errorLogFilePath}`,
   );
   const burnText = burnData + '\r\n';
   fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
@@ -219,10 +217,10 @@ export const handleUpdatePendingPolygonItemsQueue = ({
   if (csvContent.length > 0 && csvContent[0] !== '') {
     const newLogFileDataToSave = csvContent.join('\r\n'); // convert array back to string
     fs.writeFileSync(logFilePath, newLogFileDataToSave);
-    console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
+    console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
     action();
   } else {
-    console.log(logPrefix + `${logFilePath} log file was successfully updated.`);
+    console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
     fs.writeFileSync(logFilePath, '');
     oracleCache.set(jobIsRunningCacheKey, false, 0);
   }

@@ -179,7 +179,7 @@ export const getWeb3Balance = async ({
 }) => {
   web3Instance.eth.getBalance(publicKey, 'latest', (error, walletBalance) => {
     if (error) {
-      console.log(logPrefix + error.stack);
+      console.log(`${logPrefix} ${error.stack}`);
     } else {
       if (convertWeiToEth(walletBalance) < convertWeiToEth(gasLimit * gasPrice) * 5) {
         const timeStamp = new Date().toISOString();

@@ -89,8 +89,8 @@ const handleUnwrapFromEthToFioChainJob = async () => {
   const fioAddress = unwrapData.fioaddress;
   let isTransactionProceededSuccessfully = false;
 
-  const logPrefix = `FIO, unwrapFromEthToFioChainJob, ETH tx_id: "${txIdOnEthChain}", ${isUnwrappingTokens ? `amount: ${convertNativeFioIntoFio(unwrapData.amount)} wFIO` : `domain: "${unwrapData.domain}"`}, fioAddress :  "${fioAddress}": --> `;
-  console.log(logPrefix + 'Start');
+  const logPrefix = `FIO, unwrapFromEthToFioChainJob, ETH tx_id: "${txIdOnEthChain}", ${isUnwrappingTokens ? `amount: ${convertNativeFioIntoFio(unwrapData.amount)} wFIO` : `domain: "${unwrapData.domain}"`}, fioAddress :  "${fioAddress}": -->`;
+  console.log(`${logPrefix} Start`);
 
   let retries = 0;
 
@@ -115,10 +115,10 @@ const handleUnwrapFromEthToFioChainJob = async () => {
 
       if (!(transactionResult.type || transactionResult.error)) {
         isTransactionProceededSuccessfully = true;
-        console.log(logPrefix + `Completed:`);
+        console.log(`${logPrefix} Completed:`);
       } else {
         retries++;
-        console.log(logPrefix + `Error:`);
+        console.log(`${logPrefix} Error:`);
         console.log(`${logPrefix} Retry increment to ${retries}`);
       }
 
@@ -177,8 +177,8 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
   const fioAddress = unwrapData.fioaddress;
   let isTransactionProceededSuccessfully = false;
 
-  const logPrefix = `FIO, unwrapFromPolygonToFioChainJob, Polygon tx_id: "${txIdOnPolygonChain}", domain: "${unwrapData.domain}", fioAddress :  "${fioAddress}": --> `;
-  console.log(logPrefix + 'Start');
+  const logPrefix = `FIO, unwrapFromPolygonToFioChainJob, Polygon tx_id: "${txIdOnPolygonChain}", domain: "${unwrapData.domain}", fioAddress :  "${fioAddress}": -->`;
+  console.log(`${logPrefix} Start`);
 
   let retries = 0;
 
@@ -197,11 +197,11 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
 
       if (!(transactionResult.type || transactionResult.error)) {
         isTransactionProceededSuccessfully = true;
-        console.log(logPrefix + `Completed:`);
+        console.log(`${logPrefix} Completed:`);
       } else {
-        console.log(logPrefix + `Error:`);
+        console.log(`${logPrefix} Error:`);
         retries++;
-        console.log(logPrefix + `Error:`);
+        console.log(`${logPrefix} Error:`);
         console.log(`${logPrefix} Retry increment to ${retries}`);
       }
 
@@ -245,19 +245,19 @@ class FIOCtrl {
 
   async handleUnprocessedWrapActionsOnFioChain() {
     const logPrefix =
-      'FIO, Get latest Wrap (tokens and domains) actions on FIO chain --> ';
+      'FIO, Get latest Wrap (tokens and domains) actions on FIO chain -->';
 
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
       oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
     } else {
-      console.log(logPrefix + 'Job is already running');
+      console.log(`${logPrefix} Job is already running`);
       return;
     }
 
     const handleWrapAction = async () => {
       const lastProcessedFioOracleItemId = getLastProcessedFioOracleItemId();
 
-      console.log(logPrefix + `start oracle from id = ${lastProcessedFioOracleItemId}`);
+      console.log(`${logPrefix} start oracle from id = ${lastProcessedFioOracleItemId}`);
 
       const oracleItems = await getOracleItems({
         logPrefix,
@@ -273,12 +273,12 @@ class FIOCtrl {
       });
 
       if (!irreversibleOracleItems || !irreversibleOracleItems.length) {
-        console.log(`${logPrefix}No items to wrap`);
+        console.log(`${logPrefix} No items to wrap`);
 
         return;
       }
 
-      console.log(`${logPrefix}process items count: ${irreversibleOracleItems.length}`);
+      console.log(`${logPrefix} process items count: ${irreversibleOracleItems.length}`);
 
       for (const irreversibleOracleItem of irreversibleOracleItems) {
         const { amount, chaincode, id, nftname, pubaddress } = irreversibleOracleItem;
@@ -340,9 +340,9 @@ class FIOCtrl {
       const isWrapOnPolygonJobExecuting = oracleCache.get(
         ORACLE_CACHE_KEYS.isWrapOnPolygonJobExecuting,
       );
-      console.log(logPrefix + 'isWrapOnEthJobExecuting: ' + !!isWrapOnEthJobExecuting);
+      console.log(`${logPrefix} isWrapOnEthJobExecuting: ${!!isWrapOnEthJobExecuting}`);
       console.log(
-        logPrefix + 'isWrapOnPolygonJobExecuting: ' + !!isWrapOnPolygonJobExecuting,
+        `${logPrefix} isWrapOnPolygonJobExecuting: ${!!isWrapOnPolygonJobExecuting}`,
       );
 
       // start wrap job on Eth if it's not running
@@ -361,11 +361,11 @@ class FIOCtrl {
       handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
     }
     oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
-    console.log(logPrefix + 'End');
+    console.log(`${logPrefix} End`);
   }
 
   async handleUnprocessedUnwrapActionsOnEthChainActions() {
-    const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnEthChainActions --> `;
+    const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnEthChainActions -->`;
 
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnEthJobExecuting)) {
       oracleCache.set(
@@ -374,7 +374,7 @@ class FIOCtrl {
         0,
       ); // ttl = 0 means that value shouldn't ever been expired
     } else {
-      console.log(logPrefix + 'Job is already running');
+      console.log(`${logPrefix} Job is already running`);
       return;
     }
 
@@ -397,8 +397,7 @@ class FIOCtrl {
             } else {
               // also this error will be caught in the catch block
               console.log(
-                logPrefix +
-                  `Unwrap ${isTokens ? 'Tokens' : 'Domain'}, requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${ETH_CHAIN_NAME_CONSTANT} Error:`,
+                `${logPrefix} Unwrap ${isTokens ? 'Tokens' : 'Domain'}, requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${ETH_CHAIN_NAME_CONSTANT} Error:`,
               );
 
               handleChainError({
@@ -509,7 +508,7 @@ class FIOCtrl {
         ORACLE_CACHE_KEYS.isUnwrapOnEthJobExecuting,
       );
       console.log(
-        logPrefix + 'isUnwrapOnEthJobExecuting: ' + !!isUnwrapOnEthJobExecuting,
+        `${logPrefix} isUnwrapOnEthJobExecuting: ${!!isUnwrapOnEthJobExecuting}`,
       );
 
       // start unwrap job on Eth if it's not running
@@ -525,11 +524,11 @@ class FIOCtrl {
       0,
     );
 
-    console.log(logPrefix + 'all necessary actions were completed successfully');
+    console.log(`${logPrefix} all necessary actions were completed successfully`);
   }
 
   async handleUnprocessedUnwrapActionsOnPolygon() {
-    const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnPolygon --> `;
+    const logPrefix = `FIO, handleUnprocessedUnwrapActionsOnPolygon -->`;
 
     if (
       !oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedUnwrapActionsOnPolygonExecuting)
@@ -540,11 +539,11 @@ class FIOCtrl {
         0,
       ); // ttl = 0 means that value shouldn't ever been expired
     } else {
-      console.log(logPrefix + 'Job is already running');
+      console.log(`${logPrefix} Job is already running`);
       return;
     }
 
-    console.log(logPrefix + 'Executing');
+    console.log(`${logPrefix} Executing`);
 
     try {
       const blocksRangeLimit = parseInt(BLOCKS_RANGE_LIMIT_POLY);
@@ -562,8 +561,7 @@ class FIOCtrl {
             } else {
               // also this error will be caught in the catch block
               console.log(
-                logPrefix +
-                  `requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${POLYGON_CHAIN_NAME} Error:`,
+                `${logPrefix} requesting past unwrap events, Blocks Numbers from ${from} to ${to} ${POLYGON_CHAIN_NAME} Error:`,
               );
 
               handleChainError({
@@ -581,13 +579,14 @@ class FIOCtrl {
           getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
         if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
-          throw new Error(logPrefix + `Wrong start blockNumber, pls check stored value.`);
+          throw new Error(
+            `${logPrefix} Wrong start blockNumber, pls check stored value.`,
+          );
 
         let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
         console.log(
-          logPrefix +
-            `start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`,
+          `${logPrefix} start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`,
         );
 
         const result = [];
@@ -615,7 +614,7 @@ class FIOCtrl {
           fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
         }
 
-        console.log(logPrefix + `events list length: ${result.length}`);
+        console.log(`${logPrefix} events list length: ${result.length}`);
         return result;
       };
 
@@ -643,7 +642,7 @@ class FIOCtrl {
         ORACLE_CACHE_KEYS.isUnwrapOnPolygonJobExecuting,
       );
       console.log(
-        logPrefix + 'isUnwrapOnEthJobExecuting: ' + !!isUnwrapOnPolygonJobExecuting,
+        `${logPrefix} isUnwrapOnEthJobExecuting: ${!!isUnwrapOnPolygonJobExecuting}`,
       );
 
       // start unwrap job on Polygon if it's not running
@@ -659,16 +658,16 @@ class FIOCtrl {
       0,
     );
 
-    console.log(logPrefix + 'all necessary actions were completed successfully');
+    console.log(`${logPrefix} all necessary actions were completed successfully`);
   }
 
   async handleUnprocessedBurnNFTActions() {
-    const logPrefix = 'FIO, Get latest Burned domain actions on FIO chain --> ';
+    const logPrefix = 'FIO, Get latest Burned domain actions on FIO chain -->';
 
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting)) {
       oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, true, 0);
     } else {
-      console.log(`${logPrefix}Job is already running`);
+      console.log(`${logPrefix} Job is already running`);
       return;
     }
 
@@ -677,7 +676,7 @@ class FIOCtrl {
         getLastProceededBlockNumberOnFioChainForBurnNFT() || 0;
       const lastIrreversibleBlock = (await getLastIrreversibleBlockOnFioChain()) || 0;
 
-      console.log(`${logPrefix}start Position = ${lastProcessedFioBlockNumber}`);
+      console.log(`${logPrefix} start Position = ${lastProcessedFioBlockNumber}`);
 
       const unprocessedBurnedDomainsList = [];
 
@@ -730,7 +729,7 @@ class FIOCtrl {
 
       if (unprocessedBurnedDomainsList.length) {
         console.log(
-          `${logPrefix}Burned Domains List From Fio Length: ${unprocessedBurnedDomainsList.length}`,
+          `${logPrefix} Burned Domains List From Fio Length: ${unprocessedBurnedDomainsList.length}`,
         );
 
         const nftsListToBurn = [];
@@ -819,11 +818,11 @@ class FIOCtrl {
           }
         }
       } else {
-        console.log(`${logPrefix}No domains to burn.`);
+        console.log(`${logPrefix} No domains to burn.`);
       }
 
       console.log(
-        `${logPrefix}Update FIO Block Number for burn NFTS: ${lastIrreversibleBlock}`,
+        `${logPrefix} Update FIO Block Number for burn NFTS: ${lastIrreversibleBlock}`,
       );
 
       updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());

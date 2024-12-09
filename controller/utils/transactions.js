@@ -115,7 +115,7 @@ export const polygonTransaction = async ({
         })
         .on('receipt', (receipt) => {
           console.log(
-            logPrefix + 'Transaction has been successfully completed in the chain.',
+            `${logPrefix} Transaction has been successfully completed in the chain.`,
           );
           if (handleSuccessedResult) {
             try {
@@ -126,16 +126,15 @@ export const polygonTransaction = async ({
           }
         })
         .on('error', (error, receipt) => {
-          console.log(logPrefix + 'Transaction has been failed in the chain.');
+          console.log(`${logPrefix} Transaction has been failed in the chain.`);
 
           if (receipt && receipt.blockHash && !receipt.status)
             console.log(
-              logPrefix +
-                'It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value',
+              `${logPrefix} It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value`,
             );
         });
     } catch (error) {
-      console.log(logPrefix + error.stack);
+      console.log(`${logPrefix} ${error.stack}`);
 
       const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
       const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);

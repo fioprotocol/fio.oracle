@@ -66,7 +66,7 @@ class PolyCtrl {
 
     const actionName = ACTION_NAMES.WRAP_DOMAIN;
 
-    const logPrefix = `${POLYGON_TOKEN_CODE}, ${actionName}, FIO oracle id: ${wrapOracleId}, nftname: "${nftname}", pubaddress: "${pubaddress}": --> `;
+    const logPrefix = `${POLYGON_TOKEN_CODE}, ${actionName}, FIO oracle id: ${wrapOracleId}, nftname: "${nftname}", pubaddress: "${pubaddress}": -->`;
     console.log(`${logPrefix} Executing ${actionName}.`);
 
     try {
@@ -188,8 +188,8 @@ class PolyCtrl {
     const { tokenId, obtId, domainName } = burnNFTData || {};
     const actionName = ACTION_NAMES.BURN_NFT;
 
-    const logPrefix = `${POLYGON_CHAIN_NAME}, ${actionName}, FIO obtId: ${obtId}, domain: ${domainName}, tokenId: ${tokenId}: --> `;
-    console.log(logPrefix + `Executing ${actionName}.`);
+    const logPrefix = `${POLYGON_CHAIN_NAME}, ${actionName}, FIO obtId: ${obtId}, domain: ${domainName}, tokenId: ${tokenId}: -->`;
+    console.log(`${logPrefix} Executing ${actionName}.`);
 
     try {
       const isOracleAddressValid = await isOraclePolygonAddressValid();
@@ -250,7 +250,7 @@ class PolyCtrl {
         } catch (error) {
           handleChainError({
             logMessage: `BURN ERROR ${POLYGON_CHAIN_NAME} ${this.contractName} ${actionName} ${error}`,
-            consoleMessage: logPrefix + error.stack,
+            consoleMessage: `${logPrefix} ${error.stack}`,
           });
         }
 

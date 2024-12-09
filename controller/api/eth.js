@@ -67,7 +67,7 @@ class EthCtrl {
     const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
     const { amount, chaincode, pubaddress } = wrapData || {};
 
-    const logPrefix = `${ETH_CHAIN_NAME_CONSTANT}, ${ACTION_NAMES.WRAP_TOKENS}, FIO oracle id: "${wrapOracleId}", amount: ${convertNativeFioIntoFio(amount)} FIO, pubaddress: "${pubaddress}": --> `;
+    const logPrefix = `${ETH_CHAIN_NAME_CONSTANT}, ${ACTION_NAMES.WRAP_TOKENS}, FIO oracle id: "${wrapOracleId}", amount: ${convertNativeFioIntoFio(amount)} FIO, pubaddress: "${pubaddress}": -->`;
     console.log(`${logPrefix} Executing ${ACTION_NAMES.WRAP_TOKENS}.`);
 
     try {
@@ -137,12 +137,12 @@ class EthCtrl {
               web3Instance: this.web3,
             });
           } else {
-            console.log(logPrefix + 'Invalid Address');
+            console.log(`${logPrefix} Invalid Address`);
           }
         } catch (error) {
           handleChainError({
             logMessage: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} ${error}`,
-            consoleMessage: logPrefix + error.stack,
+            consoleMessage: `${logPrefix} ${error.stack}`,
           });
         }
 
