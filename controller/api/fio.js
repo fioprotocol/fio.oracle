@@ -55,7 +55,7 @@ import MathOp from '../utils/math.js';
 
 const {
   eth: { BLOCKS_RANGE_LIMIT_ETH, BLOCKS_OFFSET_ETH, ETH_CONTRACT, ETH_NFT_CONTRACT },
-  fio: { FIO_TRANSACTION_MAX_RETRIES, FIO_HISTORY_HYPERION_OFFSET },
+  fio: { FIO_TRANSACTION_MAX_RETRIES, FIO_HISTORY_HYPERION_OFFSET, LOWEST_ORACLE_ID },
   infura: { eth, polygon },
   nfts: { NFT_CHAIN_NAME },
   oracleCache,
@@ -255,7 +255,8 @@ class FIOCtrl {
     }
 
     const handleWrapAction = async () => {
-      const lastProcessedFioOracleItemId = getLastProcessedFioOracleItemId();
+      const lastProcessedFioOracleItemId =
+        getLastProcessedFioOracleItemId() || LOWEST_ORACLE_ID;
 
       console.log(`${logPrefix} start oracle from id = ${lastProcessedFioOracleItemId}`);
 
@@ -719,6 +720,8 @@ class FIOCtrl {
                 ? lastDeltasItem.block_num - 1
                 : lastDeltasItem.block_num;
             }
+            // add 1 sec to decrease 429 Too Many requests
+            await sleep(SECOND_IN_MILLISECONDS);
 
             await getFioBurnedDomainsLogsAll(params);
           }

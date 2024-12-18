@@ -26,6 +26,7 @@ FIO_SERVER_URL_ACTION=       # URL of FIO API node
 FIO_HISTORY_HYPERION_OFFSET= # The number of actions to get from history when using hyperion version
 FIO_TRANSACTION_MAX_RETRIES= # The number of retries when FIO action call fails
 FIO_GET_TABLE_ROWS_OFFSET=   # Offset for FIO get tables rows action
+LOWEST_ORACLE_ID=            # WARNING! This is REQUIRED! If not set, incorrect wraps could be created, and tokens may be lost! The value of the wrapped oracle ID from the FIO chain table. Oracle items lower than this value should not be used to avoid wrapping already processed items.
 
 FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
 FIO_ORACLE_ACCOUNT=          # The FIO account used for approving unwrap transactions

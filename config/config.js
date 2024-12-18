@@ -33,6 +33,7 @@ export default {
     FIO_TRANSACTION_MAX_RETRIES: parseInt(process.env.FIO_TRANSACTION_MAX_RETRIES),
     FIO_GET_TABLE_ROWS_OFFSET: parseInt(process.env.FIO_GET_TABLE_ROWS_OFFSET),
     FIO_HISTORY_HYPERION_OFFSET: process.env.FIO_HISTORY_HYPERION_OFFSET,
+    LOWEST_ORACLE_ID: parseInt(process.env.LOWEST_ORACLE_ID),
   },
   gas: {
     GAS_PRICE_LEVEL: process.env.GAS_PRICE_LEVEL,
