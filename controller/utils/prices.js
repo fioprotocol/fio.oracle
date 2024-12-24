@@ -55,90 +55,45 @@ export const getEthGasPriceSuggestion = async () => {
   ]);
 };
 
-// base gas price value + 10%
-const calculateAverageGasPrice = (baseGasPrice) => {
-  return Math.ceil(baseGasPrice * 1.1);
-};
-
 // base gas price value + 20%
-const calculateHighGasPrice = (baseGasPrice) => {
+const calculateAverageGasPrice = (baseGasPrice) => {
   return Math.ceil(baseGasPrice * 1.2);
 };
 
-const getMiddleGasPriceValue = (gasPriceSuggestions) => {
-  let gasPriceSuggestion = null;
-  const numSuggestions = gasPriceSuggestions.length;
-
-  switch (numSuggestions) {
-    case 1:
-      gasPriceSuggestion = gasPriceSuggestions[0];
-      break;
-    case 2:
-      gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-      break;
-    case 3: {
-      gasPriceSuggestions.sort((a, b) => a - b);
-      gasPriceSuggestion = gasPriceSuggestions[1];
-      break;
-    }
-    default: {
-      gasPriceSuggestion = gasPriceSuggestions[0];
-    }
-  }
-
-  return gasPriceSuggestion;
+// base gas price value + 40%
+const calculateHighGasPrice = (baseGasPrice) => {
+  return Math.ceil(baseGasPrice * 1.4);
 };
 
-export const getMiddleEthGasPriceSuggestion = async () => {
+const getHighestGasPriceValue = (gasPriceSuggestions) => Math.max(...gasPriceSuggestions);
+
+export const getHighestEthGasPriceSuggestion = async () => {
   const ethGasPriceSuggestions = await getEthGasPriceSuggestion();
 
-  return getMiddleGasPriceValue(ethGasPriceSuggestions);
+  return getHighestGasPriceValue(ethGasPriceSuggestions);
 };
 
-export const getMiddlePolygonGasPriceSuggestion = async () => {
+export const getHighestPolygonGasPriceSuggestion = async () => {
   const polygonGasPriceSuggestions = await getPolygonGasPriceSuggestion();
 
-  return getMiddleGasPriceValue(polygonGasPriceSuggestions);
+  return getHighestGasPriceValue(polygonGasPriceSuggestions);
 };
 
 export const getGasPrice = async ({
   defaultGasPrice,
   getGasPriceSuggestionFn,
   logPrefix,
-  retryCount,
 }) => {
   const isUsingGasApi = !!parseInt(USE_GAS_API);
 
   let gasPrice = 0;
-  let gasPriceSuggestion = 0;
 
   if (isUsingGasApi && getGasPriceSuggestionFn) {
     console.log(`${logPrefix} using gasPrice value from the api:`);
 
     const gasPriceSuggestions = await getGasPriceSuggestionFn();
 
-    const numSuggestions = gasPriceSuggestions.length;
-
-    switch (numSuggestions) {
-      case 1:
-        gasPriceSuggestion = gasPriceSuggestions[0];
-        break;
-      case 2:
-        gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-        break;
-      case 3: {
-        if (retryCount === 0) {
-          gasPriceSuggestions.sort((a, b) => a - b);
-          gasPriceSuggestion = gasPriceSuggestions[1];
-        } else if (retryCount > 0) {
-          gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-        }
-        break;
-      }
-      default: {
-        gasPriceSuggestion = gasPriceSuggestions[0];
-      }
-    }
+    const gasPriceSuggestion = getHighestGasPriceValue(gasPriceSuggestions);
 
     switch (GAS_PRICE_LEVEL) {
       case 'low':

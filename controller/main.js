@@ -28,8 +28,8 @@ import {
 import {
   convertWeiToEth,
   convertWeiToGwei,
-  getMiddleEthGasPriceSuggestion,
-  getMiddlePolygonGasPriceSuggestion,
+  getHighestEthGasPriceSuggestion,
+  getHighestPolygonGasPriceSuggestion,
 } from './utils/prices.js';
 
 import config from '../config/config.js';
@@ -80,7 +80,7 @@ class MainCtrl {
       // Check is INFURA_ETH and INFURA_POLYGON variables are valid
       const isUsingGasApi = !!parseInt(USE_GAS_API);
       if (isUsingGasApi) {
-        const ethGasPriceSuggestion = await getMiddleEthGasPriceSuggestion();
+        const ethGasPriceSuggestion = await getHighestEthGasPriceSuggestion();
 
         console.log(
           convertWeiToGwei(ethGasPriceSuggestion),
@@ -91,7 +91,7 @@ class MainCtrl {
             'Please, check "INFURA_ETH" variable: ' +
               JSON.stringify(ethGasPriceSuggestion),
           );
-        const polyGasPriceSuggestion = await getMiddlePolygonGasPriceSuggestion();
+        const polyGasPriceSuggestion = await getHighestPolygonGasPriceSuggestion();
         console.log(
           convertWeiToGwei(polyGasPriceSuggestion),
           'GWEI - safe gas price for Polygon',
