@@ -54,7 +54,6 @@ export const polygonTransaction = async ({
         defaultGasPrice,
         getGasPriceSuggestionFn,
         logPrefix,
-        retryCount,
       });
     }
 
