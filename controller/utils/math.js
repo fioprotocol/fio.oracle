@@ -4,7 +4,25 @@ class MathOp {
   value;
 
   constructor(x) {
-    this.value = !isNaN(+x) ? x : 0;
+    try {
+      if (!isNaN(+x) && Big(x)) {
+        this.value = x;
+      } else {
+        throw new Error(`${x} is not a number`);
+      }
+    } catch (err) {
+      console.error(`${err.message}. Received input - ${x}`);
+      throw err;
+    }
+  }
+
+  abs() {
+    try {
+      return Big(this.value).abs();
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
   }
 
   add(x) {
@@ -12,6 +30,7 @@ class MathOp {
       this.value = Big(this.value).plus(x);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -21,6 +40,7 @@ class MathOp {
       this.value = Big(this.value).minus(x);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -30,6 +50,7 @@ class MathOp {
       this.value = Big(this.value).times(x);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -39,6 +60,7 @@ class MathOp {
       this.value = Big(this.value).div(x);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -48,6 +70,7 @@ class MathOp {
       this.value = args.reduce((sum, current) => Big(sum).plus(current), 0);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -57,6 +80,7 @@ class MathOp {
       this.value = Big(this.value).mod(modDigit);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
@@ -66,52 +90,53 @@ class MathOp {
       this.value = Big(this.value).round(decimalPlaces, roundingMode);
     } catch (err) {
       console.error(err);
+      throw err;
     }
     return this;
   }
 
   eq(x) {
     try {
-      return Big(this.value).eq(x || 0);
+      return Big(this.value).eq(x);
     } catch (err) {
       console.error(err);
-      return this.value === x;
+      throw err;
     }
   }
 
   gt(x) {
     try {
-      return Big(this.value).gt(x || 0);
+      return Big(this.value).gt(x);
     } catch (err) {
       console.error(err);
-      return this.value > x;
+      throw err;
     }
   }
 
   gte(x) {
     try {
-      return Big(this.value).gte(x || 0);
+      return Big(this.value).gte(x);
     } catch (err) {
       console.error(err);
-      return this.value >= x;
+      throw err;
     }
   }
 
   lt(x) {
     try {
-      return Big(this.value).lt(x || 0);
+      return Big(this.value).lt(x);
     } catch (err) {
       console.error(err);
-      return this.value < x;
+      throw err;
     }
   }
 
   lte(x) {
     try {
-      return Big(this.value).lte(x || 0);
+      return Big(this.value).lte(x);
     } catch (err) {
       console.error(err);
-      return this.value <= x;
+      throw err;
     }
   }
 
@@ -120,7 +145,7 @@ class MathOp {
       return Big(this.value).toNumber();
     } catch (err) {
       console.error(err);
-      return +this.value;
+      throw err;
     }
   }
 
@@ -129,7 +154,7 @@ class MathOp {
       return Big(this.value).toString();
     } catch (err) {
       console.error(err);
-      return '-';
+      throw err;
     }
   }
 
@@ -138,7 +163,7 @@ class MathOp {
       return Big(this.value).toFixed(toFixedDigit);
     } catch (err) {
       console.error(err);
-      return this.value.toString();
+      throw err;
     }
   }
 }
