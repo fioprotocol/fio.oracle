@@ -17,7 +17,9 @@ import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
 import { DEFAULT_POLYGON_GAS_PRICE, POLYGON_GAS_LIMIT } from '../constants/prices.js';
+import { TRANSACTION_DELAY } from '../constants/transactions.js';
 import { handlePolygonChainCommon, isOraclePolygonAddressValid } from '../utils/chain.js';
+import { sleep } from '../utils/general.js';
 import {
   addLogMessage,
   updatePolygonNonce,
@@ -207,6 +209,9 @@ class PolyCtrl {
           const burnNFTFunction = this.fioNftContract.methods.burnnft(tokenId, obtId);
 
           const burnABI = burnNFTFunction.encodeABI();
+
+          // Need to set timeout to handle a big amount of burn calls to blockchain
+          await sleep(TRANSACTION_DELAY);
 
           const chainNonce = await this.web3.eth.getTransactionCount(
             oraclePublicKey,
