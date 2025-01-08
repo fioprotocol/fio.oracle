@@ -33,7 +33,7 @@ import {
   getFioDeltasV2,
   runUnwrapFioTransaction,
 } from '../utils/fio-chain.js';
-import { sleep, convertTimestampIntoMs, formatDateYYYYMMDD } from '../utils/general.js';
+import { sleep, convertTimestampIntoMs } from '../utils/general.js';
 import {
   addLogMessage,
   updateBlockNumberFIOForBurnNFT,
@@ -772,7 +772,7 @@ class FIOCtrl {
             );
 
             if (existingDomainInBurnList) {
-              const trxId = `AutomaticDomainBurn${formatDateYYYYMMDD(new Date())}${name}`;
+              const trxId = `${token_id}AutomaticDomainBurn${name}`;
 
               nftsListToBurn.push({
                 tokenId: token_id,
