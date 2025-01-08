@@ -14,7 +14,7 @@ import {
   REVERTED_BY_THE_EVM,
 } from '../constants/transactions.js';
 
-import { addLogMessage } from '../utils/log-files.js';
+import { addLogMessage, handleChainError } from '../utils/log-files.js';
 import { getGasPrice, getWeb3Balance, convertWeiToGwei } from '../utils/prices.js';
 
 export const polygonTransaction = async ({
@@ -126,6 +126,7 @@ export const polygonTransaction = async ({
         })
         .on('error', (error, receipt) => {
           console.log(`${logPrefix} Transaction has been failed in the chain.`);
+          handleChainError(error);
 
           if (receipt && receipt.blockHash && !receipt.status)
             console.log(
