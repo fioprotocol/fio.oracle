@@ -33,7 +33,7 @@ import {
   getFioDeltasV2,
   runUnwrapFioTransaction,
 } from '../utils/fio-chain.js';
-import { sleep, convertTimestampIntoMs } from '../utils/general.js';
+import { sleep, convertTimestampIntoMs, stringifyWithBigInt } from '../utils/general.js';
 import {
   addLogMessage,
   updateBlockNumberFIOForBurnNFT,
@@ -52,21 +52,15 @@ import {
   handleChainError,
 } from '../utils/log-files.js';
 import MathOp from '../utils/math.js';
+import { Web3Service } from '../utils/web3-services.js';
 
 const {
-  eth: { BLOCKS_RANGE_LIMIT_ETH, BLOCKS_OFFSET_ETH, ETH_CONTRACT, ETH_NFT_CONTRACT },
+  eth: { BLOCKS_RANGE_LIMIT_ETH, BLOCKS_OFFSET_ETH },
   fio: { FIO_TRANSACTION_MAX_RETRIES, FIO_HISTORY_HYPERION_OFFSET, LOWEST_ORACLE_ID },
-  infura: { eth, polygon },
   nfts: { NFT_CHAIN_NAME },
   oracleCache,
   polygon: { BLOCKS_RANGE_LIMIT_POLY, POLYGON_CONTRACT },
 } = config;
-
-const web3 = new Web3(eth);
-const polyWeb3 = new Web3(polygon);
-const fioTokenContractOnEthChain = new web3.eth.Contract(fioABI, ETH_CONTRACT);
-const fioNftContract = new web3.eth.Contract(fioNftABI, ETH_NFT_CONTRACT);
-const fioPolygonNftContract = new polyWeb3.eth.Contract(fioPolygonABI, POLYGON_CONTRACT);
 
 // execute unwrap action job
 const handleUnwrapFromEthToFioChainJob = async () => {
@@ -384,9 +378,7 @@ class FIOCtrl {
       const blocksOffset = parseInt(BLOCKS_OFFSET_ETH) || 0;
 
       const getEthActionsLogs = async (from, to, isTokens = false) => {
-        return await (
-          isTokens ? fioTokenContractOnEthChain : fioNftContract
-        ).getPastEvents(
+        return await Web3Service.getEthContract().getPastEvents(
           'unwrapped',
           {
             fromBlock: from,
@@ -413,7 +405,7 @@ class FIOCtrl {
       };
 
       const getUnprocessedActionsLogs = async (isTokens = false) => {
-        const chainBlockNumber = await web3.eth.getBlockNumber();
+        const chainBlockNumber = await Web3Service.getEthWeb3().eth.getBlockNumber();
 
         const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))
           .sub(blocksOffset)
@@ -473,11 +465,11 @@ class FIOCtrl {
 
       if (unwrapTokensData.length > 0) {
         unwrapTokensData.forEach((item) => {
-          const logText = `${item.transactionHash} ${JSON.stringify(item.returnValues)}`;
+          const logText = `${item.transactionHash} ${stringifyWithBigInt(item.returnValues)}`;
 
           addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.ETH,
-            message: `${ETH_TOKEN_CODE} ${CONTRACT_NAMES.ERC_20} unwraptokens ${JSON.stringify(item)}`,
+            message: `${ETH_TOKEN_CODE} ${CONTRACT_NAMES.ERC_20} unwraptokens ${stringifyWithBigInt(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
@@ -490,11 +482,12 @@ class FIOCtrl {
       }
       if (unwrapDomainsData.length > 0) {
         unwrapDomainsData.forEach((item) => {
-          const logText = item.transactionHash + ' ' + JSON.stringify(item.returnValues);
+          const logText =
+            item.transactionHash + ' ' + stringifyWithBigInt(item.returnValues);
 
           addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.ETH,
-            message: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${JSON.stringify(item)}`,
+            message: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${stringifyWithBigInt(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
@@ -551,7 +544,7 @@ class FIOCtrl {
       const blocksRangeLimit = parseInt(BLOCKS_RANGE_LIMIT_POLY);
 
       const getPolygonActionsLogs = async (from, to) => {
-        return await fioPolygonNftContract.getPastEvents(
+        return await Web3Service.getPolygonContract().getPastEvents(
           'unwrapped',
           {
             fromBlock: from,
@@ -576,7 +569,9 @@ class FIOCtrl {
       };
 
       const getUnprocessedActionsLogs = async () => {
-        const lastInChainBlockNumber = parseInt(await polyWeb3.eth.getBlockNumber());
+        const lastInChainBlockNumber = parseInt(
+          await Web3Service.getPolygonWeb3().eth.getBlockNumber(),
+        );
         const lastProcessedBlockNumber =
           getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
@@ -624,11 +619,12 @@ class FIOCtrl {
 
       if (data.length > 0) {
         data.forEach((item) => {
-          const logText = item.transactionHash + ' ' + JSON.stringify(item.returnValues);
+          const logText =
+            item.transactionHash + ' ' + stringifyWithBigInt(item.returnValues);
 
           addLogMessage({
             filePath: LOG_FILES_PATH_NAMES.POLYGON,
-            message: `${POLYGON_CHAIN_NAME} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${JSON.stringify(item)}`,
+            message: `${POLYGON_CHAIN_NAME} ${CONTRACT_NAMES.ERC_721} unwrapdomains ${stringifyWithBigInt(item)}`,
           });
 
           // save tx data into unwrap tokens and domains queue log file
