@@ -31,27 +31,20 @@
   },
   "dependencies": {
     "@babel/runtime": "7.20.1",
-    "@ethereumjs/common": "3.0.1",
-    "@ethereumjs/tx": "4.0.1",
-    "@fioprotocol/fiojs": "1.0.1",
+    "@ethereumjs/common": "4.4.0",
+    "@fioprotocol/fiojs": "1.0.2",
     "big.js": "6.2.1",
     "body-parser": "1.20.1",
     "cors": "2.8.5",
     "dotenv": "16.4.5",
     "dotenv-safe": "9.1.0",
-    "esm": "3.2.25",
-    "ethers": "5.7.2",
     "express": "4.18.2",
-    "fs": "0.0.1-security",
-    "moralis": "2.26.2",
+    "moralis": "2.27.2",
     "node-cache": "5.1.2",
     "node-fetch": "3.3.2",
-    "node-file-cache": "1.0.2",
-    "node-libcurl": "4.0.0",
     "text-encoding": "0.7.0",
-    "thirdweb": "5.28.0",
-    "web3": "1.10.2",
-    "web3-eth-contract": "1.10.2"
+    "thirdweb": "5.83.0",
+    "web3": "4.16.0"
   },
   "type": "module"
 }

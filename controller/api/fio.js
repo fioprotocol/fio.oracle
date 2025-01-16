@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import fs from 'fs';
 
-import Web3 from 'web3';
+import { Web3 } from 'web3';
 
 import ethCtrl from './eth.js';
 import moralis from './moralis.js';
@@ -47,7 +47,7 @@ import {
   getLastProcessedFioOracleItemId,
   updateFioOracleId,
   handleLogFailedWrapItem,
-  handleUpdatePendingPolygonItemsQueue,
+  handleUpdatePendingItemsQueue,
   handleServerError,
   handleChainError,
 } from '../utils/log-files.js';
@@ -150,7 +150,7 @@ const handleUnwrapFromEthToFioChainJob = async () => {
     });
   }
 
-  handleUpdatePendingPolygonItemsQueue({
+  handleUpdatePendingItemsQueue({
     action: handleUnwrapFromEthToFioChainJob,
     logPrefix,
     logFilePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
@@ -232,7 +232,7 @@ const handleUnwrapFromPolygonToFioChainJob = async () => {
     });
   }
 
-  handleUpdatePendingPolygonItemsQueue({
+  handleUpdatePendingItemsQueue({
     action: handleUnwrapFromPolygonToFioChainJob,
     logPrefix,
     logFilePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
@@ -414,7 +414,8 @@ class FIOCtrl {
 
       const getUnprocessedActionsLogs = async (isTokens = false) => {
         const chainBlockNumber = await web3.eth.getBlockNumber();
-        const lastInChainBlockNumber = new MathOp(chainBlockNumber)
+
+        const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))
           .sub(blocksOffset)
           .toNumber();
         const lastProcessedBlockNumber = isTokens
@@ -575,7 +576,7 @@ class FIOCtrl {
       };
 
       const getUnprocessedActionsLogs = async () => {
-        const lastInChainBlockNumber = await polyWeb3.eth.getBlockNumber();
+        const lastInChainBlockNumber = parseInt(await polyWeb3.eth.getBlockNumber());
         const lastProcessedBlockNumber =
           getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping();
 
