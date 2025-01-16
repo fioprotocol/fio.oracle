@@ -12,7 +12,7 @@ export const checkAndReplacePendingTransactions = async () => {
     const { oraclePublicKey, pendingTransactionFilePath, web3Instance } =
       defaultTransactionParams;
 
-    const logPrefix = 'Pending transactions handle: --> ';
+    const logPrefix = `${chainName} Pending transactions handle: --> `;
     try {
       const currentTime = Date.now();
 

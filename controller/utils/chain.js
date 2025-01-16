@@ -1,18 +1,13 @@
 import { Common, CustomChain, Hardfork } from '@ethereumjs/common';
-import { Web3 } from 'web3';
 
 import { Web3Service } from './web3-services.js';
-import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioMaticNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 import { ACTION_NAMES } from '../constants/chain.js';
 
 const {
-  eth: { ETH_ORACLE_PUBLIC, ETH_CONTRACT, ETH_NFT_CONTRACT, ETH_CHAIN_NAME },
-  infura: { eth, polygon },
+  eth: { ETH_ORACLE_PUBLIC, ETH_CHAIN_NAME },
   isTestnet,
-  polygon: { POLYGON_ORACLE_PUBLIC, POLYGON_CONTRACT },
+  polygon: { POLYGON_ORACLE_PUBLIC },
 } = config;
 
 import { POLYGON_TESTNET_CHAIN_ID } from '../constants/chain.js';
@@ -36,12 +31,8 @@ export const handlePolygonChainCommon = () => {
 export const handleEthChainCommon = () =>
   new Common({ chain: ETH_CHAIN_NAME, hardfork: Hardfork.London });
 
-export const isOracleEthAddressValid = async (isTokens = true) => {
-  const web3 = new Web3(eth);
-  const contract = new web3.eth.Contract(
-    isTokens ? fioABI : fioNftABI,
-    isTokens ? ETH_CONTRACT : ETH_NFT_CONTRACT,
-  );
+export const isOracleEthAddressValid = async () => {
+  const contract = Web3Service.getEthContract();
 
   const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
 
@@ -51,8 +42,7 @@ export const isOracleEthAddressValid = async (isTokens = true) => {
 };
 
 export const isOraclePolygonAddressValid = async () => {
-  const web3 = new Web3(polygon);
-  const contract = new web3.eth.Contract(fioMaticNftABI, POLYGON_CONTRACT);
+  const contract = Web3Service.getPolygonContract();
 
   const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
 
