@@ -9,7 +9,9 @@ export const LOG_FILES_PATH_NAMES = {
   ETH: LOG_DIRECTORY_PATH_NAME + 'ETH.log', //log events and errors on ETH side
   POLYGON: LOG_DIRECTORY_PATH_NAME + 'POLYGON.log',
   ethNonce: LOG_DIRECTORY_PATH_NAME + 'ethNonce.log', // store last used ETH nonce to aviod too low nonce issue on concurrency calls
+  ethPendingTransactions: LOG_DIRECTORY_PATH_NAME + 'ethPendingTransactions.log', // store ETH pending transactions
   polygonNonce: LOG_DIRECTORY_PATH_NAME + 'polygonNonce.log', // store last used Polygon nonce to aviod too low nonce issue on concurrency calls
+  polygonPendingTransactions: LOG_DIRECTORY_PATH_NAME + 'polygonPendingTransactions.log', // store Polygon pending transactions
   fioOracleItemId: LOG_DIRECTORY_PATH_NAME + 'fioOracleItemId.log', // store last processed fio.oracle wrapped item
   blockNumberFIOForBurnNFT: LOG_DIRECTORY_PATH_NAME + 'blockNumberFIOForBurnNFT.log', // store FIO block number for burn domain action
   blockNumberUnwrapTokensETH: LOG_DIRECTORY_PATH_NAME + 'blockNumberETH.log', //store ETH blockNumber for unwrap tokens action

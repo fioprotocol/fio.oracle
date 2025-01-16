@@ -1,12 +1,13 @@
 import fs from 'fs';
 
-import Web3 from 'web3';
+import { Web3 } from 'web3';
 
 import config from '../../config/config.js';
 import { getInfuraPolygonGasPrice, getInfuraEthGasPrice } from '../api/infura.js';
 import { getMoralisEthGasPrice, getMoralisPolygonGasPrice } from '../api/moralis.js';
 import { getThirdwebEthGasPrice, getThirdwebPolygonGasPrice } from '../api/thirdweb.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { GAS_PRICE_MULTIPLIERS } from '../constants/prices.js';
 
 const {
   gas: { USE_GAS_API, GAS_PRICE_LEVEL },
@@ -55,107 +56,86 @@ export const getEthGasPriceSuggestion = async () => {
   ]);
 };
 
-// base gas price value + 10%
-const calculateAverageGasPrice = (baseGasPrice) => {
-  return Math.ceil(baseGasPrice * 1.1);
-};
-
 // base gas price value + 20%
+const calculateAverageGasPrice = (baseGasPrice) => {
+  return Math.ceil(baseGasPrice * GAS_PRICE_MULTIPLIERS.AVERAGE);
+};
+
+// base gas price value + 40%
 const calculateHighGasPrice = (baseGasPrice) => {
-  return Math.ceil(baseGasPrice * 1.2);
+  return Math.ceil(baseGasPrice * GAS_PRICE_MULTIPLIERS.HIGH);
 };
 
-const getMiddleGasPriceValue = (gasPriceSuggestions) => {
-  let gasPriceSuggestion = null;
-  const numSuggestions = gasPriceSuggestions.length;
+const getHighestGasPriceValue = (gasPriceSuggestions) => Math.max(...gasPriceSuggestions);
 
-  switch (numSuggestions) {
-    case 1:
-      gasPriceSuggestion = gasPriceSuggestions[0];
-      break;
-    case 2:
-      gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-      break;
-    case 3: {
-      gasPriceSuggestions.sort((a, b) => a - b);
-      gasPriceSuggestion = gasPriceSuggestions[1];
-      break;
-    }
-    default: {
-      gasPriceSuggestion = gasPriceSuggestions[0];
-    }
-  }
-
-  return gasPriceSuggestion;
-};
-
-export const getMiddleEthGasPriceSuggestion = async () => {
+export const getHighestEthGasPriceSuggestion = async () => {
   const ethGasPriceSuggestions = await getEthGasPriceSuggestion();
 
-  return getMiddleGasPriceValue(ethGasPriceSuggestions);
+  return getHighestGasPriceValue(ethGasPriceSuggestions);
 };
 
-export const getMiddlePolygonGasPriceSuggestion = async () => {
+export const getHighestPolygonGasPriceSuggestion = async () => {
   const polygonGasPriceSuggestions = await getPolygonGasPriceSuggestion();
 
-  return getMiddleGasPriceValue(polygonGasPriceSuggestions);
+  return getHighestGasPriceValue(polygonGasPriceSuggestions);
 };
 
 export const getGasPrice = async ({
   defaultGasPrice,
   getGasPriceSuggestionFn,
   logPrefix,
-  retryCount,
+  isRetry = false,
+  isReplace = false,
 }) => {
   const isUsingGasApi = !!parseInt(USE_GAS_API);
 
   let gasPrice = 0;
-  let gasPriceSuggestion = 0;
+  let finalMultiplier = 1;
 
   if (isUsingGasApi && getGasPriceSuggestionFn) {
     console.log(`${logPrefix} using gasPrice value from the api:`);
 
     const gasPriceSuggestions = await getGasPriceSuggestionFn();
 
-    const numSuggestions = gasPriceSuggestions.length;
-
-    switch (numSuggestions) {
-      case 1:
-        gasPriceSuggestion = gasPriceSuggestions[0];
-        break;
-      case 2:
-        gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-        break;
-      case 3: {
-        if (retryCount === 0) {
-          gasPriceSuggestions.sort((a, b) => a - b);
-          gasPriceSuggestion = gasPriceSuggestions[1];
-        } else if (retryCount > 0) {
-          gasPriceSuggestion = Math.max(...gasPriceSuggestions);
-        }
-        break;
-      }
-      default: {
-        gasPriceSuggestion = gasPriceSuggestions[0];
-      }
-    }
+    const baseGasPrice = getHighestGasPriceValue(gasPriceSuggestions);
 
     switch (GAS_PRICE_LEVEL) {
       case 'low':
-        gasPrice = gasPriceSuggestion;
+        gasPrice = baseGasPrice;
         break;
       case 'average':
-        gasPrice = calculateAverageGasPrice(gasPriceSuggestion);
+        gasPrice = calculateAverageGasPrice(baseGasPrice);
         break;
       case 'high':
-        gasPrice = calculateHighGasPrice(gasPriceSuggestion);
+        gasPrice = calculateHighGasPrice(baseGasPrice);
         break;
       default:
-        gasPrice = gasPriceSuggestion;
+        gasPrice = baseGasPrice;
+    }
+
+    // Apply additional multipliers if needed
+    if (isReplace) {
+      finalMultiplier = GAS_PRICE_MULTIPLIERS.REPLACEMENT;
+      gasPrice = Math.ceil(gasPrice * finalMultiplier);
+      console.log(`${logPrefix} Applied replace multiplier (${finalMultiplier}x)`);
+    } else if (isRetry) {
+      finalMultiplier = GAS_PRICE_MULTIPLIERS.RETRY;
+      gasPrice = Math.ceil(gasPrice * finalMultiplier);
+      console.log(`${logPrefix} Applied retry multiplier (${finalMultiplier}x)`);
     }
   } else if (!isUsingGasApi || !getGasPriceSuggestionFn) {
     console.log(`${logPrefix} Using gasPrice value from the .env:`);
     gasPrice = convertGweiToWei(defaultGasPrice.toString());
+
+    if (isReplace || isRetry) {
+      const multiplier = isReplace
+        ? GAS_PRICE_MULTIPLIERS.REPLACEMENT
+        : GAS_PRICE_MULTIPLIERS.RETRY;
+      gasPrice = Math.ceil(gasPrice * multiplier);
+      console.log(
+        `${logPrefix} Applied ${isReplace ? 'replace' : 'retry'} multiplier (${multiplier}x)`,
+      );
+    }
   }
 
   if (!gasPrice || parseInt(defaultGasPrice) <= 0)
