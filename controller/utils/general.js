@@ -124,10 +124,17 @@ export const convertTimestampIntoMs = (timestamp) => {
   throw new Error('Invalid input: Unable to convert timestamp into milliseconds.');
 };
 
-export const formatDateYYYYMMDD = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0'); // +1 because months are 0-indexed
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}${month}${day}`;
+export const stringifyWithBigInt = (obj) => {
+  return JSON.stringify(obj, (key, value) => {
+    // Handle arrays to maintain their structure
+    if (Array.isArray(value)) {
+      return value;
+    }
+    // Convert BigInt to string
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    // Return all other values as is
+    return value;
+  });
 };

@@ -1,10 +1,8 @@
 import 'dotenv/config';
 import fs from 'fs';
 
-import Web3 from 'web3';
+import { isAddress } from 'web3-validator';
 
-import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 
 import {
@@ -16,40 +14,19 @@ import {
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
-import { DEFAULT_ETH_GAS_PRICE, ETH_GAS_LIMIT } from '../constants/prices.js';
-import {
-  handleEthChainCommon,
-  isOracleEthAddressValid,
-  convertNativeFioIntoFio,
-} from '../utils/chain.js';
+import { isOracleEthAddressValid, convertNativeFioIntoFio } from '../utils/chain.js';
 import {
   addLogMessage,
-  updateEthNonce,
   handleChainError,
   handleLogFailedWrapItem,
-  handleEthNonceValue,
-  handleUpdatePendingPolygonItemsQueue,
+  handleUpdatePendingItemsQueue,
   handleServerError,
 } from '../utils/log-files.js';
-import { getEthGasPriceSuggestion } from '../utils/prices.js';
-import { polygonTransaction } from '../utils/transactions.js';
+import { blockChainTransaction } from '../utils/transactions.js';
 
-const {
-  eth: { ETH_ORACLE_PUBLIC, ETH_ORACLE_PRIVATE, ETH_CONTRACT, ETH_NFT_CONTRACT },
-  infura: { eth },
-  oracleCache,
-} = config;
+const { oracleCache } = config;
 
 class EthCtrl {
-  constructor() {
-    this.web3 = new Web3(eth);
-    this.fioContract = new this.web3.eth.Contract(fioABI, ETH_CONTRACT);
-    this.fioNftContract = new this.web3.eth.Contract(fioNftABI, ETH_NFT_CONTRACT);
-  }
-
-  // It handles both wrap actions (domain and tokens) on ETH chain, this is designed to prevent nonce collisions,
-  // when asynchronous jobs make transactions with same nonce value from one address (oracle public address),
-  // so it causes "replacing already existing transaction in the chain".
   async handleWrap() {
     if (!oracleCache.get(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting))
       oracleCache.set(ORACLE_CACHE_KEYS.isWrapOnEthJobExecuting, true, 0); // ttl = 0 means that value shouldn't ever been expired
@@ -80,61 +57,30 @@ class EthCtrl {
         let isTransactionProceededSuccessfully = false;
 
         try {
-          const oraclePublicKey = ETH_ORACLE_PUBLIC;
-          const oraclePrivateKey = ETH_ORACLE_PRIVATE;
-
-          if (
-            this.web3.utils.isAddress(pubaddress) === true &&
-            chaincode === ETH_TOKEN_CODE
-          ) {
+          if (isAddress(pubaddress) === true && chaincode === ETH_TOKEN_CODE) {
             //check validation if the address is ERC20 address
             console.log(`${logPrefix} preparing wrap action.`);
-            const wrapFunction = this.fioContract.methods.wrap(
-              pubaddress,
-              amount,
-              wrapOracleId,
-            );
-
-            const wrapABI = wrapFunction.encodeABI();
-
-            const chainNonce = await this.web3.eth.getTransactionCount(
-              oraclePublicKey,
-              'pending',
-            );
-            const txNonce = handleEthNonceValue({ chainNonce });
-
-            const common = handleEthChainCommon();
 
             const onSussessTransaction = (receipt) => {
               addLogMessage({
                 filePath: LOG_FILES_PATH_NAMES.ETH,
-                message: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} receipt ${JSON.stringify(receipt)}`,
+                message: `${ETH_CHAIN_NAME_CONSTANT} ${CONTRACT_NAMES.ERC_20} ${ACTION_NAMES.WRAP_TOKENS} receipt ${receipt}`,
               });
 
               isTransactionProceededSuccessfully = true;
             };
 
-            await polygonTransaction({
-              amount: amount,
+            await blockChainTransaction({
               action: ACTION_NAMES.WRAP_TOKENS,
               chainName: ETH_CHAIN_NAME_CONSTANT,
-              common,
-              contract: ETH_CONTRACT,
-              contractName: CONTRACT_NAMES.ERC_20,
-              data: wrapABI,
-              defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
-              getGasPriceSuggestionFn: getEthGasPriceSuggestion,
-              gasLimit: ETH_GAS_LIMIT,
-              handleSuccessedResult: onSussessTransaction,
-              logFilePath: LOG_FILES_PATH_NAMES.ETH,
+              contractActionParams: {
+                amount,
+                obtId: wrapOracleId,
+                pubaddress,
+              },
               logPrefix,
-              oraclePrivateKey,
-              oraclePublicKey,
               shouldThrowError: true,
-              tokenCode: ETH_TOKEN_CODE,
-              txNonce,
-              updateNonce: updateEthNonce,
-              web3Instance: this.web3,
+              handleSuccessedResult: onSussessTransaction,
             });
           } else {
             console.log(`${logPrefix} Invalid Address`);
@@ -155,7 +101,7 @@ class EthCtrl {
           });
         }
 
-        handleUpdatePendingPolygonItemsQueue({
+        handleUpdatePendingItemsQueue({
           action: this.handleWrap.bind(this),
           logPrefix,
           logFilePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
