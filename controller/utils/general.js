@@ -123,3 +123,18 @@ export const convertTimestampIntoMs = (timestamp) => {
   // If it's neither a valid timestamp nor a valid Date string
   throw new Error('Invalid input: Unable to convert timestamp into milliseconds.');
 };
+
+export const stringifyWithBigInt = (obj) => {
+  return JSON.stringify(obj, (key, value) => {
+    // Handle arrays to maintain their structure
+    if (Array.isArray(value)) {
+      return value;
+    }
+    // Convert BigInt to string
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    // Return all other values as is
+    return value;
+  });
+};

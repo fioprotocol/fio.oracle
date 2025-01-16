@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import cors from 'cors';
 import express from 'express';
-import Web3 from 'web3';
 
 import fioCtrl from './api/fio.js';
 
@@ -11,8 +10,10 @@ import {
   POLYGON_CHAIN_NAME,
   POLYGON_TOKEN_CODE,
 } from './constants/chain.js';
+import { MINUTE_IN_MILLISECONDS } from './constants/general.js';
 import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
 
+import { checkAndReplacePendingTransactions } from './jobs/transactions.js';
 import fioRoute from './routes/fio.js';
 import {
   getLastIrreversibleBlockOnFioChain,
@@ -31,13 +32,13 @@ import {
   getHighestEthGasPriceSuggestion,
   getHighestPolygonGasPriceSuggestion,
 } from './utils/prices.js';
+import { Web3Service } from './utils/web3-services.js';
 
 import config from '../config/config.js';
 
 const {
   gas: { USE_GAS_API },
   eth: { ETH_ORACLE_PUBLIC, BLOCKS_OFFSET_ETH },
-  infura: { eth, polygon },
   mode,
   polygon: { POLYGON_ORACLE_PUBLIC },
   jobTimeouts: { DEfAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
@@ -50,20 +51,21 @@ class MainCtrl {
     const logPrefix = `Startup -->`;
 
     try {
-      this.web3 = new Web3(eth);
-      this.polyWeb3 = new Web3(polygon);
-
       // Check oracle addresses balances on ETH and Polygon chains
-      await this.web3.eth.getBalance(ETH_ORACLE_PUBLIC, 'latest', (error, result) => {
-        if (error) {
-          console.log(`${logPrefix} ${error.stack}`);
-        } else {
-          console.log(
-            `${logPrefix} Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
-          );
-        }
-      });
-      await this.polyWeb3.eth.getBalance(
+      await Web3Service.getEthWeb3().eth.getBalance(
+        ETH_ORACLE_PUBLIC,
+        'latest',
+        (error, result) => {
+          if (error) {
+            console.log(`${logPrefix} ${error.stack}`);
+          } else {
+            console.log(
+              `${logPrefix} Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
+            );
+          }
+        },
+      );
+      await Web3Service.getPolygonWeb3().eth.getBalance(
         POLYGON_ORACLE_PUBLIC,
         'latest',
         (error, result) => {
@@ -139,6 +141,8 @@ class MainCtrl {
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
       });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ethPendingTransactions });
+      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.polygonPendingTransactions });
 
       console.log(`${logPrefix} logs folders are ready`);
 
@@ -152,17 +156,17 @@ class MainCtrl {
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
-        fetchAction: this.web3.eth.getBlockNumber,
+        fetchAction: () => Web3Service.getEthWeb3().eth.getBlockNumber(),
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-        fetchAction: this.web3.eth.getBlockNumber,
+        fetchAction: () => Web3Service.getEthWeb3().eth.getBlockNumber(),
         offset: BLOCKS_OFFSET_ETH,
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
-        fetchAction: this.polyWeb3.eth.getBlockNumber,
+        fetchAction: () => Web3Service.getPolygonWeb3().eth.getBlockNumber(),
       });
       await prepareLogFile({
         filePath: LOG_FILES_PATH_NAMES.ethNonce,
@@ -180,6 +184,7 @@ class MainCtrl {
       fioCtrl.handleUnprocessedUnwrapActionsOnPolygon();
       fioCtrl.handleUnprocessedBurnNFTActions();
 
+      checkAndReplacePendingTransactions();
       // Start Jobs interval
       setInterval(
         fioCtrl.handleUnprocessedWrapActionsOnFioChain,
@@ -196,6 +201,10 @@ class MainCtrl {
       setInterval(
         fioCtrl.handleUnprocessedBurnNFTActions,
         parseInt(BURN_DOMAINS_JOB_TIMEOUT),
+      );
+      setInterval(
+        checkAndReplacePendingTransactions,
+        parseInt(MINUTE_IN_MILLISECONDS * 3), // check for pending transactions every 3 mins
       );
 
       this.initRoutes(app);

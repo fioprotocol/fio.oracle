@@ -18,7 +18,7 @@ const args = process.argv;
 
 const oracle = {
   usage:
-    "Usage: npm run oracle ['wrap'|'unwrap'|'burn'] ['tokens'|'domain'] [amount|domain|tokenId] [fio handle or eth address] trxid ['clean'?] [gasPrice?]\n \
+    "Usage: npm run oracle ['wrap'|'unwrap'|'burn'] ['tokens'|'domain'] [amount|domain|tokenId] [fio handle or eth address] obtid ['clean'?] [gasPrice?]\n \
     Examples: \n \
         npm run oracle wrap tokens 12000000000 0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean 1650000016\n \
         npm run oracle wrap domain fiohacker 0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean 1650000016 \n \

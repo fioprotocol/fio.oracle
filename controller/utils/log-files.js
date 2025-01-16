@@ -48,7 +48,12 @@ export const prepareLogFile = async (
         let lastBlockNumberInChain;
         if (fetchAction) {
           const blocksOffset = parseInt(offset) || 0;
-          lastBlockNumberInChain = (await fetchAction()) - blocksOffset;
+          const chainBlockNumber = await fetchAction();
+
+          lastBlockNumberInChain =
+            typeof chainBlockNumber === 'bigint'
+              ? parseFloat(chainBlockNumber)
+              : chainBlockNumber - blocksOffset;
         }
         createLogFile({
           filePath,
@@ -62,7 +67,12 @@ export const prepareLogFile = async (
     let lastBlockNumberInChain;
     if (fetchAction) {
       const blocksOffset = parseInt(offset) || 0;
-      lastBlockNumberInChain = (await fetchAction()) - blocksOffset;
+      const chainBlockNumber = await fetchAction();
+
+      lastBlockNumberInChain =
+        typeof chainBlockNumber === 'bigint'
+          ? parseFloat(chainBlockNumber)
+          : chainBlockNumber - blocksOffset;
     }
     createLogFile({
       filePath,
@@ -93,6 +103,8 @@ export const addLogMessage = ({
     );
   }
 };
+
+export const readLogFile = (filePath) => fs.readFileSync(filePath, 'utf8');
 
 export const updateFioOracleId = (oracleId) => {
   fs.writeFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, oracleId);
@@ -180,10 +192,10 @@ export const handleLogFailedBurnNFTItem = ({ logPrefix, burnData, errorLogFilePa
 };
 
 export const handlePolygonNonceValue = ({ chainNonce }) => {
-  let txNonce = chainNonce;
+  let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
   const savedNonce = getLastProceededPolygonNonce();
 
-  if (savedNonce && Number(savedNonce) === Number(chainNonce)) {
+  if (savedNonce && Number(savedNonce) === Number(txNonce)) {
     txNonce = txNonce++;
   }
 
@@ -193,10 +205,10 @@ export const handlePolygonNonceValue = ({ chainNonce }) => {
 };
 
 export const handleEthNonceValue = ({ chainNonce }) => {
-  let txNonce = chainNonce;
+  let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
   const savedNonce = getLastProceededEthNonce();
 
-  if (savedNonce && Number(savedNonce) === Number(chainNonce)) {
+  if (savedNonce && Number(savedNonce) === Number(txNonce)) {
     txNonce = txNonce++;
   }
 
@@ -205,7 +217,29 @@ export const handleEthNonceValue = ({ chainNonce }) => {
   return txNonce;
 };
 
-export const handleUpdatePendingPolygonItemsQueue = ({
+export const removePendingTransaction = ({ hash, logFilePath, logPrefix = '' }) => {
+  try {
+    // Read the file contents
+    const fileContents = fs.readFileSync(logFilePath, 'utf-8');
+
+    // Split contents into lines
+    const lines = fileContents.split('\n');
+
+    // Filter out the line containing the hash
+    const updatedLines = lines.filter((line) => !line.startsWith(`${hash} `));
+
+    // Join the lines back and write to the file
+    fs.writeFileSync(logFilePath, updatedLines.join('\n'), 'utf-8');
+
+    console.log(
+      `${logPrefix} Pending transaction with hash "${hash}" has been removed successfully.`,
+    );
+  } catch (error) {
+    console.error(`${logPrefix} Remove transaction hash error: ${error.message}`);
+  }
+};
+
+export const handleUpdatePendingItemsQueue = ({
   action,
   logFilePath,
   logPrefix,
