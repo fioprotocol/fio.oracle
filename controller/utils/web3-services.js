@@ -1,7 +1,7 @@
 import { Web3 } from 'web3';
 
 import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
+import fioNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
 
 import config from '../../config/config.js';
 

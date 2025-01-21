@@ -169,6 +169,105 @@ class GetMoralis {
       throw error;
     }
   }
+
+  async findNftByMetadataName({
+    metadataName,
+    chainName = NFT_CHAIN_NAME,
+    contractAddress = POLYGON_CONTRACT,
+  }) {
+    try {
+      await this.init();
+      let cursor = null;
+      const chain = EvmChain[chainName];
+
+      while (true) {
+        let contractNftsRes;
+        if (cursor) {
+          await sleep(MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS);
+          contractNftsRes = await cursor.next();
+        } else {
+          contractNftsRes = await this.getContractNFTs({
+            chainName,
+            contractAddress,
+          });
+        }
+
+        const contractNftsResData = contractNftsRes.toJSON();
+
+        if (contractNftsResData && contractNftsResData.result) {
+          for (const nftItem of contractNftsResData.result) {
+            let { metadata, normalized_metadata } = nftItem;
+
+            // If no metadata, try to resync and get fresh metadata
+            if (!metadata && !normalized_metadata) {
+              const freshMetadata = await this.resyncNftMetadata({
+                chain,
+                nftItem,
+              });
+              if (freshMetadata) {
+                metadata = freshMetadata.metadata;
+                normalized_metadata = freshMetadata.normalized_metadata;
+              }
+            }
+
+            let currentMetadataName = null;
+
+            // Try normalized metadata first
+            if (normalized_metadata && normalized_metadata.name) {
+              currentMetadataName = normalized_metadata.name;
+            }
+            // Fall back to parsing raw metadata
+            else if (metadata) {
+              try {
+                const parsedMetadata = JSON.parse(metadata);
+                if (parsedMetadata && parsedMetadata.name) {
+                  currentMetadataName = parsedMetadata.name;
+                }
+              } catch (error) {
+                console.error('Failed to parse metadata:', error);
+                continue;
+              }
+            }
+
+            // Extract name after ": " and compare
+            const name = currentMetadataName && currentMetadataName.split(': ')[1];
+            if (name === metadataName) {
+              return nftItem;
+            }
+          }
+        }
+
+        if (!contractNftsRes.hasNext()) {
+          break;
+        }
+        cursor = contractNftsRes;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('MORALIS ERROR: Find NFT by metadata name:', error);
+      throw error;
+    }
+  }
+
+  async getTokenIdByDomain({
+    domain,
+    chainName = NFT_CHAIN_NAME,
+    contractAddress = POLYGON_CONTRACT,
+  }) {
+    try {
+      const nftItem = await this.findNftByMetadataName({
+        metadataName: domain,
+        chainName,
+        contractAddress,
+      });
+
+      return nftItem ? nftItem.token_id : null;
+    } catch (error) {
+      console.error('MORALIS ERROR: Get token ID by domain:', error);
+      throw error;
+    }
+  }
 }
 
 const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
