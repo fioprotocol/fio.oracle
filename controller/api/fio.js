@@ -2,14 +2,9 @@ import 'dotenv/config';
 
 import fs from 'fs';
 
-import { Web3 } from 'web3';
-
 import ethCtrl from './eth.js';
 import moralis from './moralis.js';
 import polygonCtrl from './polygon.js';
-import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioPolygonABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIONFT.json' assert { type: 'json' };
 import config from '../../config/config.js';
 
 import {
