@@ -1,6 +1,6 @@
 {
   "name": "oracle",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Oracle for moving tokens and code to and from the FIO chain",
   "main": "index.js",
   "scripts": {
