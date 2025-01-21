@@ -138,3 +138,29 @@ export const stringifyWithBigInt = (obj) => {
     return value;
   });
 };
+
+export const withLoadingIndicator = async (promise, message) => {
+  console.log(message);
+  let dots = -1;
+  const loadingInterval = setInterval(() => {
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    dots = (dots + 1) % 4;
+    process.stdout.write(`Loading ${'.'.repeat(dots)}`);
+  }, 500);
+
+  try {
+    const result = await promise;
+    clearInterval(loadingInterval);
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write('\n'); // New line after loading dots
+    return result;
+  } catch (error) {
+    clearInterval(loadingInterval);
+    process.stdout.clearLine(0);
+    process.stdout.cursorTo(0);
+    process.stdout.write('\n');
+    throw error;
+  }
+};
