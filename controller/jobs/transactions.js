@@ -1,6 +1,7 @@
 import { ETH_CHAIN_NAME_CONSTANT, POLYGON_CHAIN_NAME } from '../constants/chain.js';
 import { TRANSACTION_NOT_FOUND, MAX_TRANSACTION_AGE } from '../constants/transactions.js';
 import { readLogFile, removePendingTransaction } from '../utils/log-files.js';
+import { handleChainError } from '../utils/log-files.js';
 import {
   blockChainTransaction,
   getDefaultTransactionParams,
@@ -8,12 +9,13 @@ import {
 
 export const checkAndReplacePendingTransactions = async () => {
   const handlePendingTransaction = async ({ chainName }) => {
-    const defaultTransactionParams = await getDefaultTransactionParams(chainName);
-    const { oraclePublicKey, pendingTransactionFilePath, web3Instance } =
-      defaultTransactionParams;
-
     const logPrefix = `${chainName} Pending transactions handle: --> `;
+
     try {
+      const defaultTransactionParams = await getDefaultTransactionParams(chainName);
+      const { oraclePublicKey, pendingTransactionFilePath, web3Instance } =
+        defaultTransactionParams;
+
       const currentTime = Date.now();
 
       const latestNonce = Number(
@@ -142,11 +144,20 @@ export const checkAndReplacePendingTransactions = async () => {
         }
       }
     } catch (error) {
-      console.error(`${logPrefix} Error checking pending transactions:`, error);
+      handleChainError({
+        logMessage: `${logPrefix} ${chainName} checking pending transactions failed: ${error}`,
+        consoleMessage: error,
+      });
     }
   };
 
-  await handlePendingTransaction({ chainName: ETH_CHAIN_NAME_CONSTANT });
-
-  await handlePendingTransaction({ chainName: POLYGON_CHAIN_NAME });
+  try {
+    await handlePendingTransaction({ chainName: ETH_CHAIN_NAME_CONSTANT });
+    await handlePendingTransaction({ chainName: POLYGON_CHAIN_NAME });
+  } catch (error) {
+    handleChainError({
+      logMessage: `Failed to check and replace pending transactions: ${error}`,
+      consoleMessage: error,
+    });
+  }
 };

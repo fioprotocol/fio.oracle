@@ -3,6 +3,8 @@ import path from 'path';
 import dotenv from 'dotenv-safe';
 import NodeCache from 'node-cache';
 
+import { SECOND_IN_MILLISECONDS } from '../controller/constants/general.js';
+
 const oracleCache = new NodeCache();
 
 const mode = process.env.NODE_ENV;
@@ -84,4 +86,9 @@ export default {
     BURN_DOMAINS_JOB_TIMEOUT: process.env.BURN_DOMAINS_JOB_TIMEOUT,
   },
   DEFAULT_MAX_RETRIES: process.env.DEFAULT_MAX_RETRIES,
+  app: {
+    RESTART_TIMEOUT: SECOND_IN_MILLISECONDS * 5, // 5 seconds
+    MAX_RETRIES: 3,
+    STABILITY_THRESHOLD: SECOND_IN_MILLISECONDS * 30, // 30 seconds
+  },
 };

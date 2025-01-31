@@ -79,10 +79,22 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
         return makeRequest({ targetUrl });
       }
 
-      const responseJSON = response ? await response.json() : null;
-      console.log(responseJSON);
+      let responseData = null;
+      const contentType = response.headers.get('content-type');
+
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        // Handle non-JSON responses (like HTML)
+        responseData = await response.text();
+      }
+
       throw new Error(
-        `HTTP error! status: ${response.status}, response: ${responseJSON ? JSON.stringify(responseJSON, null, 4) : 'N/A'}`,
+        `HTTP error! status: ${response.status}, response: ${
+          typeof responseData === 'string'
+            ? responseData.slice(0, 1000) // Limit to first 1000 characters for readability
+            : JSON.stringify(responseData, null, 4)
+        }`,
       );
     } catch (error) {
       if (!isBackupRetry && backupUrl) {
