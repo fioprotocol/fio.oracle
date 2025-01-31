@@ -35,6 +35,7 @@ import {
 import { Web3Service } from './utils/web3-services.js';
 
 import config from '../config/config.js';
+import healthRoute from './routes/health.js';
 
 const {
   gas: { USE_GAS_API },
@@ -222,6 +223,7 @@ class MainCtrl {
   initRoutes(app) {
     route.use(cors({ origin: '*' }));
     app.use(fioRoute);
+    app.use('/api/v1', healthRoute);
   }
 }
 
