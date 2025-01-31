@@ -91,6 +91,27 @@ To run testnet you need to run
 npm run start:testnet
 ```
 
+## Health Check Endpoint
+
+The oracle service provides a health check endpoint at `/health` that can be used to monitor the service status. 
+
+To check the service health:
+```
+GET http://localhost:{PORT}/api/v1/health
+```
+
+The endpoint returns:
+- Status code `200` if the service is running properly
+- JSON response with service status information:
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-03-21T10:30:15.123Z"
+}
+```
+
+You can use this endpoint for monitoring and health checks in your infrastructure.
+
 ## Log files
 
 Log files for different environments are in different folders:
