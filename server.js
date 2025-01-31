@@ -6,7 +6,7 @@ import mainCtrl from './controller/main.js';
 import { sleep } from './controller/utils/general.js';
 
 const {
-  app: { RESTART_TIMEOUT, MAX_RETRIES },
+  app: { RESTART_TIMEOUT, MAX_RETRIES, STABILITY_THRESHOLD },
   port,
 } = conf;
 
@@ -31,6 +31,12 @@ const startServer = async () => {
   try {
     await mainCtrl.start(app);
     serverStarted = true;
+
+    // Only reset the retry counter after the server has been stable for STABILITY_THRESHOLD
+    setTimeout(() => {
+      currentRetries = 0;
+      console.log('Server stable, retry counter reset');
+    }, STABILITY_THRESHOLD);
   } catch (error) {
     console.error('Server crashed with error:', error);
     server.close();

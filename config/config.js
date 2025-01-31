@@ -89,5 +89,6 @@ export default {
   app: {
     RESTART_TIMEOUT: SECOND_IN_MILLISECONDS * 5, // 5 seconds
     MAX_RETRIES: 3,
+    STABILITY_THRESHOLD: SECOND_IN_MILLISECONDS * 30, // 30 seconds
   },
 };
