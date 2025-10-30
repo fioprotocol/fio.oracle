@@ -1,49 +1,51 @@
+import { createRequire } from 'node:module';
+
 import { Web3 } from 'web3';
 
-import fioABI from '../../config/ABI/FIO.json' assert { type: 'json' };
-import fioNftABI from '../../config/ABI/FIOMATICNFT.json' assert { type: 'json' };
+const require = createRequire(import.meta.url);
 
-import config from '../../config/config.js';
+import { ACTION_TYPES } from '../constants/chain.js';
 
-const {
-  eth: { ETH_CONTRACT },
-  infura: { eth, polygon },
-  polygon: { POLYGON_CONTRACT },
-} = config;
+const fioABI = require('../../config/ABI/FIO.json');
+const fioNftABI = require('../../config/ABI/FIOMATICNFT.json');
 
 export class Web3Service {
-  static getEthWeb3() {
-    if (!this.ethInstance) {
-      this.ethInstance = new Web3(eth);
+  static getWe3Instance({ chainCode, rpcUrl, apiKey }) {
+    const errorLogPrefix = `WEB3 ERROR [Get instance] chain [${chainCode}]:`;
+
+    if (!rpcUrl) {
+      throw new Error(`${errorLogPrefix} RPC URL is required`);
     }
-    return this.ethInstance;
+    if (!apiKey) {
+      throw new Error(`${errorLogPrefix} API KEY is required`);
+    }
+
+    if (!this[chainCode]) {
+      const url = `${rpcUrl}/${apiKey}`;
+
+      this[chainCode] = new Web3(url);
+    }
+    return this[chainCode];
   }
 
-  static getPolygonWeb3() {
-    if (!this.polygonInstance) {
-      this.polygonInstance = new Web3(polygon);
+  static getWeb3Contract({ apiKey, type, chainCode, contractAddress, rpcUrl }) {
+    const web3ChainInstance = this.getWe3Instance({
+      chainCode,
+      rpcUrl,
+      apiKey,
+    });
+
+    if (!web3ChainInstance) {
+      throw new Error('Web3 instance not found');
     }
-    return this.polygonInstance;
-  }
 
-  static getEthContract() {
-    if (!this.ethContractInstance) {
-      const ethWeb3Instance = this.getEthWeb3();
-
-      this.ethContractInstance = new ethWeb3Instance.eth.Contract(fioABI, ETH_CONTRACT);
+    switch (type) {
+      case ACTION_TYPES.TOKENS:
+        return new web3ChainInstance.eth.Contract(fioABI, contractAddress);
+      case ACTION_TYPES.NFTS:
+        return new web3ChainInstance.eth.Contract(fioNftABI, contractAddress);
+      default:
+        throw new Error('Invalid chain type');
     }
-    return this.ethContractInstance;
-  }
-
-  static getPolygonContract() {
-    if (!this.polygonContractInstance) {
-      const polygonWeb3Instance = this.getPolygonWeb3();
-
-      this.polygonContractInstance = new polygonWeb3Instance.eth.Contract(
-        fioNftABI,
-        POLYGON_CONTRACT,
-      );
-    }
-    return this.polygonContractInstance;
   }
 }

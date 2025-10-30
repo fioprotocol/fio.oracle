@@ -1,78 +1,81 @@
 import 'dotenv/config';
 
-import {
-  ACTION_NAMES,
-  ETH_CHAIN_NAME_CONSTANT,
-  POLYGON_CHAIN_NAME,
-} from '../controller/constants/chain.js';
+import config from '../config/config.js';
+import { ACTIONS, FIO_CONTRACT_ACTIONS } from '../controller/constants/chain.js';
 
 import { runUnwrapFioTransaction } from '../controller/utils/fio-chain.js';
 
 import { blockChainTransaction } from '../controller/utils/transactions.js';
+import { Web3Service } from '../controller/utils/web3-services.js';
 
-const handleWrapEthAction = async ({
+const { supportedChains } = config;
+
+export const handleWrapAction = async ({
+  action,
   address,
   amount,
-  domain,
-  obtId, // oracleId from FIO wrapped table
+  chainCode,
+  nftName,
+  obtId,
   manualSetGasPrice,
+  type,
 }) => {
-  console.log(
-    `ETH WRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`,
+  const logPrefix = `[MANUAL RUN] ${chainCode} ${action} ${type} --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `nftName: ${nftName}`}`;
+
+  const currentChain = supportedChains[type].find(
+    (chain) => chain.chainCode === chainCode,
   );
+  const { contractAddress, infura } = currentChain;
+
+  const contract = Web3Service.getWeb3Contract({
+    apiKey: infura.apiKey,
+    type,
+    chainCode,
+    contractAddress,
+    rpcUrl: infura.rpcUrl,
+  });
 
   await blockChainTransaction({
-    action: ACTION_NAMES.WRAP_TOKENS,
-    chainName: ETH_CHAIN_NAME_CONSTANT,
+    action,
+    chainCode,
+    contract,
     contractActionParams: {
       amount,
       obtId,
+      nftName,
       pubaddress: address,
     },
-    logPrefix: 'ETH WRAP NPM MANUAL ',
     manualSetGasPrice,
+    logPrefix,
+    type,
   });
 };
 
-const handleWrapPolygonAction = async ({
+export const handleUnwrapAction = async ({
+  action,
   address,
-  domain,
-  obtId, // oracleId from FIO wrapped table
-  manualSetGasPrice,
+  amount,
+  chainCode,
+  nftName,
+  obtId,
+  type,
 }) => {
-  console.log(`POLYGON WRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`);
+  const logPrefix = `[MANUAL RUN] ${chainCode} ${action} ${type} --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `nftName: ${nftName}`}`;
 
-  await blockChainTransaction({
-    action: ACTION_NAMES.WRAP_DOMAIN,
-    chainName: POLYGON_CHAIN_NAME,
-    contractActionParams: {
-      domain,
-      obtId,
-      pubaddress: address,
-    },
-    logPrefix: 'POLYGON WRAP NPM MANUAL ',
-    manualSetGasPrice,
-  });
-};
+  console.log(logPrefix);
 
-const handleUnwrapFromEthToFioChain = async ({ address, amount, domain, obtId }) => {
-  console.log(
-    `ETH UNWRAP --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `domain: ${domain}`}`,
-  );
-
-  const isUnwrappingTokens = !!parseInt(amount || '');
-  const fioAddress = address;
-
-  const actionName = isUnwrappingTokens ? 'unwraptokens' : 'unwrapdomain';
+  const actionName = FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][type];
 
   const transactionActionData = {
-    fio_address: fioAddress,
+    fio_address: address,
     obt_id: obtId,
   };
 
-  if (isUnwrappingTokens) {
-    transactionActionData.amount = amount;
-  } else transactionActionData.domain = domain;
+  if (amount) {
+    transactionActionData.amount = parseInt(amount);
+  } else if (nftName) {
+    transactionActionData.fio_domain = nftName;
+  }
 
   const transactionResult = await runUnwrapFioTransaction({
     actionName,
@@ -86,48 +89,41 @@ const handleUnwrapFromEthToFioChain = async ({ address, amount, domain, obtId })
   console.log(transactionResult);
 };
 
-const handleUnwrapFromPolygonToFioChain = async ({ address, domain, obtId }) => {
-  console.log(
-    `POLYGON UNWRAP --> address: ${address}, obtId: ${obtId}, domain: ${domain}`,
+export const handleBurnNFTInPolygon = async ({
+  action,
+  chainCode,
+  obtId,
+  tokenId,
+  manualSetGasPrice,
+  type,
+}) => {
+  const logPrefix = `[MANUAL RUN] ${chainCode} ${action} ${type} --> obtId: ${obtId}, tokenID: ${tokenId}`;
+
+  const actionName = FIO_CONTRACT_ACTIONS[ACTIONS.BURN];
+
+  const currentChain = supportedChains[type].find(
+    (chain) => chain.chainCode === chainCode,
   );
+  const { contractAddress, infura } = currentChain;
 
-  const transactionActionData = {
-    fio_address: address,
-    fio_domain: domain,
-    obt_id: obtId,
-  };
-
-  const transactionResult = await runUnwrapFioTransaction({
-    actionName: 'unwrapdomain',
-    transactionActionData,
+  const contract = Web3Service.getWeb3Contract({
+    apiKey: infura.apiKey,
+    type,
+    chainCode,
+    contractAddress,
+    rpcUrl: infura.rpcUrl,
   });
 
-  if (!(transactionResult.type || transactionResult.error)) {
-    console.log(`Completed:`);
-  } else console.log(`Error:`);
-
-  console.log(transactionResult);
-};
-
-const handleBurnNFTInPolygon = async ({ obtId, tokenId, manualSetGasPrice }) => {
-  console.log(`POLYGON BURNNFT --> obtId: ${obtId}, tokenID: ${tokenId}`);
-
   await blockChainTransaction({
-    action: ACTION_NAMES.BURN_NFT,
-    chainName: POLYGON_CHAIN_NAME,
+    action: actionName,
+    chainCode,
+    contract,
     contractActionParams: {
       tokenId,
       obtId,
     },
-    logPrefix: 'POLYGON BURNNFT NPM MANUAL ',
+    logPrefix,
     manualSetGasPrice,
+    type,
   });
-};
-
-export {
-  handleWrapEthAction,
-  handleWrapPolygonAction,
-  handleUnwrapFromEthToFioChain,
-  handleUnwrapFromPolygonToFioChain,
-  handleBurnNFTInPolygon,
 };

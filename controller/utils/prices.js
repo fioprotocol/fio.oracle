@@ -2,11 +2,11 @@ import fs from 'fs';
 
 import { Web3 } from 'web3';
 
+import { LOG_FILES_KEYS, getLogFilePath } from './log-file-templates.js';
 import config from '../../config/config.js';
-import { getInfuraPolygonGasPrice, getInfuraEthGasPrice } from '../api/infura.js';
-import { getMoralisEthGasPrice, getMoralisPolygonGasPrice } from '../api/moralis.js';
-import { getThirdwebEthGasPrice, getThirdwebPolygonGasPrice } from '../api/thirdweb.js';
-import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
+import { getInfuraGasPrice } from '../api/infura.js';
+import { getMoralisGasPrice } from '../api/moralis.js';
+import { getThirdWebGasPrice } from '../api/thirdweb.js';
 import { GAS_PRICE_MULTIPLIERS } from '../constants/prices.js';
 
 const {
@@ -39,20 +39,12 @@ const handleSuggestedGasPrices = async (gasPricePromises) => {
   return resolvedGasPricesResults;
 };
 
-// POLYGON gas price suggestion in WEI
-export const getPolygonGasPriceSuggestion = async () =>
-  handleSuggestedGasPrices([
-    getInfuraPolygonGasPrice(),
-    getThirdwebPolygonGasPrice(),
-    getMoralisPolygonGasPrice(),
-  ]);
-
-// ETH gas price suggestion in WEI
-export const getEthGasPriceSuggestion = async () => {
+// Gas price suggestion in WEI
+export const getGasPriceSuggestion = async ({ chainCode, infura, moralis, thirdweb }) => {
   return handleSuggestedGasPrices([
-    getInfuraEthGasPrice(),
-    getThirdwebEthGasPrice(),
-    getMoralisEthGasPrice(),
+    getInfuraGasPrice({ chainCode, infura }),
+    getThirdWebGasPrice({ chainCode, thirdweb }),
+    getMoralisGasPrice({ chainCode, moralis }),
   ]);
 };
 
@@ -68,16 +60,20 @@ const calculateHighGasPrice = (baseGasPrice) => {
 
 const getHighestGasPriceValue = (gasPriceSuggestions) => Math.max(...gasPriceSuggestions);
 
-export const getHighestEthGasPriceSuggestion = async () => {
-  const ethGasPriceSuggestions = await getEthGasPriceSuggestion();
+export const getHighestGasPriceSuggestion = async ({
+  chainCode,
+  infura,
+  moralis,
+  thirdweb,
+}) => {
+  const gasPriceSuggestions = await getGasPriceSuggestion({
+    chainCode,
+    infura,
+    moralis,
+    thirdweb,
+  });
 
-  return getHighestGasPriceValue(ethGasPriceSuggestions);
-};
-
-export const getHighestPolygonGasPriceSuggestion = async () => {
-  const polygonGasPriceSuggestions = await getPolygonGasPriceSuggestion();
-
-  return getHighestGasPriceValue(polygonGasPriceSuggestions);
+  return getHighestGasPriceValue(gasPriceSuggestions);
 };
 
 export const getGasPrice = async ({
@@ -149,12 +145,11 @@ export const getGasPrice = async ({
 };
 
 export const getWeb3Balance = async ({
-  chainName,
+  chainCode,
   gasLimit,
   gasPrice,
   logPrefix,
   publicKey,
-  tokenCode,
   web3Instance,
 }) => {
   web3Instance.eth.getBalance(publicKey, 'latest', (error, walletBalance) => {
@@ -164,15 +159,15 @@ export const getWeb3Balance = async ({
       if (convertWeiToEth(walletBalance) < convertWeiToEth(gasLimit * gasPrice) * 5) {
         const timeStamp = new Date().toISOString();
         console.log(
-          `${logPrefix} Warning: Low Oracle ${chainName} Address Balance: ${convertWeiToEth(
+          `${logPrefix} Warning: Low Oracle ${chainCode} Address Balance: ${convertWeiToEth(
             walletBalance,
-          )} ${tokenCode}`,
+          )} ${chainCode}`,
         );
         fs.writeFile(
-          LOG_FILES_PATH_NAMES.oracleErrors,
-          `${timeStamp} ${logPrefix} Warning: Low Oracle ${chainName} Address Balance: ${convertWeiToEth(
+          getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }),
+          `${timeStamp} ${logPrefix} Warning: Low Oracle ${chainCode} Address Balance: ${convertWeiToEth(
             walletBalance,
-          )} ${tokenCode}`,
+          )} ${chainCode}`,
           () => {},
         );
       }

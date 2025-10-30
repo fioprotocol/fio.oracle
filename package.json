@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@babel/runtime": "7.20.1",
-    "@ethereumjs/common": "4.4.0",
     "@fioprotocol/fiojs": "1.0.2",
     "big.js": "6.2.1",
     "body-parser": "1.20.1",

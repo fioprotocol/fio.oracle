@@ -1,8 +1,12 @@
 import fs from 'fs';
 
+import {
+  LOG_FILES_KEYS,
+  getLogFilePath,
+  LOG_DIRECTORY_PATH_NAME,
+} from './log-file-templates.js';
 import config from '../../config/config.js';
-import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from '../constants/log-files.js';
-
+import { FIO_CHAIN_NAME } from '../constants/chain.js';
 import { replaceNewLines } from '../utils/general.js';
 
 const { oracleCache } = config;
@@ -107,67 +111,52 @@ export const addLogMessage = ({
 export const readLogFile = (filePath) => fs.readFileSync(filePath, 'utf8');
 
 export const updateFioOracleId = (oracleId) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, oracleId);
+  fs.writeFileSync(getLogFilePath({ key: LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID }), oracleId);
 };
 
 export const updateBlockNumberFIOForBurnNFT = (blockNumber) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, blockNumber);
+  fs.writeFileSync(
+    getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode: FIO_CHAIN_NAME }),
+    blockNumber,
+  );
 };
 
-export const updateBlockNumberForTokensUnwrappingOnETH = (blockNumber) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, blockNumber);
-};
-
-export const updateBlockNumberForDomainsUnwrappingOnETH = (blockNumber) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, blockNumber);
-};
-
-export const updateBlockNumberMATIC = (blockNumber) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, blockNumber);
-};
-
-export const updateEthNonce = (nonce) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.ethNonce, nonce ? nonce.toString() : '');
-};
-
-export const updatePolygonNonce = (nonce) => {
-  fs.writeFileSync(LOG_FILES_PATH_NAMES.polygonNonce, nonce ? nonce.toString() : '');
+export const updateNonce = ({ chainCode, nonce }) => {
+  fs.writeFileSync(
+    getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }),
+    nonce ? nonce.toString() : '',
+  );
 };
 
 export const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
   return parseFloat(
-    fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT, 'utf8'),
+    fs.readFileSync(
+      getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode: FIO_CHAIN_NAME }),
+      'utf8',
+    ),
   );
 };
 
 export const getLastProcessedFioOracleItemId = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.fioOracleItemId, 'utf-8'));
-};
-
-export const getLastProceededBlockNumberOnEthereumChainForTokensUnwrapping = () => {
   return parseFloat(
-    fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH, 'utf8'),
+    fs.readFileSync(getLogFilePath({ key: LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID }), 'utf-8'),
   );
 };
 
-export const getLastProceededBlockNumberOnEthereumChainForDomainUnwrapping = () => {
-  return parseFloat(
-    fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH, 'utf8'),
+export const updateBlockNumber = ({ chainCode, blockNumber }) => {
+  fs.writeFileSync(
+    getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode }),
+    blockNumber,
   );
 };
 
-export const getLastProceededBlockNumberOnPolygonChainForDomainUnwrapping = () => {
+export const getLastProcessedBlockNumber = ({ chainCode }) => {
   return parseFloat(
-    fs.readFileSync(LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon, 'utf8'),
+    fs.readFileSync(
+      getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode }),
+      'utf8',
+    ),
   );
-};
-
-export const getLastProceededEthNonce = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.ethNonce, 'utf8'));
-};
-
-export const getLastProceededPolygonNonce = () => {
-  return parseFloat(fs.readFileSync(LOG_FILES_PATH_NAMES.polygonNonce, 'utf8'));
 };
 
 export const handleLogFailedWrapItem = ({
@@ -191,28 +180,16 @@ export const handleLogFailedBurnNFTItem = ({ logPrefix, burnData, errorLogFilePa
   fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
 };
 
-export const handlePolygonNonceValue = ({ chainNonce }) => {
+export const handleNonceValue = ({ chainNonce, chainCode }) => {
   let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
-  const savedNonce = getLastProceededPolygonNonce();
+
+  const savedNonce = getLatestNonce({ chainCode });
 
   if (savedNonce && Number(savedNonce) === Number(txNonce)) {
     txNonce = txNonce++;
   }
 
-  updatePolygonNonce(txNonce);
-
-  return txNonce;
-};
-
-export const handleEthNonceValue = ({ chainNonce }) => {
-  let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
-  const savedNonce = getLastProceededEthNonce();
-
-  if (savedNonce && Number(savedNonce) === Number(txNonce)) {
-    txNonce = txNonce++;
-  }
-
-  updateEthNonce(txNonce);
+  updateNonce({ chainCode, nonce: txNonce });
 
   return txNonce;
 };
@@ -266,10 +243,13 @@ export const handleServerError = async (err, additionalMessage = null) => {
   console.log(err.stack);
 
   prepareLogDirectory(LOG_DIRECTORY_PATH_NAME, false);
-  await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors }, false);
+  await prepareLogFile(
+    { filePath: getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }) },
+    false,
+  );
 
   addLogMessage({
-    filePath: LOG_FILES_PATH_NAMES.oracleErrors,
+    filePath: getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }),
     message: replaceNewLines(
       (additionalMessage ? additionalMessage + ': ' : '') + err.stack,
     ),
@@ -280,24 +260,14 @@ export const handleServerError = async (err, additionalMessage = null) => {
 export const handleChainError = ({ logMessage, consoleMessage }) => {
   console.log(consoleMessage);
   addLogMessage({
-    filePath: LOG_FILES_PATH_NAMES.oracleErrors,
+    filePath: getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }),
     message: replaceNewLines(logMessage),
   });
 };
 
-export const getLatestEthNonce = () => {
-  const filePath = LOG_FILES_PATH_NAMES.ethNonce;
-  if (!fs.existsSync(filePath)) {
-    createLogFile({
-      filePath,
-      dataToWrite: '0',
-      showSuccessConsole: true,
-    });
-  }
-};
+export const getLatestNonce = ({ chainCode }) => {
+  const filePath = getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode });
 
-export const getLatestPolygonNonce = () => {
-  const filePath = LOG_FILES_PATH_NAMES.polygonNonce;
   if (!fs.existsSync(filePath)) {
     createLogFile({
       filePath,

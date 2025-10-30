@@ -36,7 +36,6 @@ ETH_ORACLE_PUBLIC=           # The ETH oracle public key used for signing ERC20 
 ETH_ORACLE_PRIVATE=          # The ETH oracle private key used for signing ERC20 transactions
 ETH_CHAIN_NAME=              # The Ethereum chain name for mainnet = 'mainnet' for testnet = 'sepolia' (any other ETH testnet name)
 ETH_CONTRACT=                # Ethereum address of the erc20 token contract
-ETH_NFT_CONTRACT=            # Ethereum address of the erc721 NFT contract (Legacy, only supporting Polygon NFT for V1)
 BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
 BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
 

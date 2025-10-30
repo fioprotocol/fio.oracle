@@ -4,44 +4,40 @@ import express from 'express';
 
 import fioCtrl from './api/fio.js';
 
-import {
-  ETH_CHAIN_NAME_CONSTANT,
-  ETH_TOKEN_CODE,
-  POLYGON_CHAIN_NAME,
-  POLYGON_TOKEN_CODE,
-} from './constants/chain.js';
+import { FIO_CHAIN_NAME, ACTION_TYPES } from './constants/chain.js';
 import { MINUTE_IN_MILLISECONDS } from './constants/general.js';
-import { LOG_FILES_PATH_NAMES, LOG_DIRECTORY_PATH_NAME } from './constants/log-files.js';
-
 import { checkAndReplacePendingTransactions } from './jobs/transactions.js';
 import fioRoute from './routes/fio.js';
+import healthRoute from './routes/health.js';
+import { handleUnwrap } from './services/unwrap.js';
 import {
   getLastIrreversibleBlockOnFioChain,
   getLastFioOracleItemId,
 } from './utils/fio-chain.js';
 import {
+  LOG_DIRECTORY_PATH_NAME,
+  getLogFilePath,
+  LOG_FILES_KEYS,
+} from './utils/log-file-templates.js';
+import {
   prepareLogDirectory,
   prepareLogFile,
   handleServerError,
-  getLatestEthNonce,
-  getLatestPolygonNonce,
+  getLatestNonce,
 } from './utils/log-files.js';
 import {
   convertWeiToEth,
   convertWeiToGwei,
-  getHighestEthGasPriceSuggestion,
-  getHighestPolygonGasPriceSuggestion,
+  getHighestGasPriceSuggestion,
 } from './utils/prices.js';
 import { Web3Service } from './utils/web3-services.js';
 
 import config from '../config/config.js';
-import healthRoute from './routes/health.js';
 
 const {
   gas: { USE_GAS_API },
-  eth: { ETH_ORACLE_PUBLIC, BLOCKS_OFFSET_ETH },
+  supportedChains,
   mode,
-  polygon: { POLYGON_ORACLE_PUBLIC },
   jobTimeouts: { DEfAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
 } = config;
 
@@ -52,137 +48,160 @@ class MainCtrl {
     const logPrefix = `Startup -->`;
 
     try {
-      // Check oracle addresses balances on ETH and Polygon chains
-      await Web3Service.getEthWeb3().eth.getBalance(
-        ETH_ORACLE_PUBLIC,
-        'latest',
-        (error, result) => {
-          if (error) {
-            console.log(`${logPrefix} ${error.stack}`);
-          } else {
-            console.log(
-              `${logPrefix} Oracle ${ETH_CHAIN_NAME_CONSTANT} Address Balance: ${convertWeiToEth(result)} ${ETH_TOKEN_CODE}`,
-            );
-          }
-        },
-      );
-      await Web3Service.getPolygonWeb3().eth.getBalance(
-        POLYGON_ORACLE_PUBLIC,
-        'latest',
-        (error, result) => {
-          if (error) {
-            console.log(`${logPrefix} ${error.stack}`);
-          } else {
-            console.log(
-              `${logPrefix} Oracle ${POLYGON_CHAIN_NAME} Address Balance: ${convertWeiToEth(result)} ${POLYGON_TOKEN_CODE}`,
-            );
-          }
-        },
-      );
-
-      // Check is INFURA_ETH and INFURA_POLYGON variables are valid
-      const isUsingGasApi = !!parseInt(USE_GAS_API);
-      if (isUsingGasApi) {
-        const ethGasPriceSuggestion = await getHighestEthGasPriceSuggestion();
-
-        console.log(
-          convertWeiToGwei(ethGasPriceSuggestion),
-          'GWEI - safe gas price for ETH',
-        );
-        if (!ethGasPriceSuggestion)
-          throw new Error(
-            'Please, check "INFURA_ETH" variable: ' +
-              JSON.stringify(ethGasPriceSuggestion),
-          );
-        const polyGasPriceSuggestion = await getHighestPolygonGasPriceSuggestion();
-        console.log(
-          convertWeiToGwei(polyGasPriceSuggestion),
-          'GWEI - safe gas price for Polygon',
-        );
-        if (!polyGasPriceSuggestion)
-          throw new Error(
-            'Please, check "INFURA_POLYGON" variable: ' +
-              JSON.stringify(polyGasPriceSuggestion),
-          );
-      }
-
       // Prepare logs file
       prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.oracleErrors });
+
+      // Check oracle addresses balances on chains
+      for (const [type, chains] of Object.entries(supportedChains)) {
+        for (const supportedChain of chains) {
+          const { blocksOffset, chainParams, infura, moralis, publicKey, thirdweb } =
+            supportedChain || {};
+
+          const { chainName, chainCode } = chainParams;
+
+          const web3ChainInstance = Web3Service.getWe3Instance({
+            chainCode,
+            rpcUrl: infura.rpcUrl,
+            apiKey: infura.apiKey,
+          });
+
+          if (!web3ChainInstance) {
+            throw new Error(`Web3 instance not found for chain: ${chainCode}`);
+          }
+
+          await web3ChainInstance.eth.getBalance(publicKey, 'latest', (error, result) => {
+            if (error) {
+              console.log(`${logPrefix} ${error.stack}`);
+            } else {
+              console.log(
+                `${logPrefix} Oracle ${chainName} Address Balance: ${convertWeiToEth(result)} ${chainCode}`,
+              );
+            }
+          });
+
+          const isUsingGasApi = !!parseInt(USE_GAS_API);
+          if (isUsingGasApi) {
+            const highestGasPriceSuggestion = await getHighestGasPriceSuggestion({
+              chainCode,
+              infura,
+              moralis,
+              thirdweb,
+            });
+
+            console.log('===============================================');
+            console.log(
+              `${logPrefix} Highest gas price suggestion for ${chainCode}: ${convertWeiToGwei(highestGasPriceSuggestion)} GWEI`,
+            );
+            console.log('===============================================');
+          }
+
+          // Prepare chain logs files
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.CHAIN,
+              chainCode,
+              type,
+            }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.WRAP,
+              chainCode,
+              type,
+            }),
+          });
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.WRAP_ERROR,
+              chainCode,
+              type,
+            }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.UNWRAP,
+              chainCode,
+              type,
+            }),
+          });
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.UNWRAP_ERROR,
+              chainCode,
+              type,
+            }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
+              chainCode,
+            }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.NONCE,
+              chainCode,
+            }),
+            fetchAction: () => getLatestNonce({ chainCode }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.BLOCK_NUMBER,
+              chainCode,
+            }),
+            fetchAction: () => web3ChainInstance.eth.getBlockNumber(),
+            offset: blocksOffset,
+          });
+
+          if (type === ACTION_TYPES.NFTS) {
+            await prepareLogFile({
+              filePath: getLogFilePath({
+                key: LOG_FILES_KEYS.BURN_NFTS,
+                chainCode,
+              }),
+            });
+            await prepareLogFile({
+              filePath: getLogFilePath({
+                key: LOG_FILES_KEYS.BURN_NFTS_ERROR,
+                chainCode,
+              }),
+            });
+          }
+
+          console.log(`${logPrefix} log files are ready for ${type} ${chainCode}`);
+        }
+      }
+
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
+        filePath: getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }),
       });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionErrorQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionErrorQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionErrorQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionErrorQueue,
-      });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.FIO });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ETH });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.POLYGON });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.burnNFTErroredTransactions,
-      });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.ethPendingTransactions });
-      await prepareLogFile({ filePath: LOG_FILES_PATH_NAMES.polygonPendingTransactions });
+
+      await prepareLogFile({ filePath: getLogFilePath({ key: LOG_FILES_KEYS.FIO }) });
 
       console.log(`${logPrefix} logs folders are ready`);
 
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.fioOracleItemId,
+        filePath: getLogFilePath({ key: LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID }),
         fetchAction: getLastFioOracleItemId,
       });
       await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberFIOForBurnNFT,
+        filePath: getLogFilePath({
+          key: LOG_FILES_KEYS.BLOCK_NUMBER,
+          chainCode: FIO_CHAIN_NAME,
+        }),
         fetchAction: getLastIrreversibleBlockOnFioChain,
       });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapTokensETH,
-        fetchAction: () => Web3Service.getEthWeb3().eth.getBlockNumber(),
-        offset: BLOCKS_OFFSET_ETH,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainETH,
-        fetchAction: () => Web3Service.getEthWeb3().eth.getBlockNumber(),
-        offset: BLOCKS_OFFSET_ETH,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.blockNumberUnwrapDomainPolygon,
-        fetchAction: () => Web3Service.getPolygonWeb3().eth.getBlockNumber(),
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.ethNonce,
-        fetchAction: getLatestEthNonce,
-      });
-      await prepareLogFile({
-        filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-        fetchAction: getLatestPolygonNonce,
-      });
+
       console.log(`${logPrefix} blocks folders are ready`);
 
       // Start Jobs asynchronously immediately
       fioCtrl.handleUnprocessedWrapActionsOnFioChain();
-      fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions();
-      fioCtrl.handleUnprocessedUnwrapActionsOnPolygon();
+      handleUnwrap();
       fioCtrl.handleUnprocessedBurnNFTActions();
 
       checkAndReplacePendingTransactions();
@@ -190,19 +209,15 @@ class MainCtrl {
       setInterval(
         fioCtrl.handleUnprocessedWrapActionsOnFioChain,
         parseInt(DEfAULT_JOB_TIMEOUT),
-      ); //execute wrap FIO tokens and domains action every 60 seconds
-      setInterval(
-        fioCtrl.handleUnprocessedUnwrapActionsOnEthChainActions,
-        parseInt(DEfAULT_JOB_TIMEOUT),
-      ); //execute unwrap tokens and domains action every 60 seconds
-      setInterval(
-        fioCtrl.handleUnprocessedUnwrapActionsOnPolygon,
-        parseInt(DEfAULT_JOB_TIMEOUT),
-      ); //execute unwrap domains action every 60 seconds
+      ); //execute wrap FIO tokens and NFTs action every 60 seconds
+
+      setInterval(handleUnwrap, parseInt(DEfAULT_JOB_TIMEOUT)); //execute unwrap tokens and nfts action every 60 seconds
+
       setInterval(
         fioCtrl.handleUnprocessedBurnNFTActions,
         parseInt(BURN_DOMAINS_JOB_TIMEOUT),
       );
+
       setInterval(
         checkAndReplacePendingTransactions,
         parseInt(MINUTE_IN_MILLISECONDS * 3), // check for pending transactions every 3 mins
@@ -215,7 +230,7 @@ class MainCtrl {
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(
-        'In case failing any request, please, check env variables values: INFURA_ETH, INFURA_POLYGON',
+        'In case failing any request, please, check config variables values',
       );
     }
   }

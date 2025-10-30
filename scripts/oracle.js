@@ -1,24 +1,22 @@
-import {
-  handleUnwrapFromEthToFioChain,
-  handleUnwrapFromPolygonToFioChain,
-  handleWrapEthAction,
-  handleWrapPolygonAction,
-  handleBurnNFTInPolygon,
-} from './oracleutils.js';
+import { handleBurnNFTInPolygon } from './oracleutils.js';
+import { handleWrapAction, handleUnwrapAction } from './oracleutils.js';
 import moralis from '../controller/api/moralis.js';
-import { ETH_TOKEN_CODE, POLYGON_TOKEN_CODE } from '../controller/constants/chain.js';
-import { LOG_FILES_PATH_NAMES } from '../controller/constants/log-files.js';
+import { ACTIONS } from '../controller/constants/chain.js';
 import { withLoadingIndicator } from '../controller/utils/general.js';
+import {
+  getLogFilePath,
+  LOG_FILES_KEYS,
+} from '../controller/utils/log-file-templates.js';
 import {
   addLogMessage,
   prepareLogFile,
-  getLatestEthNonce,
-  getLatestPolygonNonce,
+  getLatestNonce,
 } from '../controller/utils/log-files.js';
 
 const parseNamedParams = (args) => {
   const params = {
-    action: args[2] ? args[2] + args[3] : 'help',
+    action: args[2] ? args[2] : 'help',
+    type: args[3] ? args[3] : 'help',
   };
 
   args.slice(4).forEach((arg) => {
@@ -48,182 +46,153 @@ Actions:
   burn domain           - Burn tokens or domains
 
 Parameters (key:value format):
-  domain:<name>             - wrap/unwrap/burn domain                       - FIO domain name
-  tokenId:<id>              - burn domain                                   - Token ID for burn action. Is owned by NFT contract.
+  chainCode:<code>          - all actions                                   - Chain code (ETH, POL, BASE, etc.)
+  nftName:<name>            - wrap/unwrap/burn nfts                         - FIO NFT name (domain)
+  tokenId:<id>              - burn nfts                                     - Token ID for burn action. Is owned by NFT contract.
   amount:<value>            - wrap/unwrap tokens                            - Amount of FIO tokens in SUF for wrap/unwrap
-  address:<address>         - wrap domain/tokens or unwrap domain/tokens    - Ethereum address for wrap actions. FIO handle for unwrap actions.
-  obtId:<obtId>             - all actions                                   - For wrap domain/tokens obtId is oracle id value from FIO chain "fio.oracles" table. For unwrap could be useed FIO transaction hash. For burn value could be FIO transaction hash or have strucutre "<token_id>ManualDomainBurn<domain>"
+  address:<address>         - wrap nfts/tokens or unwrap nfts/tokens        - Ethereum address for wrap actions. FIO handle for unwrap actions.
+  obtId:<obtId>             - all actions                                   - For wrap nfts/tokens obtId is oracle id value from FIO chain "fio.oracles" table. For unwrap could be useed FIO transaction hash. For burn value could be FIO transaction hash or have strucutre "<token_id>ManualDomainBurn<domain>"
   clean:true|false          - all actions (not required)                    - Clean mode flag. Adds action to regular job list. Does not executes immediately.
   manualSetGasPrice:<price> - all actions (not required)                    - Manual gas price setting in WEI.
 
 Examples:
   # Wrap tokens
-  npm run oracle wrap tokens amount:12000000000 address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:944 clean:true manualSetGasPrice:1650000016
+  npm run oracle wrap tokens chainCode:ETH amount:12000000000 address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:944 clean:true manualSetGasPrice:1650000016
 
   # Wrap domain
-  npm run oracle wrap domain domain:fiohacker address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:945 clean:true manualSetGasPrice:1650000016
+  npm run oracle wrap nfts chainCode:POL domain:fiohacker address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:945 clean:true manualSetGasPrice:1650000016
 
   # Unwrap tokens
-  npm run oracle unwrap tokens amount:12000000000 address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
+  npm run oracle unwrap tokens chainCode:BASE amount:12000000000 address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
 
   # Unwrap domain
-  npm run oracle unwrap domain domain:fiohacker address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
+  npm run oracle unwrap nfts chainCode:POL nftName:fiohacker address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
 
   # Burn with only domain
-  npm run oracle burn domain domain:fiodomainname obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320
+  npm run oracle burn nfts chainCode:POL nftName:fiodomainname obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320
 
   # Burn with only tokenId
-  npm run oracle burn domain tokenId:123456 obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320`;
+  npm run oracle burn nfts chainCode:POL tokenId:123456 obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320`;
 
 const main = async () => {
   try {
     const params = parseNamedParams(process.argv);
 
-    const { action, address, amount, clean, domain, manualSetGasPrice, obtId, tokenId } =
-      params;
+    const {
+      action,
+      address,
+      amount,
+      chainCode,
+      clean,
+      nftName,
+      manualSetGasPrice,
+      obtId,
+      tokenId,
+      type,
+    } = params;
 
     switch (action) {
       case 'help':
         console.log(help + '\n');
         break;
-      case 'wraptokens':
+      case ACTIONS.WRAP:
         await prepareLogFile({
-          filePath: LOG_FILES_PATH_NAMES.ethNonce,
-          fetchAction: getLatestEthNonce,
+          filePath: getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }),
+          fetchAction: () => getLatestNonce({ chainCode }),
         });
 
         if (clean) {
-          const wrapText =
-            obtId +
-            ' ' +
-            JSON.stringify({
-              amount,
-              chain_code: ETH_TOKEN_CODE,
-              public_address: address,
-            });
-          addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.wrapEthTransactionQueue,
-            message: wrapText,
-            addTimestamp: false,
-          });
-        } else
-          await handleWrapEthAction({
-            amount: amount,
-            address,
-            obtId,
-            manualSetGasPrice,
-          });
-        break;
-      case 'wrapdomain':
-        await prepareLogFile({
-          filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-          fetchAction: getLatestPolygonNonce,
-        });
-        if (clean) {
-          const wrapText =
-            obtId +
-            ' ' +
-            JSON.stringify({
-              fio_domain: domain,
-              chain_code: POLYGON_TOKEN_CODE,
-              public_address: address,
-            });
-          addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.wrapPolygonTransactionQueue,
-            message: wrapText,
-            addTimestamp: false,
-          });
-        } else
-          await handleWrapPolygonAction({
-            domain,
-            address,
-            obtId,
-            manualSetGasPrice,
-          });
-        break;
-      case 'unwraptokens':
-        if (clean) {
-          const wrapText =
-            obtId +
-            ' ' +
-            JSON.stringify({
-              amount,
-              fioaddress: address,
-            });
-          addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.unwrapEthTransactionQueue,
-            message: wrapText,
-            addTimestamp: false,
-          });
-        } else
-          await handleUnwrapFromEthToFioChain({
+          const wrapText = `${obtId} ${JSON.stringify({
             amount,
-            address,
-            obtId,
-          });
-        break;
-      case 'unwrapdomain':
-        if (clean) {
-          const wrapText =
-            obtId +
-            ' ' +
-            JSON.stringify({
-              domain,
-              fioaddress: address,
-            });
+            chain_code: chainCode,
+            pubaddress: address,
+          })}`;
           addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.unwrapPolygonTransactionQueue,
+            filePath: getLogFilePath({ key: LOG_FILES_KEYS.WRAP, chainCode, type }),
             message: wrapText,
             addTimestamp: false,
           });
         } else
-          await handleUnwrapFromPolygonToFioChain({
-            domain,
+          await handleWrapAction({
+            action,
             address,
+            amount: amount,
+            chainCode,
+            nftName,
             obtId,
+            manualSetGasPrice,
+            type,
           });
         break;
-      case 'burndomain':
+      case ACTIONS.UNWRAP:
+        if (clean) {
+          const unwrapText =
+            obtId +
+            ' ' +
+            JSON.stringify({
+              amount,
+              fioaddress: address,
+            });
+          addLogMessage({
+            filePath: getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP, chainCode, type }),
+            message: unwrapText,
+            addTimestamp: false,
+          });
+        } else
+          await handleUnwrapAction({
+            action,
+            address,
+            amount,
+            chainCode,
+            nftName,
+            obtId,
+            type,
+          });
+        break;
+      case ACTIONS.BURN:
         await prepareLogFile({
-          filePath: LOG_FILES_PATH_NAMES.polygonNonce,
-          fetchAction: getLatestPolygonNonce,
+          filePath: getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }),
+          fetchAction: () => getLatestNonce({ chainCode }),
         });
 
-        if ((!tokenId || Number.isNaN(tokenId)) && !domain) {
+        if ((!tokenId || Number.isNaN(tokenId)) && !nftName) {
           throw new Error(
-            'Either tokenId or domain parameter must be provided for burn domain action',
+            'Either tokenId or nftName parameter must be provided for burnnfts action',
           );
         }
 
         let finalTokenId = tokenId;
-        if ((!finalTokenId || Number.isNaN(finalTokenId)) && domain) {
+        if ((!finalTokenId || Number.isNaN(finalTokenId)) && nftName) {
           const moralisTokenId = await withLoadingIndicator(
-            moralis.getTokenIdByDomain({ domain }),
-            `Try to find tokenId for domain ${domain}`,
+            moralis.getTokenIdByDomain({ nftName }),
+            `Try to find tokenId for domain ${nftName}`,
           );
           if (!moralisTokenId) {
-            throw new Error(`Could not find tokenId for domain: ${domain}`);
+            throw new Error(`Could not find tokenId for nftName: ${nftName}`);
           }
           finalTokenId = moralisTokenId;
         }
         console.log('finalTokenId', finalTokenId);
-        console.log('domain', domain);
+        console.log('nftName', nftName);
         if (clean) {
           const burnText = JSON.stringify({
             tokenId: finalTokenId,
             obtId,
-            domainName: domain,
+            nftName,
           });
           addLogMessage({
-            filePath: LOG_FILES_PATH_NAMES.burnNFTTransactionsQueue,
+            filePath: getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS, chainCode }),
             message: burnText,
             addTimestamp: false,
           });
         } else
           await handleBurnNFTInPolygon({
-            tokenId: finalTokenId,
+            action,
+            chainCode,
             obtId,
+            tokenId: finalTokenId,
             manualSetGasPrice,
+            type,
           });
         break;
       default:

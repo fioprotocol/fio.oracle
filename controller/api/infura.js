@@ -1,51 +1,41 @@
 import fetch from 'node-fetch';
 
-import config from '../../config/config.js';
+export const getInfuraGasPrice = async ({ infura, chainCode }) => {
+  const { rpcUrl, apiKey } = infura || {};
 
-const {
-  infura: { eth, polygon },
-} = config;
+  const errorLogPrefix = `INFURA ERROR[Get gas price] chain [${chainCode}]:`;
 
-export const getInfuraPolygonGasPrice = async () => {
-  const gasPriceSuggestion = await (
-    await fetch(polygon, {
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_gasPrice',
-        params: [],
-        id: 1,
-      }),
-      method: 'POST',
-    })
-  ).json();
-
-  let value = null;
-
-  if (gasPriceSuggestion && gasPriceSuggestion.result) {
-    value = parseInt(gasPriceSuggestion.result);
+  if (!rpcUrl) {
+    throw new Error(`${errorLogPrefix} RPC URL is required'`);
+  }
+  if (!apiKey) {
+    throw new Error(`${errorLogPrefix} API KEY is required`);
   }
 
-  return value;
-};
+  const url = `${rpcUrl}/${apiKey}`;
 
-export const getInfuraEthGasPrice = async () => {
-  const gasPriceSuggestion = await (
-    await fetch(eth, {
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_gasPrice',
-        params: [],
-        id: 1,
-      }),
-      method: 'POST',
-    })
-  ).json();
+  try {
+    const gasPriceSuggestion = await (
+      await fetch(url, {
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_gasPrice',
+          params: [],
+          id: 1,
+        }),
+        method: 'POST',
+      })
+    ).json();
 
-  let value = null;
+    let value = null;
 
-  if (gasPriceSuggestion && gasPriceSuggestion.result) {
-    value = parseInt(gasPriceSuggestion.result);
+    if (gasPriceSuggestion && gasPriceSuggestion.result) {
+      value = parseInt(gasPriceSuggestion.result);
+    }
+
+    return value;
+  } catch (error) {
+    console.error(`${errorLogPrefix} ${error}`);
+    throw error;
   }
-
-  return value;
 };

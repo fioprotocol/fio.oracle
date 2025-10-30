@@ -19,6 +19,16 @@ dotenv.config({
 
 console.log('Uses ' + mode + ' configuration.');
 
+let supportedChains = {};
+
+try {
+  supportedChains = JSON.parse(process.env.SUPPORTED_CHAINS);
+} catch (error) {
+  console.error('Error parsing SUPPORTED_CHAINS: ', error);
+}
+
+console.log('Chains: ', supportedChains);
+
 export default {
   mode,
   isTestnet,
@@ -39,10 +49,6 @@ export default {
   },
   gas: {
     GAS_PRICE_LEVEL: process.env.GAS_PRICE_LEVEL,
-    T_GAS_LIMIT: process.env.T_GAS_LIMIT,
-    T_GAS_PRICE: process.env.T_GAS_PRICE,
-    P_GAS_LIMIT: process.env.P_GAS_LIMIT,
-    P_GAS_PRICE: process.env.P_GAS_PRICE,
     USE_GAS_API: process.env.USE_GAS_API,
   },
   eth: {
@@ -51,12 +57,10 @@ export default {
     BLOCKS_RANGE_LIMIT_ETH: process.env.BLOCKS_RANGE_LIMIT_ETH,
     BLOCKS_OFFSET_ETH: process.env.BLOCKS_OFFSET_ETH,
     ETH_CONTRACT: process.env.ETH_CONTRACT,
-    ETH_NFT_CONTRACT: process.env.ETH_NFT_CONTRACT,
     ETH_CHAIN_NAME: process.env.ETH_CHAIN_NAME,
   },
   infura: {
-    eth: process.env.INFURA_ETH,
-    polygon: process.env.INFURA_POLYGON,
+    apiKey: process.env.INFURA_API_KEY,
   },
   polygon: {
     POLYGON_ORACLE_PUBLIC: process.env.POLYGON_ORACLE_PUBLIC,
@@ -65,16 +69,11 @@ export default {
     POLYGON_CONTRACT: process.env.POLYGON_CONTRACT,
   },
   nfts: {
-    NFT_CHAIN_NAME: process.env.NFT_CHAIN_NAME,
     NFT_PROVIDER_API_KEY: process.env.MORALIS_API_KEY,
   },
   moralis: {
     MORALIS_RPC_BASE_URL: process.env.MORALIS_RPC_BASE_URL,
     MORALIS_RPC_BASE_URL_FALLBACK: process.env.MORALIS_RPC_BASE_URL_FALLBACK,
-    MORALIS_RPC_ETH_CHAIN_NAME: process.env.MORALIS_RPC_ETH_CHAIN_NAME,
-    MORALIS_RPC_POLYGON_CHAIN_NAME: process.env.MORALIS_RPC_POLYGON_CHAIN_NAME,
-    MORALIS_RPC_NODE_API_KEY_ETHEREUM: process.env.MORALIS_RPC_NODE_API_KEY_ETHEREUM,
-    MORALIS_RPC_NODE_API_KEY_POLYGON: process.env.MORALIS_RPC_NODE_API_KEY_POLYGON,
     MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS:
       process.env.MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
   },
@@ -86,9 +85,11 @@ export default {
     BURN_DOMAINS_JOB_TIMEOUT: process.env.BURN_DOMAINS_JOB_TIMEOUT,
   },
   DEFAULT_MAX_RETRIES: process.env.DEFAULT_MAX_RETRIES,
+  DEFAULT_HARDFORK: process.env.DEFAULT_HARDFORK,
   app: {
     RESTART_TIMEOUT: SECOND_IN_MILLISECONDS * 5, // 5 seconds
     MAX_RETRIES: 3,
     STABILITY_THRESHOLD: SECOND_IN_MILLISECONDS * 30, // 30 seconds
   },
+  supportedChains,
 };
