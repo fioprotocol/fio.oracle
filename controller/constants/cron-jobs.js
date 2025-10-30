@@ -1,13 +1,10 @@
+/**
+ * Oracle cache keys
+ * - FIO-specific keys are kept static
+ * - Generic chain keys should be generated using getOracleCacheKey()
+ */
 export const ORACLE_CACHE_KEYS = {
-  isBurnNFTOnPolygonJobExecuting: 'isBurnNFTOnPolygonJobExecuting',
+  // FIO-specific keys (keep as is)
   isUnprocessedWrapActionsExecuting: 'isUnprocessedWrapActionsExecuting',
-  isWrapOnEthJobExecuting: 'isWrapOnEthJobExecuting',
-  isWrapOnPolygonJobExecuting: 'isWrapOnPolygonJobExecuting',
-  isUnwrapOnEthJobExecuting: 'isUnwrapOnEthJobExecuting',
-  isUnwrapOnPolygonJobExecuting: 'isUnwrapOnPolygonJobExecuting',
-  isUnprocessedUnwrapActionsOnPolygonExecuting:
-    'isUnprocessedUnwrapActionsOnPolygonExecuting',
-  isUnprocessedUnwrapActionsOnEthJobExecuting:
-    'isUnprocessedUnwrapActionsOnEthJobExecuting',
   isUnprocessedBurnNFTActionsJobExecuting: 'isUnprocessedBurnNFTActionsJobExecuting',
 };

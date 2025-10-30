@@ -1,4 +1,3 @@
-import { EvmChain } from '@moralisweb3/common-evm-utils';
 import Moralis from 'moralis';
 import fetch from 'node-fetch';
 
@@ -7,17 +6,12 @@ import config from '../../config/config.js';
 import { handleBackups, sleep } from '../utils/general.js';
 
 const {
-  nfts: { NFT_CHAIN_NAME, NFT_PROVIDER_API_KEY },
+  nfts: { NFT_PROVIDER_API_KEY },
   moralis: {
     MORALIS_RPC_BASE_URL,
     MORALIS_RPC_BASE_URL_FALLBACK,
-    MORALIS_RPC_ETH_CHAIN_NAME,
-    MORALIS_RPC_POLYGON_CHAIN_NAME,
-    MORALIS_RPC_NODE_API_KEY_ETHEREUM,
-    MORALIS_RPC_NODE_API_KEY_POLYGON,
     MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
   },
-  polygon: { POLYGON_CONTRACT },
 } = config;
 
 const CHUNK_SIZE = 2;
@@ -31,10 +25,10 @@ class GetMoralis {
       });
   }
 
-  async resyncNftMetadata({ chain, nftItem }) {
+  async resyncNftMetadata({ chainId, nftItem }) {
     try {
       await Moralis.EvmApi.nft.reSyncMetadata({
-        chain,
+        chain: chainId,
         flag: 'metadata',
         mode: 'async',
         address: nftItem.token_address,
@@ -49,7 +43,7 @@ class GetMoralis {
 
     try {
       const nftItemWithFreshMetadataRes = await Moralis.EvmApi.nft.getNFTMetadata({
-        chain,
+        chain: chainId,
         address: nftItem.token_address,
         tokenId: nftItem.token_id,
         normalizeMetadata: true,
@@ -65,28 +59,17 @@ class GetMoralis {
     }
   }
 
-  async getContractNFTs({
-    chainName = NFT_CHAIN_NAME,
-    contractAddress = POLYGON_CONTRACT,
-    cursor,
-  }) {
-    const chain = EvmChain[chainName];
-
+  async getContractNFTs({ chainId, contractAddress, cursor }) {
     return await Moralis.EvmApi.nft.getContractNFTs({
       address: contractAddress,
       cursor,
-      chain,
+      chain: chainId,
       format: 'decimal',
       normalizeMetadata: true,
     });
   }
 
-  async getAllContractNFTs({
-    chainName = NFT_CHAIN_NAME,
-    contractAddress = POLYGON_CONTRACT,
-    cursor,
-    nftsList = [],
-  }) {
+  async getAllContractNFTs({ chainId, contractAddress, cursor, nftsList = [] }) {
     try {
       await this.init();
 
@@ -97,7 +80,7 @@ class GetMoralis {
       } else {
         contractNftsRes =
           (await this.getContractNFTs({
-            chainName,
+            chainId,
             contractAddress,
             cursor,
           })) || {};
@@ -110,7 +93,7 @@ class GetMoralis {
 
         if (contractNftsRes.hasNext()) {
           await this.getAllContractNFTs({
-            chainName,
+            chainId,
             contractAddress,
             cursor: contractNftsRes,
             nftsList,
@@ -170,15 +153,11 @@ class GetMoralis {
     }
   }
 
-  async findNftByMetadataName({
-    metadataName,
-    chainName = NFT_CHAIN_NAME,
-    contractAddress = POLYGON_CONTRACT,
-  }) {
+  async findNftByMetadataName({ metadataName, chainId, contractAddress }) {
     try {
       await this.init();
       let cursor = null;
-      const chain = EvmChain[chainName];
+      // const chain = EvmChain[chainName];
 
       while (true) {
         let contractNftsRes;
@@ -187,7 +166,7 @@ class GetMoralis {
           contractNftsRes = await cursor.next();
         } else {
           contractNftsRes = await this.getContractNFTs({
-            chainName,
+            chainId,
             contractAddress,
           });
         }
@@ -201,7 +180,7 @@ class GetMoralis {
             // If no metadata, try to resync and get fresh metadata
             if (!metadata && !normalized_metadata) {
               const freshMetadata = await this.resyncNftMetadata({
-                chain,
+                chain: chainId,
                 nftItem,
               });
               if (freshMetadata) {
@@ -250,21 +229,17 @@ class GetMoralis {
     }
   }
 
-  async getTokenIdByDomain({
-    domain,
-    chainName = NFT_CHAIN_NAME,
-    contractAddress = POLYGON_CONTRACT,
-  }) {
+  async getTokenIdByDomain({ nftName, chainId, contractAddress }) {
     try {
       const nftItem = await this.findNftByMetadataName({
-        metadataName: domain,
-        chainName,
+        metadataName: nftName,
+        chainId,
         contractAddress,
       });
 
       return nftItem ? nftItem.token_id : null;
     } catch (error) {
-      console.error('MORALIS ERROR: Get token ID by domain:', error);
+      console.error('MORALIS ERROR: Get token ID by nftName:', error);
       throw error;
     }
   }
@@ -316,26 +291,26 @@ const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
   }
 };
 
-export const getMoralisEthGasPrice = async () => {
-  try {
-    return await getGasPrices({
-      chainName: MORALIS_RPC_ETH_CHAIN_NAME,
-      rpcNodeApiKey: MORALIS_RPC_NODE_API_KEY_ETHEREUM,
-    });
-  } catch (error) {
-    console.log('MORALIS ERROR: ETH GAS PRICE', error);
-    throw error;
-  }
-};
+export const getMoralisGasPrice = async ({ chainName, moralis }) => {
+  const { chainName: moralisChainName, rpcNodeApiKey } = moralis || {};
 
-export const getMoralisPolygonGasPrice = async () => {
+  const errorLogPrefix = `MORALIS ERROR [Get gas price] chain [${chainName}]:`;
+
+  if (!moralisChainName) {
+    throw new Error(`${errorLogPrefix} Chain name is required.`);
+  }
+
+  if (!rpcNodeApiKey) {
+    throw new Error(`${errorLogPrefix} RPC node API Key is required.`);
+  }
+
   try {
     return await getGasPrices({
-      chainName: MORALIS_RPC_POLYGON_CHAIN_NAME,
-      rpcNodeApiKey: MORALIS_RPC_NODE_API_KEY_POLYGON,
+      chainName: moralisChainName,
+      rpcNodeApiKey,
     });
   } catch (error) {
-    console.log('MORALIS ERROR: POLYGON GAS PRICE', error);
+    console.error(`${errorLogPrefix} ${error}`);
     throw error;
   }
 };

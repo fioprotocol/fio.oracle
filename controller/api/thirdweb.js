@@ -1,11 +1,10 @@
 import { createThirdwebClient } from 'thirdweb';
-import { ethereum, sepolia, polygon, polygonAmoy } from 'thirdweb/chains';
+import * as thirdwebChains from 'thirdweb/chains';
 import { getRpcClient, eth_gasPrice } from 'thirdweb/rpc';
 
 import config from '../../config/config.js';
 
 const {
-  isTestnet,
   thirdWeb: { THIRDWEB_API_KEY },
 } = config;
 
@@ -17,26 +16,22 @@ const getChainRpcRequest = (chain) => getRpcClient({ client, chain });
 const getChainGasPrice = async (chainRpcRequest) =>
   await eth_gasPrice(chainRpcRequest, {});
 
-const testnetEthereumRpcRequest = () => getChainRpcRequest(sepolia);
-const mainnetEthereumRpcRequest = () => getChainRpcRequest(ethereum);
+export const getThirdWebGasPrice = async ({ chainName, thirdweb }) => {
+  const { chainName: thirdWebChainName } = thirdweb || {};
 
-const testnetPolygonRpcRequest = () => getChainRpcRequest(polygonAmoy);
-const mainnetPolygonRpcRequest = () => getChainRpcRequest(polygon);
+  const errorLogPrefix = `THIRDWEB ERROR [Get gas price] chain [${chainName}]:`;
 
-export const getThirdwebEthGasPrice = async () => {
-  const chainRpcRequest = isTestnet
-    ? testnetEthereumRpcRequest()
-    : mainnetEthereumRpcRequest();
+  if (!thirdWebChainName) {
+    throw new Error(`${errorLogPrefix} Chain name is required`);
+  }
 
-  const gasPrice = await getChainGasPrice(chainRpcRequest);
-  return gasPrice ? parseInt(gasPrice) : gasPrice;
-};
+  try {
+    const chainRpcRequest = getChainRpcRequest(thirdwebChains[thirdWebChainName]);
 
-export const getThirdwebPolygonGasPrice = async () => {
-  const chainRpcRequest = isTestnet
-    ? testnetPolygonRpcRequest()
-    : mainnetPolygonRpcRequest();
-
-  const gasPrice = await getChainGasPrice(chainRpcRequest);
-  return gasPrice ? parseInt(gasPrice) : gasPrice;
+    const gasPrice = await getChainGasPrice(chainRpcRequest);
+    return gasPrice ? parseInt(gasPrice) : gasPrice;
+  } catch (error) {
+    console.error(`${errorLogPrefix} ${error}`);
+    throw error;
+  }
 };

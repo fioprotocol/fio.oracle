@@ -1,19 +1,9 @@
-export const POLYGON_CHAIN_NAME = 'Polygon';
-export const MATIC_TOKEN_CODE = 'MATIC';
-export const POLYGON_TOKEN_CODE = 'POL';
-
-export const ETH_CHAIN_NAME_CONSTANT = 'ETH';
-export const ETH_TOKEN_CODE = 'ETH';
-
 export const FIO_CHAIN_NAME = 'FIO';
-export const FIO_TOKEN_NAME = 'FIO';
 
-export const POLYGON_TESTNET_CHAIN_ID = 80002;
-
-export const ACTION_NAMES = {
-  WRAP_TOKENS: 'wraptokens',
-  WRAP_DOMAIN: 'wrapFioDomain',
-  BURN_NFT: 'burnNFT',
+export const ACTIONS = {
+  WRAP: 'wrap',
+  UNWRAP: 'unwrap',
+  BURN: 'burn',
 };
 
 export const CONTRACT_NAMES = {
@@ -29,4 +19,28 @@ export const FIO_ACCOUNT_NAMES = {
 export const FIO_TABLE_NAMES = {
   FIO_ORACLE_LDGRS: 'oracleldgrs',
   FIO_DOMAINS: 'domains',
+};
+
+export const ACTION_TYPES = {
+  TOKENS: 'tokens',
+  NFTS: 'nfts',
+};
+
+export const CONTRACT_ACTIONS = {
+  UNWRAPPED: 'unwrapped',
+};
+
+export const FIO_CONTRACT_ACTIONS = {
+  [ACTIONS.UNWRAP]: {
+    [ACTION_TYPES.TOKENS]: 'unwraptokens',
+    [ACTION_TYPES.NFTS]: 'unwrapdomain',
+  },
+  [ACTIONS.BURN]: 'burnnft',
+};
+
+export const handleActionName = ({ actionName, type }) => {
+  // Allow passing either enum keys (e.g., 'WRAP', 'TOKENS') or values ('wrap', 'tokens')
+  const actionValue = ACTIONS[actionName] || actionName;
+  const typeValue = ACTION_TYPES[type] || type;
+  return `${actionValue} ${typeValue}`;
 };

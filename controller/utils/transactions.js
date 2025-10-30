@@ -1,19 +1,5 @@
 import { Web3Service } from './web3-services.js';
 import config from '../../config/config.js';
-import {
-  CONTRACT_NAMES,
-  ETH_TOKEN_CODE,
-  POLYGON_TOKEN_CODE,
-  ETH_CHAIN_NAME_CONSTANT,
-  POLYGON_CHAIN_NAME,
-} from '../constants/chain.js';
-import { LOG_FILES_PATH_NAMES } from '../constants/log-files.js';
-import {
-  DEFAULT_ETH_GAS_PRICE,
-  DEFAULT_POLYGON_GAS_PRICE,
-  ETH_GAS_LIMIT,
-  POLYGON_GAS_LIMIT,
-} from '../constants/prices.js';
 
 import {
   ALREADY_KNOWN_TRANSACTION,
@@ -24,107 +10,58 @@ import {
   ALREADY_APPROVED_HASH,
   MAX_TRANSACTION_AGE,
 } from '../constants/transactions.js';
-import {
-  handlePolygonChainCommon,
-  handleEthChainCommon,
-  executeContractAction,
-} from '../utils/chain.js';
+import { executeContractAction } from '../utils/chain.js';
 
 import { stringifyWithBigInt } from '../utils/general.js';
+import { LOG_FILES_KEYS, getLogFilePath } from '../utils/log-file-templates.js';
 import {
   addLogMessage,
   handleChainError,
-  handleEthNonceValue,
-  handlePolygonNonceValue,
-  updateEthNonce,
-  updatePolygonNonce,
+  handleNonceValue,
+  updateNonce,
 } from '../utils/log-files.js';
 import {
   getGasPrice,
   getWeb3Balance,
   convertWeiToGwei,
-  getPolygonGasPriceSuggestion,
-  getEthGasPriceSuggestion,
+  getGasPriceSuggestion,
 } from '../utils/prices.js';
 
-const {
-  eth: { ETH_ORACLE_PRIVATE, ETH_ORACLE_PUBLIC, ETH_CONTRACT },
-  polygon: { POLYGON_ORACLE_PRIVATE, POLYGON_ORACLE_PUBLIC, POLYGON_CONTRACT },
-} = config || {};
+const { DEFAULT_HARDFORK, supportedChains } = config || {};
 
-const CHAIN_CONFIG = {
-  [ETH_CHAIN_NAME_CONSTANT]: {
-    handleChainCommon: handleEthChainCommon,
-    contract: ETH_CONTRACT,
-    contractName: CONTRACT_NAMES.ERC_20,
-    defaultGasPrice: DEFAULT_ETH_GAS_PRICE,
-    getGasPriceSuggestionFn: getEthGasPriceSuggestion,
-    gasLimit: ETH_GAS_LIMIT,
-    logFilePath: LOG_FILES_PATH_NAMES.ETH,
-    oraclePrivateKey: ETH_ORACLE_PRIVATE,
-    oraclePublicKey: ETH_ORACLE_PUBLIC,
-    pendingTransactionFilePath: LOG_FILES_PATH_NAMES.ethPendingTransactions,
-    tokenCode: ETH_TOKEN_CODE,
-    handleNonceValue: handleEthNonceValue,
-    updateNonce: updateEthNonce,
-    getWeb3Instance: () => Web3Service.getEthWeb3(),
-  },
-  [POLYGON_CHAIN_NAME]: {
-    handleChainCommon: handlePolygonChainCommon,
-    contract: POLYGON_CONTRACT,
-    contractName: CONTRACT_NAMES.ERC_721,
-    defaultGasPrice: DEFAULT_POLYGON_GAS_PRICE,
-    getGasPriceSuggestionFn: getPolygonGasPriceSuggestion,
-    gasLimit: POLYGON_GAS_LIMIT,
-    logFilePath: LOG_FILES_PATH_NAMES.POLYGON,
-    oraclePrivateKey: POLYGON_ORACLE_PRIVATE,
-    oraclePublicKey: POLYGON_ORACLE_PUBLIC,
-    pendingTransactionFilePath: LOG_FILES_PATH_NAMES.polygonPendingTransactions,
-    tokenCode: POLYGON_TOKEN_CODE,
-    handleNonceValue: handlePolygonNonceValue,
-    updateNonce: updatePolygonNonce,
-    getWeb3Instance: () => Web3Service.getPolygonWeb3(),
-  },
-};
-
-export const getDefaultTransactionParams = async (chain) => {
-  const config = CHAIN_CONFIG[chain];
-
-  if (!config) {
-    throw new Error(`Unsupported chain: ${chain}`);
-  }
-
-  const {
-    handleChainCommon,
-    getWeb3Instance,
-    handleNonceValue,
-    oraclePublicKey,
-    ...restConfig
-  } = config;
-
-  const web3Instance = getWeb3Instance();
-  const common = handleChainCommon();
-
-  const chainNonce = await web3Instance.eth.getTransactionCount(
-    oraclePublicKey,
-    'pending',
+export const getDefaultTransactionParams = async ({ chainCode, type }) => {
+  const config = supportedChains[type].find(
+    (supportedChain) => supportedChain.chainParams.chainCode === chainCode,
   );
 
-  const txNonce = handleNonceValue({ chainNonce });
+  if (!config) {
+    throw new Error(`Unsupported chain: ${type} ${chainCode}`);
+  }
+
+  const { publicKey, infura } = config;
+
+  const web3Instance = Web3Service.getWe3Instance({
+    chainCode,
+    rpcUrl: infura.rpcUrl,
+    apiKey: infura.apiKey,
+  });
+
+  const chainNonce = await web3Instance.eth.getTransactionCount(publicKey, 'pending');
+
+  const txNonce = handleNonceValue({ chainNonce, chainCode });
 
   return {
-    common,
-    oraclePublicKey,
     txNonce,
     web3Instance,
-    ...restConfig,
+    ...config,
   };
 };
 
 export const blockChainTransaction = async (transactionParams) => {
   const {
     action,
-    chainName,
+    chainCode,
+    contract,
     contractActionParams,
     handleSuccessedResult,
     isReplaceTx = false,
@@ -133,29 +70,31 @@ export const blockChainTransaction = async (transactionParams) => {
     originalTxHash = null,
     pendingTxNonce,
     shouldThrowError,
+    type,
   } = transactionParams;
 
+  const {
+    chainParams,
+    contractAddress,
+    contractTypeName,
+    defaultGasPrice,
+    infura,
+    gasLimit,
+    moralis,
+    privateKey,
+    publicKey,
+    txNonce,
+    thirdweb,
+    web3Instance,
+  } = await getDefaultTransactionParams({ chainCode, type });
+
+  const { chainId, hardfork = DEFAULT_HARDFORK } = chainParams || {};
+
   const data = executeContractAction({
-    actionName: action,
+    actionNameType: action,
+    contract,
     ...contractActionParams,
   });
-
-  const {
-    common,
-    contract,
-    contractName,
-    defaultGasPrice,
-    getGasPriceSuggestionFn,
-    gasLimit,
-    logFilePath,
-    oraclePrivateKey,
-    oraclePublicKey,
-    pendingTransactionFilePath,
-    tokenCode,
-    txNonce,
-    updateNonce,
-    web3Instance,
-  } = await getDefaultTransactionParams(chainName);
 
   const signAndSendTransaction = async ({ txNonce, retryCount = 0 }) => {
     let gasPrice = 0;
@@ -168,7 +107,13 @@ export const blockChainTransaction = async (transactionParams) => {
     } else {
       gasPrice = await getGasPrice({
         defaultGasPrice,
-        getGasPriceSuggestionFn,
+        getGasPriceSuggestionFn: () =>
+          getGasPriceSuggestion({
+            chainCode,
+            infura,
+            moralis,
+            thirdweb,
+          }),
         logPrefix,
         isRetry: retryCount > 0,
         isReplace: isReplaceTx,
@@ -178,45 +123,48 @@ export const blockChainTransaction = async (transactionParams) => {
     const submitLogData = {
       gasPrice,
       gasLimit,
-      to: contract,
-      from: oraclePublicKey,
+      to: contractAddress,
+      from: publicKey,
       txNonce,
       contractActionParams,
       ...(isReplaceTx && { replacingTx: originalTxHash }),
     };
 
     addLogMessage({
-      filePath: logFilePath,
-      message: `${chainName} ${contractName} ${action} ${isReplaceTx ? 'Replace' : ''} submit ${JSON.stringify(submitLogData)}}`,
+      filePath: getLogFilePath({ key: LOG_FILES_KEYS.CHAIN, chainCode, type }),
+      message: `${chainCode} ${contractTypeName} ${action} ${isReplaceTx ? 'Replace' : ''} submit ${JSON.stringify(submitLogData)}}`,
     });
 
     // we shouldn't await it to do not block the rest of the actions
     getWeb3Balance({
-      chainName,
       gasLimit,
       gasPrice,
       logPrefix,
-      publicKey: oraclePublicKey,
-      tokenCode,
+      publicKey,
+      chainCode,
       web3Instance,
     });
 
     const txObject = {
-      from: oraclePublicKey,
-      to: contract,
+      from: publicKey,
+      to: contractAddress,
       data,
       gasPrice: web3Instance.utils.toHex(gasPrice),
       gasLimit: web3Instance.utils.toHex(gasLimit),
       nonce: web3Instance.utils.toHex(txNonce),
-      chainId: parseInt(common.chainId()),
-      hardfork: common.hardfork(),
+      chainId,
+      // Using 'prague' hardfork as default (EIP-1559 compatible)
+      // You can add hardfork to chainParams if you need chain-specific values
+      hardfork,
     };
 
-    const privateKey = Buffer.from(oraclePrivateKey, 'hex');
+    // Remove '0x' prefix if present
+    const privateKeyHex = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
+    const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
 
     const signedTx = await web3Instance.eth.accounts.signTransaction(
       txObject,
-      privateKey,
+      privateKeyBuffer,
     );
 
     try {
@@ -230,10 +178,13 @@ export const blockChainTransaction = async (transactionParams) => {
           );
           // Store transaction
           addLogMessage({
-            filePath: pendingTransactionFilePath,
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
+              chainCode,
+            }),
             message: `${hash} ${JSON.stringify({
               action,
-              chainName,
+              chainCode,
               contractActionParams,
               timestamp: Date.now(),
               isReplaceTx: isReplaceTx,
@@ -303,7 +254,7 @@ export const blockChainTransaction = async (transactionParams) => {
         if (nonceTooLowError) {
           newNonce = txNonce + 1;
 
-          updateNonce && updateNonce(newNonce);
+          updateNonce({ chainCode, nonce: newNonce });
         }
 
         return signAndSendTransaction({
