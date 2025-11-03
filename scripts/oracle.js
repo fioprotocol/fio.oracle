@@ -41,9 +41,9 @@ const parseNamedParams = (args) => {
 
 const help = `Usage: npm run oracle <action1> <action2> [parameters]
 Actions:
-  wrap tokens/domain    - Wrap tokens or domains
-  unwrap tokens/domain  - Unwrap tokens or domains
-  burn domain           - Burn tokens or domains
+  wrap tokens/nfts    - Wrap tokens or nfts
+  unwrap tokens/nfts  - Unwrap tokens or nfts
+  burn nfts           - Burn nfts
 
 Parameters (key:value format):
   chainCode:<code>          - all actions                                   - Chain code (ETH, POL, BASE, etc.)
@@ -51,7 +51,7 @@ Parameters (key:value format):
   tokenId:<id>              - burn nfts                                     - Token ID for burn action. Is owned by NFT contract.
   amount:<value>            - wrap/unwrap tokens                            - Amount of FIO tokens in SUF for wrap/unwrap
   address:<address>         - wrap nfts/tokens or unwrap nfts/tokens        - Ethereum address for wrap actions. FIO handle for unwrap actions.
-  obtId:<obtId>             - all actions                                   - For wrap nfts/tokens obtId is oracle id value from FIO chain "fio.oracles" table. For unwrap could be useed FIO transaction hash. For burn value could be FIO transaction hash or have strucutre "<token_id>ManualDomainBurn<domain>"
+  obtId:<obtId>             - all actions                                   - For wrap nfts/tokens obtId is oracle id value from FIO chain "fio.oracles" table. For unwrap could be useed FIO transaction hash. For burn value could be FIO transaction hash or have strucutre "<token_id>ManualDomainBurn<nftName>"
   clean:true|false          - all actions (not required)                    - Clean mode flag. Adds action to regular job list. Does not executes immediately.
   manualSetGasPrice:<price> - all actions (not required)                    - Manual gas price setting in WEI.
 
@@ -59,16 +59,16 @@ Examples:
   # Wrap tokens
   npm run oracle wrap tokens chainCode:ETH amount:12000000000 address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:944 clean:true manualSetGasPrice:1650000016
 
-  # Wrap domain
-  npm run oracle wrap nfts chainCode:POL domain:fiohacker address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:945 clean:true manualSetGasPrice:1650000016
+  # Wrap nfts
+  npm run oracle wrap nfts chainCode:POL nftName:fiohacker address:0xe28FF0D44d533d15cD1f811f4DE8e6b1549945c9 obtId:945 clean:true manualSetGasPrice:1650000016
 
   # Unwrap tokens
   npm run oracle unwrap tokens chainCode:BASE amount:12000000000 address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
 
-  # Unwrap domain
+  # Unwrap nfts
   npm run oracle unwrap nfts chainCode:POL nftName:fiohacker address:alice@fiotestnet obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320 clean:true
 
-  # Burn with only domain
+  # Burn with only nftName
   npm run oracle burn nfts chainCode:POL nftName:fiodomainname obtId:ec52a13e3fd60c1a06ad3d9c0d66b97144aa020426d91cc43565483c743dd320
 
   # Burn with only tokenId
@@ -165,7 +165,7 @@ const main = async () => {
         if ((!finalTokenId || Number.isNaN(finalTokenId)) && nftName) {
           const moralisTokenId = await withLoadingIndicator(
             moralis.getTokenIdByDomain({ nftName }),
-            `Try to find tokenId for domain ${nftName}`,
+            `Try to find tokenId for nftName ${nftName}`,
           );
           if (!moralisTokenId) {
             throw new Error(`Could not find tokenId for nftName: ${nftName}`);

@@ -81,7 +81,7 @@ export default {
     THIRDWEB_API_KEY: process.env.THIRDWEB_API_KEY,
   },
   jobTimeouts: {
-    DEfAULT_JOB_TIMEOUT: process.env.JOB_TIMEOUT,
+    DEFAULT_JOB_TIMEOUT: process.env.JOB_TIMEOUT,
     BURN_DOMAINS_JOB_TIMEOUT: process.env.BURN_DOMAINS_JOB_TIMEOUT,
   },
   DEFAULT_MAX_RETRIES: process.env.DEFAULT_MAX_RETRIES,

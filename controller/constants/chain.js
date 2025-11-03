@@ -27,10 +27,15 @@ export const ACTION_TYPES = {
 };
 
 export const CONTRACT_ACTIONS = {
+  WRAPPED: 'wrapped',
   UNWRAPPED: 'unwrapped',
 };
 
 export const FIO_CONTRACT_ACTIONS = {
+  [ACTIONS.WRAP]: {
+    [ACTION_TYPES.TOKENS]: 'wraptokens',
+    [ACTION_TYPES.NFTS]: 'wrapdomain',
+  },
   [ACTIONS.UNWRAP]: {
     [ACTION_TYPES.TOKENS]: 'unwraptokens',
     [ACTION_TYPES.NFTS]: 'unwrapdomain',
