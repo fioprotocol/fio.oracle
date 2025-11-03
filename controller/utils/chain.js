@@ -56,3 +56,13 @@ export const convertNativeFioIntoFio = (nativeFioValue) => {
   const fioDecimals = 1000000000;
   return parseInt(nativeFioValue + '') / fioDecimals;
 };
+
+/**
+ * Estimate block range based on time range in milliseconds
+ * @param {number} timeRangeMs - Time range in milliseconds
+ * @returns {number} Estimated number of blocks
+ */
+export const estimateBlockRange = (timeRangeMs) => {
+  const AVERAGE_BLOCK_TIME_MS = 2000; // 2 seconds average block time for most chains
+  return Math.ceil(timeRangeMs / AVERAGE_BLOCK_TIME_MS);
+};

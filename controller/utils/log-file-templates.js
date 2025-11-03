@@ -19,6 +19,7 @@ export const LOG_FILES_KEYS = {
   FIO_ORACLE_ITEM_ID: 'fioOracleItemId',
   BURN_NFTS: 'burnNFTs',
   BURN_NFTS_ERROR: 'burnNFTs-error',
+  MISSING_ACTIONS: 'missingActions',
 };
 
 /**
@@ -69,6 +70,7 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
     [LOG_FILES_KEYS.FIO]: `${LOG_DIRECTORY_PATH_NAME}FIO.log`,
     [LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID]: `${LOG_DIRECTORY_PATH_NAME}fioOracleItemId.log`,
     [LOG_FILES_KEYS.ORACLE_ERRORS]: `${LOG_DIRECTORY_PATH_NAME}Error.log`,
+    [LOG_FILES_KEYS.MISSING_ACTIONS]: `${LOG_DIRECTORY_PATH_NAME}missing-actions.log`,
   };
 
   const filePath = logFiles[key];
