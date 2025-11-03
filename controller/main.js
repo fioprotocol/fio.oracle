@@ -9,6 +9,7 @@ import { MINUTE_IN_MILLISECONDS } from './constants/general.js';
 import { checkAndReplacePendingTransactions } from './jobs/transactions.js';
 import fioRoute from './routes/fio.js';
 import healthRoute from './routes/health.js';
+import { autoRetryMissingActions } from './services/auto-retry-missing-actions.js';
 import { handleUnwrap } from './services/unwrap.js';
 import {
   getLastIrreversibleBlockOnFioChain,
@@ -38,7 +39,7 @@ const {
   gas: { USE_GAS_API },
   supportedChains,
   mode,
-  jobTimeouts: { DEfAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
+  jobTimeouts: { DEFAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
 } = config;
 
 const route = express.Router();
@@ -183,6 +184,10 @@ class MainCtrl {
 
       await prepareLogFile({ filePath: getLogFilePath({ key: LOG_FILES_KEYS.FIO }) });
 
+      await prepareLogFile({
+        filePath: getLogFilePath({ key: LOG_FILES_KEYS.MISSING_ACTIONS }),
+      });
+
       console.log(`${logPrefix} logs folders are ready`);
 
       await prepareLogFile({
@@ -205,13 +210,19 @@ class MainCtrl {
       fioCtrl.handleUnprocessedBurnNFTActions();
 
       checkAndReplacePendingTransactions();
+
+      // Start auto-retry missing actions after delay to allow other jobs to initialize
+      setTimeout(() => {
+        autoRetryMissingActions();
+      }, parseInt(DEFAULT_JOB_TIMEOUT));
+
       // Start Jobs interval
       setInterval(
         fioCtrl.handleUnprocessedWrapActionsOnFioChain,
-        parseInt(DEfAULT_JOB_TIMEOUT),
+        parseInt(DEFAULT_JOB_TIMEOUT),
       ); //execute wrap FIO tokens and NFTs action every 60 seconds
 
-      setInterval(handleUnwrap, parseInt(DEfAULT_JOB_TIMEOUT)); //execute unwrap tokens and nfts action every 60 seconds
+      setInterval(handleUnwrap, parseInt(DEFAULT_JOB_TIMEOUT)); //execute unwrap tokens and nfts action every 60 seconds
 
       setInterval(
         fioCtrl.handleUnprocessedBurnNFTActions,
@@ -221,6 +232,11 @@ class MainCtrl {
       setInterval(
         checkAndReplacePendingTransactions,
         parseInt(MINUTE_IN_MILLISECONDS * 3), // check for pending transactions every 3 mins
+      );
+
+      setInterval(
+        autoRetryMissingActions,
+        parseInt(MINUTE_IN_MILLISECONDS * 10), // check for missing actions every 10 mins
       );
 
       this.initRoutes(app);
