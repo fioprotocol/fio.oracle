@@ -9,18 +9,14 @@ import {
 import { SECOND_IN_MILLISECONDS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
 import { estimateBlockRange } from '../utils/chain.js';
 import { runUnwrapFioTransaction, getOracleItems } from '../utils/fio-chain.js';
-import { fetchWithRateLimit, convertTimestampIntoMs } from '../utils/general.js';
+import { fetchWithMultipleServers, convertTimestampIntoMs } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { addLogMessage, handleServerError } from '../utils/log-files.js';
 import { blockChainTransaction } from '../utils/transactions.js';
 import { Web3Service } from '../utils/web3-services.js';
 
 const {
-  fio: {
-    FIO_SERVER_URL_HISTORY,
-    FIO_SERVER_URL_HISTORY_BACKUP,
-    FIO_HISTORY_HYPERION_OFFSET,
-  },
+  fio: { FIO_SERVER_URL_HISTORY, FIO_HISTORY_HYPERION_OFFSET },
   oracleCache,
   supportedChains,
 } = config;
@@ -91,13 +87,10 @@ const getUnwrapFioActions = async ({ afterTimestamp, beforeTimestamp }) => {
     };
 
     const queryString = new URLSearchParams(params).toString();
-    const url = `${FIO_SERVER_URL_HISTORY}v2/history/get_actions?${queryString}`;
 
-    const response = await fetchWithRateLimit({
-      url,
-      backupUrl: FIO_SERVER_URL_HISTORY_BACKUP
-        ? `${FIO_SERVER_URL_HISTORY_BACKUP}v2/history/get_actions?${queryString}`
-        : null,
+    const response = await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_HISTORY,
+      urlBuilder: (baseUrl) => `${baseUrl}v2/history/get_actions?${queryString}`,
     });
 
     if (!response.ok) {

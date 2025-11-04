@@ -2,12 +2,10 @@ import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
 import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
-import { MINUTE_IN_MILLISECONDS, SECOND_IN_MILLISECONDS } from '../constants/general.js';
+import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { handleServerError } from '../utils/log-files.js';
 
 const { DEFAULT_MAX_RETRIES } = config;
-
-const RATE_LIMIT_ERROR = 'RATE_LIMIT';
 
 /**
  * Check if an error string contains any non-retryable error patterns
@@ -58,81 +56,147 @@ export const sleep = async (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }) => {
-  const maxRetries = DEFAULT_MAX_RETRIES;
-  let retries = 0;
-
-  const makeRequest = async ({ targetUrl, isBackupRetry }) => {
-    try {
-      const response = await fetch(targetUrl, options);
-
-      if (response.ok) return response;
-
-      if (response.status === 429) {
-        if (retries > maxRetries) {
-          throw new Error(`${RATE_LIMIT_ERROR}: Max retries (${maxRetries}) reached`);
-        }
-
-        retries++;
-        const backoffDelay =
-          retries === maxRetries
-            ? MINUTE_IN_MILLISECONDS
-            : SECOND_IN_MILLISECONDS * Math.pow(2, retries - 1); // Exponential backoff
-
-        console.log(
-          `RATE LIMIT FOR URL: ${targetUrl} ${options ? `OPTIONS: ${JSON.stringify(options)}` : ''}`,
-        );
-        console.log(`RETRY count: ${retries}, waiting ${backoffDelay}ms`);
-
-        await sleep(backoffDelay);
-        return makeRequest({ targetUrl });
-      }
-
-      let responseData = null;
-      const contentType = response.headers.get('content-type');
-
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
-      } else {
-        // Handle non-JSON responses (like HTML)
-        responseData = await response.text();
-      }
-
-      throw new Error(
-        `HTTP error! status: ${response.status}, response: ${
-          typeof responseData === 'string'
-            ? responseData.slice(0, 1000) // Limit to first 1000 characters for readability
-            : JSON.stringify(responseData, null, 4)
-        }`,
-      );
-    } catch (error) {
-      // Check if this is a non-retryable error
-      const errorString = error.message || error.toString();
-      const shouldNotRetry = isNonRetryableError(errorString);
-
-      if (!isBackupRetry && backupUrl && !shouldNotRetry) {
-        handleServerError(error, 'Fetch server failed');
-
-        retries = 0; // Reset retries count for backup url
-        console.log(`RUNING backup server: ${backupUrl}`);
-
-        return makeRequest({ targetUrl: backupUrl, isBackupRetry: true });
-      }
-
-      if (shouldNotRetry) {
-        console.log('Non-retryable error detected, skipping backup server retry');
-      }
-
-      throw error;
-    }
-  };
-
-  try {
-    return await makeRequest({ targetUrl: url });
-  } catch (error) {
-    handleServerError(error, 'Fetch with rate limit failed');
-    throw error;
+/**
+ * Fetch with multiple servers and retry logic
+ * @param {Array<string>} serverUrls - Array of server URLs to try
+ * @param {Function} urlBuilder - Function that takes a baseUrl and returns the full URL
+ * @param {Object} options - Fetch options
+ * @param {number} maxCycleRetries - Maximum number of times to retry the entire server list (default: 5)
+ * @returns {Promise<Response>} - Fetch response
+ */
+export const fetchWithMultipleServers = async ({
+  serverUrls = [],
+  urlBuilder,
+  options = {},
+  maxCycleRetries = 5,
+}) => {
+  if (!serverUrls || serverUrls.length === 0) {
+    throw new Error('No server URLs provided');
   }
+
+  let cycleAttempt = 0;
+  const maxRetriesPerServer = DEFAULT_MAX_RETRIES;
+
+  while (cycleAttempt < maxCycleRetries) {
+    cycleAttempt++;
+    let nonRetryableErrorCount = 0;
+
+    // Try each server in the array
+    for (let serverIndex = 0; serverIndex < serverUrls.length; serverIndex++) {
+      const baseUrl = serverUrls[serverIndex];
+      const targetUrl = urlBuilder ? urlBuilder(baseUrl) : baseUrl;
+      let serverRetries = 0;
+
+      console.log(
+        `[FIO Server] Cycle ${cycleAttempt}/${maxCycleRetries}, Server ${serverIndex + 1}/${serverUrls.length}: ${baseUrl}`,
+      );
+
+      // Try the current server with its own retry logic for rate limits
+      while (serverRetries <= maxRetriesPerServer) {
+        try {
+          const response = await fetch(targetUrl, options);
+
+          if (response.ok) {
+            if (cycleAttempt > 1 || serverIndex > 0) {
+              console.log(
+                `[FIO Server] Success with server ${serverIndex + 1} on cycle ${cycleAttempt}`,
+              );
+            }
+            return response;
+          }
+
+          // Handle rate limiting with exponential backoff for the same server
+          if (response.status === 429) {
+            if (serverRetries < maxRetriesPerServer) {
+              serverRetries++;
+              const backoffDelay =
+                SECOND_IN_MILLISECONDS * Math.pow(2, serverRetries - 1);
+
+              console.log(
+                `[FIO Server] Rate limit on server ${serverIndex + 1}, retry ${serverRetries}/${maxRetriesPerServer}, waiting ${backoffDelay}ms`,
+              );
+
+              await sleep(backoffDelay);
+              continue; // Retry the same server
+            } else {
+              console.log(
+                `[FIO Server] Rate limit max retries reached for server ${serverIndex + 1}, trying next server`,
+              );
+              break; // Move to next server
+            }
+          }
+
+          // Handle other HTTP errors
+          let responseData = null;
+          const contentType = response.headers.get('content-type');
+
+          if (contentType && contentType.includes('application/json')) {
+            responseData = await response.json();
+          } else {
+            responseData = await response.text();
+          }
+
+          const errorMessage = `HTTP error! status: ${response.status}, response: ${
+            typeof responseData === 'string'
+              ? responseData.slice(0, 1000)
+              : JSON.stringify(responseData, null, 4)
+          }`;
+
+          console.log(`[FIO Server] Error on server ${serverIndex + 1}: ${errorMessage}`);
+
+          // Check if non-retryable error
+          if (isNonRetryableError(errorMessage)) {
+            nonRetryableErrorCount++;
+            console.log(
+              `[FIO Server] Non-retryable error detected, skipping to next server`,
+            );
+            break; // Move to next server
+          }
+
+          throw new Error(errorMessage);
+        } catch (error) {
+          const errorString = error.message || error.toString();
+
+          // Check if non-retryable error
+          if (isNonRetryableError(errorString)) {
+            nonRetryableErrorCount++;
+            console.log(
+              `[FIO Server] Non-retryable error on server ${serverIndex + 1}: ${errorString}`,
+            );
+            break; // Move to next server
+          }
+
+          console.log(`[FIO Server] Error on server ${serverIndex + 1}: ${errorString}`);
+
+          // If this was a network error or other exception, try next server
+          break;
+        }
+      }
+    }
+
+    // If ALL servers returned non-retryable errors, stop immediately
+    if (nonRetryableErrorCount === serverUrls.length) {
+      const errorMessage = `All FIO servers returned non-retryable errors (e.g., "Not a registered Oracle"). Please check your configuration.`;
+      console.error(`[FIO Server] ${errorMessage}`);
+      handleServerError(new Error(errorMessage), 'Fetch with multiple servers failed');
+      throw new Error(errorMessage);
+    }
+
+    // All servers tried in this cycle, wait before next cycle
+    if (cycleAttempt < maxCycleRetries) {
+      const cycleBackoffDelay = SECOND_IN_MILLISECONDS * Math.pow(2, cycleAttempt);
+      console.log(
+        `[FIO Server] All servers failed in cycle ${cycleAttempt}, waiting ${cycleBackoffDelay}ms before retry cycle ${cycleAttempt + 1}`,
+      );
+      await sleep(cycleBackoffDelay);
+    }
+  }
+
+  // All cycles exhausted
+  const errorMessage = `All FIO servers failed after ${maxCycleRetries} cycles`;
+  console.error(`[FIO Server] ${errorMessage}`);
+  handleServerError(new Error(errorMessage), 'Fetch with multiple servers failed');
+  throw new Error(errorMessage);
 };
 
 export const convertTimestampIntoMs = (timestamp) => {

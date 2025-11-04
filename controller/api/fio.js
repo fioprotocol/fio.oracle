@@ -169,15 +169,15 @@ class FIOCtrl {
           });
           const isWrapOnChainJobExecuting = oracleCache.get(cacheKey);
 
-          console.log(
-            `${logPrefix} isWrapOnChainJobExecuting: ${isWrapOnChainJobExecuting} (${typeof isWrapOnChainJobExecuting})`,
-          );
-
           if (!isWrapOnChainJobExecuting) {
-            console.log(`${logPrefix} Starting handleWrap for ${chainCode} ${type}`);
+            console.log(
+              `${logPrefix} Starting handleWrap for ${chainCode} ${type} (cache was ${isWrapOnChainJobExecuting === undefined ? 'not set' : 'false'})`,
+            );
             handleWrap({ type, ...supportedChain });
           } else {
-            console.log(`${logPrefix} Job already running for ${chainCode} ${type}`);
+            console.log(
+              `${logPrefix} Skipping handleWrap for ${chainCode} ${type} - job already running`,
+            );
           }
         }
       }

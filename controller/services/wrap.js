@@ -38,9 +38,9 @@ export const handleWrap = async ({
 
   if (!oracleCache.get(oracleCacheKey)) {
     oracleCache.set(oracleCacheKey, true, 0); // ttl = 0 means that value shouldn't ever been expired
-    console.log(`[handleWrap] Cache set to: ${oracleCache.get(oracleCacheKey)}`);
+    console.log(`[handleWrap ${chainCode} ${type}] Started - cache locked`);
   } else {
-    console.log(`[handleWrap] Job is already running, returning`);
+    console.log(`[handleWrap ${chainCode} ${type}] Already running - skipping`);
     return; // job is already running
   }
 
@@ -49,6 +49,9 @@ export const handleWrap = async ({
     .toString()
     .split('\r\n')[0];
   if (transactionToProceed === '') {
+    console.log(
+      `[handleWrap ${chainCode} ${type}] No transactions in queue - cache released`,
+    );
     oracleCache.set(oracleCacheKey, false, 0);
     return;
   }
@@ -66,7 +69,7 @@ export const handleWrap = async ({
   console.log(`${logPrefix} Executing...`);
 
   if (chainCode && chaincode && chainCode.toLowerCase() !== chaincode.toLowerCase()) {
-    console.log(`${logPrefix} Chain code mismatch`);
+    console.log(`${logPrefix} Chain code mismatch - cache released`);
     oracleCache.set(oracleCacheKey, false, 0);
     return;
   }
@@ -86,7 +89,7 @@ export const handleWrap = async ({
     });
 
     if (!isOracleAddressValidResult) {
-      console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS}`);
+      console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS} - cache released`);
       oracleCache.set(oracleCacheKey, false, 0);
     } else {
       let isTransactionProceededSuccessfully = false;
@@ -164,6 +167,7 @@ export const handleWrap = async ({
       });
     }
   } catch (error) {
+    console.log(`[handleWrap ${chainCode} ${type}] Error occurred - cache released`);
     oracleCache.set(oracleCacheKey, false, 0);
     handleServerError(error, actionNameType);
   }
