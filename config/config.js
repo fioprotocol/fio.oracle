@@ -26,14 +26,23 @@ try {
 } catch (error) {
   console.error('Error parsing SUPPORTED_CHAINS: ', error);
 }
-
-console.log('Chains: ', supportedChains);
-
 export default {
   mode,
   isTestnet,
   port: process.env.PORT,
   oracleCache,
+  aws: {
+    AWS_S3_KEY: process.env.AWS_S3_KEY,
+    AWS_S3_SECRET: process.env.AWS_S3_SECRET,
+    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
+    AWS_S3_REGION: process.env.AWS_S3_REGION,
+    AWS_S3_PERMITTED_FOLDER: process.env.AWS_S3_PERMITTED_FOLDER,
+  },
+  logging: {
+    LOG_TO_FILE: process.env.LOG_TO_FILE !== 'false', // Default true - if false, writes to console
+    SYNC_INTERVAL_HOURS: parseInt(process.env.SYNC_INTERVAL_HOURS) || 1, // Default: sync every 1 hour
+    ENABLE_S3_SYNC: process.env.ENABLE_S3_SYNC !== 'false', // Default true - if false, S3 sync disabled
+  },
   fio: {
     FIO_SERVER_URL_HISTORY: process.env.FIO_SERVER_URL_HISTORY,
     FIO_SERVER_URL_HISTORY_BACKUP: process.env.FIO_SERVER_URL_HISTORY_BACKUP,
@@ -51,22 +60,8 @@ export default {
     GAS_PRICE_LEVEL: process.env.GAS_PRICE_LEVEL,
     USE_GAS_API: process.env.USE_GAS_API,
   },
-  eth: {
-    ETH_ORACLE_PUBLIC: process.env.ETH_ORACLE_PUBLIC,
-    ETH_ORACLE_PRIVATE: process.env.ETH_ORACLE_PRIVATE,
-    BLOCKS_RANGE_LIMIT_ETH: process.env.BLOCKS_RANGE_LIMIT_ETH,
-    BLOCKS_OFFSET_ETH: process.env.BLOCKS_OFFSET_ETH,
-    ETH_CONTRACT: process.env.ETH_CONTRACT,
-    ETH_CHAIN_NAME: process.env.ETH_CHAIN_NAME,
-  },
   infura: {
     apiKey: process.env.INFURA_API_KEY,
-  },
-  polygon: {
-    POLYGON_ORACLE_PUBLIC: process.env.POLYGON_ORACLE_PUBLIC,
-    POLYGON_ORACLE_PRIVATE: process.env.POLYGON_ORACLE_PRIVATE,
-    BLOCKS_RANGE_LIMIT_POLY: process.env.BLOCKS_RANGE_LIMIT_POLY,
-    POLYGON_CONTRACT: process.env.POLYGON_CONTRACT,
   },
   nfts: {
     NFT_PROVIDER_API_KEY: process.env.MORALIS_API_KEY,

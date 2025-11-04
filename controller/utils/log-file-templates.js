@@ -3,6 +3,7 @@ import config from '../../config/config.js';
 const { mode } = config;
 
 export const LOG_DIRECTORY_PATH_NAME = `controller/api/logs-${mode}/`;
+export const SYSTEM_LOG_FILE = 'system.log';
 
 // Log file keys - defined here to avoid circular dependency
 export const LOG_FILES_KEYS = {
@@ -20,6 +21,7 @@ export const LOG_FILES_KEYS = {
   BURN_NFTS: 'burnNFTs',
   BURN_NFTS_ERROR: 'burnNFTs-error',
   MISSING_ACTIONS: 'missingActions',
+  SYSTEM: 'system',
 };
 
 /**
@@ -71,6 +73,7 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
     [LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID]: `${LOG_DIRECTORY_PATH_NAME}fioOracleItemId.log`,
     [LOG_FILES_KEYS.ORACLE_ERRORS]: `${LOG_DIRECTORY_PATH_NAME}Error.log`,
     [LOG_FILES_KEYS.MISSING_ACTIONS]: `${LOG_DIRECTORY_PATH_NAME}missing-actions.log`,
+    [LOG_FILES_KEYS.SYSTEM]: `${LOG_DIRECTORY_PATH_NAME}${SYSTEM_LOG_FILE}`,
   };
 
   const filePath = logFiles[key];

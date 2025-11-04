@@ -26,6 +26,8 @@ import {
   handleServerError,
   getLatestNonce,
 } from './utils/log-files.js';
+import { initializeLogScheduler } from './utils/log-scheduler.js';
+import logger from './utils/logger.js';
 import {
   convertWeiToEth,
   convertWeiToGwei,
@@ -40,6 +42,7 @@ const {
   supportedChains,
   mode,
   jobTimeouts: { DEFAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
+  logging: { SYNC_INTERVAL_HOURS, ENABLE_S3_SYNC },
 } = config;
 
 const route = express.Router();
@@ -49,6 +52,9 @@ class MainCtrl {
     const logPrefix = `Startup -->`;
 
     try {
+      // Show startup information
+      logger.showStartupInfo();
+
       // Prepare logs file
       prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
 
@@ -241,6 +247,17 @@ class MainCtrl {
 
       this.initRoutes(app);
 
+      // Initialize log scheduler for S3 sync (syncs every hour, never clears files)
+      // Only if S3 sync is enabled
+      if (ENABLE_S3_SYNC) {
+        initializeLogScheduler(SYNC_INTERVAL_HOURS);
+      } else {
+        console.log('⚠️  S3 sync is DISABLED (ENABLE_S3_SYNC=false)');
+        console.log('   Logs will only be stored locally');
+      }
+
+      logger.info(`${logPrefix} success`);
+      logger.info(`${logPrefix} Mode: ${mode}`);
       console.log(`${logPrefix} success`);
       console.log(`${logPrefix} Mode: ${mode}`);
     } catch (err) {

@@ -30,6 +30,7 @@
     "prettier": "3.3.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.922.0",
     "@babel/runtime": "7.20.1",
     "@fioprotocol/fiojs": "1.0.2",
     "big.js": "6.2.1",
