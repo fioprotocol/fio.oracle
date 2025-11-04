@@ -11,6 +11,7 @@ import {
 } from '../constants/chain.js';
 import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
+import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { handleBurnNFTs } from '../services/burnnfts.js';
 import { handleWrap } from '../services/wrap.js';
@@ -32,6 +33,7 @@ import {
   updateFioOracleId,
   handleUpdatePendingItemsQueue,
   handleServerError,
+  handleLogFailedUnwrapItem,
 } from '../utils/log-files.js';
 import MathOp from '../utils/math.js';
 
@@ -40,6 +42,16 @@ const {
   oracleCache,
   supportedChains,
 } = config;
+
+/**
+ * Check if an error string contains any non-retryable error patterns
+ * @param {string} errorString - The error string to check
+ * @returns {boolean} - True if error should not be retried
+ */
+const isNonRetryableError = (errorString) => {
+  return FIO_NON_RETRYABLE_ERRORS.some((pattern) => errorString.includes(pattern));
+};
+
 class FIOCtrl {
   constructor() {}
 
@@ -181,27 +193,34 @@ class FIOCtrl {
   }
 
   handleUnwrapFromOtherChainsToFioChain = async () => {
+    const logPrefix = 'FIO, Process unwrap transactions to FIO chain -->';
+
+    // Use a global cache key for this function since it processes all chains
+    if (
+      oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting)
+    ) {
+      console.log(`${logPrefix} Job is already running`);
+      return;
+    }
+
+    oracleCache.set(
+      ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
+      true,
+      0,
+    );
+    console.log(`${logPrefix} Start`);
+
     for (const [type, chains] of Object.entries(supportedChains)) {
       for (const chain of chains) {
         const { chainCode } = chain.chainParams;
-        const cacheKey = getOracleCacheKey({
-          actionName: ACTIONS.UNWRAP,
-          type,
-          chainCode,
-        });
-        const isUnwrapOnChainJobExecuting = oracleCache.get(cacheKey);
-
-        if (!isUnwrapOnChainJobExecuting) {
-          oracleCache.set(cacheKey, true, 0);
-        }
 
         const transactionToProceed = fs
           .readFileSync(getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP, chainCode, type }))
           .toString()
           .split('\r\n')[0];
         if (transactionToProceed === '') {
-          oracleCache.set(cacheKey, false, 0);
-          return;
+          // No transactions for this chain, continue to next chain
+          continue;
         }
 
         const txIdOnEthChain = transactionToProceed.split(' ')[0];
@@ -210,14 +229,16 @@ class FIOCtrl {
         const fioAddress = unwrapData.fioaddress;
         let isTransactionProceededSuccessfully = false;
 
-        const logPrefix = `FIO, unwrapFrom${chainCode}ToFioChainJob, ${chainCode} tx_id: "${txIdOnEthChain}", ${unwrapData.amount ? `amount: ${convertNativeFioIntoFio(unwrapData.amount)} wFIO` : `nfts: "${unwrapData.domain}"`}, fioAddress :  "${fioAddress}": -->`;
-        console.log(`${logPrefix} Start`);
+        const txLogPrefix = `FIO, unwrapFrom${chainCode}ToFioChainJob, ${chainCode} tx_id: "${txIdOnEthChain}", ${unwrapData.amount ? `amount: ${convertNativeFioIntoFio(unwrapData.amount)} wFIO` : `nfts: "${unwrapData.domain}"`}, fioAddress :  "${fioAddress}": -->`;
+        console.log(`${txLogPrefix} Start`);
 
         let retries = 0;
+        let shouldStopRetrying = false;
 
         while (
           retries < FIO_TRANSACTION_MAX_RETRIES &&
-          !isTransactionProceededSuccessfully
+          !isTransactionProceededSuccessfully &&
+          !shouldStopRetrying
         ) {
           try {
             const actionName = FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][type];
@@ -240,11 +261,21 @@ class FIOCtrl {
 
             if (!(transactionResult.type || transactionResult.error)) {
               isTransactionProceededSuccessfully = true;
-              console.log(`${logPrefix} Completed:`);
+              console.log(`${txLogPrefix} Completed:`);
             } else {
-              retries++;
-              console.log(`${logPrefix} Error:`);
-              console.log(`${logPrefix} Retry increment to ${retries}`);
+              // Check for non-retryable errors
+              const errorString = JSON.stringify(transactionResult);
+              if (isNonRetryableError(errorString)) {
+                console.log(
+                  `${txLogPrefix} Non-retryable error detected (will not retry):`,
+                );
+                console.log(errorString);
+                shouldStopRetrying = true;
+              } else {
+                retries++;
+                console.log(`${txLogPrefix} Error:`);
+                console.log(`${txLogPrefix} Retry increment to ${retries}`);
+              }
             }
 
             console.log(JSON.stringify(transactionResult, null, 4));
@@ -259,15 +290,36 @@ class FIOCtrl {
               },
             });
           } catch (error) {
-            retries++;
-            await sleep(SECOND_IN_MILLISECONDS);
-            handleServerError(error, 'FIO, handleUnwrapFromOtherChainsToFioChain');
+            // Check for non-retryable errors in caught exceptions
+            const errorString = error.message || error.toString();
+            if (isNonRetryableError(errorString)) {
+              console.log(
+                `${txLogPrefix} Non-retryable error detected (will not retry):`,
+              );
+              console.log(errorString);
+              shouldStopRetrying = true;
+              handleServerError(error, 'FIO, handleUnwrapFromOtherChainsToFioChain');
+            } else {
+              retries++;
+              await sleep(SECOND_IN_MILLISECONDS);
+              handleServerError(error, 'FIO, handleUnwrapFromOtherChainsToFioChain');
+            }
           }
         }
 
         if (!isTransactionProceededSuccessfully) {
+          if (shouldStopRetrying) {
+            console.log(
+              `${txLogPrefix} Transaction failed with non-retryable error and will be moved to error queue`,
+            );
+          } else {
+            console.log(
+              `${txLogPrefix} Transaction failed after ${retries} retries and will be moved to error queue`,
+            );
+          }
+
           handleLogFailedUnwrapItem({
-            logPrefix,
+            logPrefix: txLogPrefix,
             errorLogFilePath: getLogFilePath({
               key: LOG_FILES_KEYS.UNWRAP_ERROR,
               chainCode,
@@ -279,13 +331,21 @@ class FIOCtrl {
         }
 
         handleUpdatePendingItemsQueue({
-          action: handleUnwrapFromOtherChainsToFioChain,
-          logPrefix,
+          action: this.handleUnwrapFromOtherChainsToFioChain,
+          logPrefix: txLogPrefix,
           logFilePath: getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP, chainCode, type }),
-          jobIsRunningCacheKey: cacheKey,
+          jobIsRunningCacheKey:
+            ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
         });
       }
     }
+
+    oracleCache.set(
+      ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
+      false,
+      0,
+    );
+    console.log(`${logPrefix} End`);
   };
 
   async handleUnprocessedBurnNFTActions() {
@@ -480,11 +540,26 @@ class FIOCtrl {
 
       updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());
 
-      const isBurnNFTJobExecuting = oracleCache.get(
-        getOracleCacheKey({
-          actionName: ACTIONS.BURN,
-        }),
-      );
+      // Check if any burn NFT job is currently executing for any chain
+      let isBurnNFTJobExecuting = false;
+      for (const [type, chains] of Object.entries(supportedChains)) {
+        if (type === ACTION_TYPES.NFTS) {
+          for (const chain of chains) {
+            const { chainCode } = chain.chainParams;
+            const burnCacheKey = getOracleCacheKey({
+              actionName: ACTIONS.BURN,
+              chainCode,
+              type,
+            });
+            if (oracleCache.get(burnCacheKey)) {
+              isBurnNFTJobExecuting = true;
+              break;
+            }
+          }
+          if (isBurnNFTJobExecuting) break;
+        }
+      }
+
       console.log(`${logPrefix} isBurnNFTJobExecuting: ${!!isBurnNFTJobExecuting}`);
 
       if (!isBurnNFTJobExecuting) {
