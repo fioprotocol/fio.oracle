@@ -113,6 +113,74 @@ You can use this endpoint for monitoring and health checks in your infrastructur
 
 ## Log files
 
-Log files for different environments are in different folders:
-- controller/api/logs-mainnet
-- controller/api/logs-testnet
+### Local Log Files
+
+Log files for different environments are stored in different folders:
+- `controller/api/logs-mainnet` - Mainnet logs
+- `controller/api/logs-testnet` - Testnet logs
+
+### Enhanced Logging System with AWS S3 Integration
+
+The oracle now includes an advanced logging system with automatic backup to AWS S3 and date-based organization.
+
+#### Features
+
+- **Flexible Console/File Logging** - Write to files or console
+- **AWS S3 Sync** - Automatic hourly backup to S3 with date-based folder structure
+- **Date-Based Organization** - Transaction logs organized by date in S3
+- **State File Preservation** - Critical state files (block-number, nonce) never cleared
+- **System Logs** - Separate system log file for application events
+- **Secure** - No external API endpoints for log control
+
+#### Additional Environment Variables
+
+Add these to your `.env.mainnet` or `.env.testnet` file:
+
+```bash
+# AWS S3 Configuration
+AWS_S3_KEY=                     # AWS Access Key ID
+AWS_S3_SECRET=                  # AWS Secret Access Key
+AWS_S3_BUCKET=                  # S3 Bucket Name
+AWS_S3_REGION=                  # AWS Region (e.g., us-east-1)
+AWS_S3_PERMITTED_FOLDER=        # Folder name in S3 bucket (e.g., oracle-logs)
+
+# Logging Configuration
+LOG_TO_FILE=true                # Write logs to files (default: true). If false, writes to console
+SYNC_INTERVAL_HOURS=1           # Hours between S3 syncs (default: 1). Logs are never cleared locally
+```
+
+#### S3 Folder Structure
+
+Logs are organized in S3 as follows:
+
+```
+your-bucket/
+└── oracle-logs/              (AWS_S3_PERMITTED_FOLDER)
+    ├── mainnet/
+    │   ├── 2025-11-04/       (Transaction logs by date)
+    │   │   ├── Error.log
+    │   │   ├── tokens-ETH.log
+    │   │   ├── wrap-tokens-transactions-queue-ETH.log
+    │   │   └── system.log
+    │   ├── 2025-11-05/
+    │   │   └── ...
+    │   ├── block-number-ETH.log    (State files - no date)
+    │   ├── nonce-ETH.log
+    │   └── fioOracleItemId.log
+    └── testnet/
+        └── ...
+```
+
+#### Documentation
+
+For detailed information about the logging system:
+- See `LOGGING_CONFIG.md` for configuration details
+- See `TESTING_GUIDE.md` for testing procedures
+
+#### Quick Start
+
+1. Configure AWS credentials in your `.env` file
+2. Start the server - logs will be written locally
+3. Automatic S3 sync runs every hour (configurable)
+4. Local log files are never cleared - they continue to append
+5. Check your S3 bucket for organized log backups
