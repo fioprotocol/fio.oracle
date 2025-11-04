@@ -7,7 +7,7 @@ import MathOp from './math.js';
 import config from '../../config/config.js';
 import { handleChainError } from '../../controller/utils/log-files.js';
 import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
-import { checkHttpResponseStatus, fetchWithRateLimit } from '../utils/general.js';
+import { checkHttpResponseStatus, fetchWithMultipleServers } from '../utils/general.js';
 
 const defaultTextEncoderObj = textEncoderObj.default || {};
 
@@ -20,9 +20,7 @@ const textEncoder = new TextEncoder();
 const {
   fio: {
     FIO_SERVER_URL_HISTORY,
-    FIO_SERVER_URL_HISTORY_BACKUP,
     FIO_SERVER_URL_ACTION,
-    FIO_SERVER_URL_ACTION_BACKUP,
     FIO_GET_TABLE_ROWS_OFFSET,
     FIO_ORACLE_PERMISSION,
     FIO_ORACLE_PRIVATE_KEY,
@@ -42,60 +40,50 @@ const makeDeltasUrl = ({ baseUrl, params }) => {
 
 const getFioChainInfo = async () =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetInfoUrl,
     })
   ).json();
 
 const getFioBlockInfo = async (lastIrreversibleBlock) =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetBlockUrl(FIO_SERVER_URL_ACTION),
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetBlockUrl,
       options: {
         body: JSON.stringify({ block_num_or_id: lastIrreversibleBlock }),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetBlockUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     })
   ).json();
 
 const getFioOracleRawAbi = async () =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetRawAbiUrl(FIO_SERVER_URL_ACTION),
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetRawAbiUrl,
       options: {
         body: JSON.stringify({ account_name: FIO_ACCOUNT_NAMES.FIO_ORACLE }),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetRawAbiUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     })
   ).json();
 
 const pushFioTransaction = async (tx) =>
-  await fetchWithRateLimit({
-    url: makePushTransactionUrl(FIO_SERVER_URL_ACTION),
+  await fetchWithMultipleServers({
+    serverUrls: FIO_SERVER_URL_ACTION,
+    urlBuilder: makePushTransactionUrl,
     options: {
       body: JSON.stringify(tx),
       method: 'POST',
     },
-    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-      ? makePushTransactionUrl(FIO_SERVER_URL_ACTION_BACKUP)
-      : null,
   });
 
 export const getLastIrreversibleBlockOnFioChain = async () => {
-  const fioChainInfoResponse = await fetchWithRateLimit({
-    url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
-    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-      ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
-      : null,
+  const fioChainInfoResponse = await fetchWithMultipleServers({
+    serverUrls: FIO_SERVER_URL_ACTION,
+    urlBuilder: makeGetInfoUrl,
   });
 
   await checkHttpResponseStatus(
@@ -114,15 +102,13 @@ export const getLastIrreversibleBlockOnFioChain = async () => {
 
 export const getTableRows = async ({ logPrefix, tableRowsParams }) => {
   try {
-    const tableRowsResponse = await fetchWithRateLimit({
-      url: makeTableRowsUrl(FIO_SERVER_URL_ACTION),
+    const tableRowsResponse = await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeTableRowsUrl,
       options: {
         body: JSON.stringify(tableRowsParams),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeTableRowsUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     });
 
     return tableRowsResponse ? tableRowsResponse.json() : null;
@@ -218,21 +204,17 @@ export const getOracleItems = async ({
 export const getFioDeltasV2 = async (params) => {
   let response = null;
 
-  const url = makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY, params });
-
   try {
-    const res = await fetchWithRateLimit({
-      url,
-      backupUrl: FIO_SERVER_URL_HISTORY_BACKUP
-        ? makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY_BACKUP, params })
-        : null,
+    const res = await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_HISTORY,
+      urlBuilder: (baseUrl) => makeDeltasUrl({ baseUrl, params }),
     });
     response = res.json();
   } catch (error) {
     console.log('error', error);
     handleChainError({
-      logMessage: `Failed to fetch deltas from V2 ${url}: ${error.message}`,
-      consoleMessage: `Failed to fetch deltas from V2 ${url}: ${error}`,
+      logMessage: `Failed to fetch deltas from V2: ${error.message}`,
+      consoleMessage: `Failed to fetch deltas from V2: ${error}`,
     });
   }
 

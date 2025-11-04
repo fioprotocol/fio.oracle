@@ -44,10 +44,16 @@ export default {
     ENABLE_S3_SYNC: process.env.ENABLE_S3_SYNC !== 'false', // Default true - if false, S3 sync disabled
   },
   fio: {
-    FIO_SERVER_URL_HISTORY: process.env.FIO_SERVER_URL_HISTORY,
-    FIO_SERVER_URL_HISTORY_BACKUP: process.env.FIO_SERVER_URL_HISTORY_BACKUP,
-    FIO_SERVER_URL_ACTION: process.env.FIO_SERVER_URL_ACTION,
-    FIO_SERVER_URL_ACTION_BACKUP: process.env.FIO_SERVER_URL_ACTION_BACKUP,
+    FIO_SERVER_URL_HISTORY:
+      process.env.FIO_SERVER_URL_HISTORY &&
+      typeof process.env.FIO_SERVER_URL_HISTORY === 'string'
+        ? process.env.FIO_SERVER_URL_HISTORY.split(',').map((url) => url.trim())
+        : [],
+    FIO_SERVER_URL_ACTION:
+      process.env.FIO_SERVER_URL_ACTION &&
+      typeof process.env.FIO_SERVER_URL_ACTION === 'string'
+        ? process.env.FIO_SERVER_URL_ACTION.split(',').map((url) => url.trim())
+        : [],
     FIO_ORACLE_PRIVATE_KEY: process.env.FIO_ORACLE_PRIVATE_KEY,
     FIO_ORACLE_ACCOUNT: process.env.FIO_ORACLE_ACCOUNT,
     FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION,

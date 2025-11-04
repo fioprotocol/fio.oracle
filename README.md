@@ -20,8 +20,11 @@ There are 2 types of .env files:
 ```
 PORT=                        # The port that the fio.oracle service will run on when started
 
-FIO_SERVER_URL_HISTORY=      # URL of FIO history node
-FIO_SERVER_URL_ACTION=       # URL of FIO API node
+# FIO Server URLs - Multiple servers supported (comma-separated)
+# The oracle will automatically cycle through servers if one fails or hits rate limits
+# Example: https://server1.com/,https://server2.com/,https://server3.com/
+FIO_SERVER_URL_HISTORY=      # Comma-separated list of FIO history node URLs
+FIO_SERVER_URL_ACTION=       # Comma-separated list of FIO API node URLs
 
 FIO_HISTORY_HYPERION_OFFSET= # The number of actions to get from history when using hyperion version
 FIO_TRANSACTION_MAX_RETRIES= # The number of retries when FIO action call fails
@@ -30,7 +33,7 @@ LOWEST_ORACLE_ID=            # WARNING! This is REQUIRED! If not set, incorrect 
 
 FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
 FIO_ORACLE_ACCOUNT=          # The FIO account used for approving unwrap transactions
-FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to “active”)
+FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to "active")
 
 ETH_ORACLE_PUBLIC=           # The ETH oracle public key used for signing ERC20 transactions
 ETH_ORACLE_PRIVATE=          # The ETH oracle private key used for signing ERC20 transactions
@@ -70,10 +73,22 @@ THIRDWEB_API_KEY=            # Thirdweb API key
 
 INFURA_ETH=                  # The Ethereum chain Infura API URL
 INFURA_POLYGON=              # The Polygon chain Infura API URL
+```
 
-# Optional
-FIO_SERVER_URL_ACTION_BACKUP= # Backup URL of FIO action node
-FIO_SERVER_URL_HISTORY_BACKUP= # Backup URL of FIO history node
+### FIO Server Failover and Retry Strategy
+
+The oracle implements an intelligent multi-server failover system:
+
+1. **Multiple Servers**: Configure multiple FIO servers (comma-separated) for both HISTORY and ACTION endpoints
+2. **Automatic Failover**: If one server fails or hits rate limits, the oracle automatically tries the next server
+3. **Retry Cycles**: After trying all servers, the oracle will retry the entire server list up to 5 times with exponential backoff
+4. **Per-Server Rate Limiting**: Each server gets its own rate limit retry attempts before moving to the next
+5. **Intelligent Logging**: Detailed logging shows which server is being used and why failovers occur
+
+**Example Configuration:**
+```bash
+FIO_SERVER_URL_HISTORY=https://fio1.example.com/,https://fio2.example.com/,https://fio3.example.com/
+FIO_SERVER_URL_ACTION=https://api1.example.com/,https://api2.example.com/
 ```
 
 ## Installation

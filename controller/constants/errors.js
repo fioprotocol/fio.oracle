@@ -9,4 +9,6 @@ export const FIO_NON_RETRYABLE_ERRORS = [
   'Not a registered Oracle',
   'Invalid oracle',
   'Oracle not found',
+  'Expired Transaction', // Transaction expired, needs to be recreated with new timestamp
+  'expired_tx_exception', // Alternative format for expired transaction
 ];
