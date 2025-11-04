@@ -2,6 +2,8 @@ import config from '../../config/config.js';
 
 import fioCtrl from '../api/fio.js';
 import { ACTIONS, CONTRACT_ACTIONS } from '../constants/chain.js';
+import { ORACLE_CACHE_KEYS, ORACLE_JOB_TYPES } from '../constants/cron-jobs.js';
+import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { getOracleCacheKey } from '../utils/cron-jobs.js';
 import { stringifyWithBigInt } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
@@ -37,6 +39,7 @@ export const handleUnwrap = async () => {
         actionName: ACTIONS.UNWRAP,
         type,
         chainCode,
+        jobType: ORACLE_JOB_TYPES.EVENT_DETECTION,
       });
 
       const logPrefix = `${chainCode}, ${type}, Unwrap -->`;
@@ -50,9 +53,9 @@ export const handleUnwrap = async () => {
 
       // Add significant delay between chains to ensure rate limit windows reset
       if (!isFirstChain) {
-        const chainDelay = 3000; // 3 seconds between chains (full reset)
+        const chainDelay = SECOND_IN_MILLISECONDS * 3; // 3 seconds between chains (full reset)
         console.log(
-          `${logPrefix} Waiting ${chainDelay / 1000}s before processing to reset rate limits...`,
+          `${logPrefix} Waiting ${chainDelay / SECOND_IN_MILLISECONDS}s before processing to reset rate limits...`,
         );
         await new Promise((resolve) => setTimeout(resolve, chainDelay));
       }
@@ -165,7 +168,7 @@ export const handleUnwrap = async () => {
         };
 
         const unwrapData = await getUnprocessedActionsLogs();
-
+        console.log(`${logPrefix} unwrapData length: ${unwrapData.length}`);
         if (unwrapData.length > 0) {
           for (const unwrapItem of unwrapData) {
             const logText = `${unwrapItem.transactionHash} ${stringifyWithBigInt(unwrapItem.returnValues)}`;
@@ -183,10 +186,15 @@ export const handleUnwrap = async () => {
           }
         }
 
-        const isUnwrapJobExecuting = oracleCache.get(cacheKey);
-        console.log(`${logPrefix} isUnwrapJobExecuting: ${!!isUnwrapJobExecuting}`);
+        // Check if FIO transaction processing job is already running (global check)
+        const isUnwrapFioTxJobExecuting = oracleCache.get(
+          ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
+        );
+        console.log(
+          `${logPrefix} isUnwrapFioTxJobExecuting: ${!!isUnwrapFioTxJobExecuting}`,
+        );
 
-        if (!isUnwrapJobExecuting) {
+        if (!isUnwrapFioTxJobExecuting) {
           fioCtrl.handleUnwrapFromOtherChainsToFioChain();
         }
       } catch (error) {

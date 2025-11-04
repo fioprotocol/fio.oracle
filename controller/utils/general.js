@@ -1,13 +1,22 @@
 import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
+import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
 import { MINUTE_IN_MILLISECONDS, SECOND_IN_MILLISECONDS } from '../constants/general.js';
-
 import { handleServerError } from '../utils/log-files.js';
 
 const { DEFAULT_MAX_RETRIES } = config;
 
 const RATE_LIMIT_ERROR = 'RATE_LIMIT';
+
+/**
+ * Check if an error string contains any non-retryable error patterns
+ * @param {string} errorString - The error string to check
+ * @returns {boolean} - True if error should not be retried
+ */
+const isNonRetryableError = (errorString) => {
+  return FIO_NON_RETRYABLE_ERRORS.some((pattern) => errorString.includes(pattern));
+};
 
 export const replaceNewLines = (stringValue, replaceChar = ', ') => {
   return stringValue.replace(/(?:\r\n|\r|\n)/g, replaceChar);
@@ -97,13 +106,21 @@ export const fetchWithRateLimit = async ({ url, options = {}, backupUrl = null }
         }`,
       );
     } catch (error) {
-      if (!isBackupRetry && backupUrl) {
+      // Check if this is a non-retryable error
+      const errorString = error.message || error.toString();
+      const shouldNotRetry = isNonRetryableError(errorString);
+
+      if (!isBackupRetry && backupUrl && !shouldNotRetry) {
         handleServerError(error, 'Fetch server failed');
 
         retries = 0; // Reset retries count for backup url
         console.log(`RUNING backup server: ${backupUrl}`);
 
         return makeRequest({ targetUrl: backupUrl, isBackupRetry: true });
+      }
+
+      if (shouldNotRetry) {
+        console.log('Non-retryable error detected, skipping backup server retry');
       }
 
       throw error;

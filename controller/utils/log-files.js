@@ -180,6 +180,19 @@ export const handleLogFailedBurnNFTItem = ({ logPrefix, burnData, errorLogFilePa
   fs.appendFileSync(errorLogFilePath, burnText); // store issued transaction to errored log file queue by line-break
 };
 
+export const handleLogFailedUnwrapItem = ({
+  logPrefix,
+  txId,
+  unwrapData,
+  errorLogFilePath,
+}) => {
+  console.log(
+    `${logPrefix} Something went wrong with the current unwrap action. Storing transaction data into ${errorLogFilePath}`,
+  );
+  const unwrapText = txId + ' ' + JSON.stringify(unwrapData) + '\r\n';
+  fs.appendFileSync(errorLogFilePath, unwrapText); // store issued transaction to errored log file queue by line-break
+};
+
 export const handleNonceValue = ({ chainNonce, chainCode }) => {
   let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
 
