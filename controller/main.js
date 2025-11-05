@@ -41,7 +41,11 @@ const {
   gas: { USE_GAS_API },
   supportedChains,
   mode,
-  jobTimeouts: { DEFAULT_JOB_TIMEOUT, BURN_DOMAINS_JOB_TIMEOUT },
+  jobTimeouts: {
+    AUTO_RETRY_MISSING_ACTIONS_TIMEOUT,
+    BURN_DOMAINS_JOB_TIMEOUT,
+    DEFAULT_JOB_TIMEOUT,
+  },
   logging: { SYNC_INTERVAL_HOURS, ENABLE_S3_SYNC },
 } = config;
 
@@ -242,7 +246,7 @@ class MainCtrl {
 
       setInterval(
         autoRetryMissingActions,
-        parseInt(MINUTE_IN_MILLISECONDS * 10), // check for missing actions every 10 mins
+        parseInt(AUTO_RETRY_MISSING_ACTIONS_TIMEOUT), // check for missing actions every AUTO_RETRY_MISSING_ACTIONS_TIMEOUT mins
       );
 
       this.initRoutes(app);

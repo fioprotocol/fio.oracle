@@ -1,17 +1,25 @@
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import dotenv from 'dotenv-safe';
 import NodeCache from 'node-cache';
 
 import { SECOND_IN_MILLISECONDS } from '../controller/constants/general.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const oracleCache = new NodeCache();
 
+// Determine environment
 const mode = process.env.NODE_ENV;
 const isTestnet = mode === 'testnet';
 
-const envFile = mode ? `.env.${mode}` : '.env';
+// Set config directory for the config package
+process.env.NODE_CONFIG_DIR = __dirname;
 
+// Load environment variables using dotenv BEFORE loading config
+const envFile = mode ? `.env.${mode}` : '.env';
 dotenv.config({
   path: path.resolve(process.cwd(), envFile),
   allowEmptyValues: false,
@@ -19,78 +27,115 @@ dotenv.config({
 
 console.log('Uses ' + mode + ' configuration.');
 
-let supportedChains = {};
+// Import config AFTER setting up environment
+const config = (await import('config')).default;
 
-try {
-  supportedChains = JSON.parse(process.env.SUPPORTED_CHAINS);
-} catch (error) {
-  console.error('Error parsing SUPPORTED_CHAINS: ', error);
+// The config package automatically:
+// 1. Loads default.json
+// 2. Loads mainnet.json or testnet.json based on NODE_ENV
+// 3. Applies custom-environment-variables.json mappings for scalar values
+// No custom merge logic needed!
+
+// Helper: resolve ENV_VAR_* placeholders to actual env vars
+function resolveEnvPlaceholders(node) {
+  if (Array.isArray(node)) {
+    return node.map((item) => resolveEnvPlaceholders(item));
+  }
+  if (node && typeof node === 'object') {
+    const out = {};
+    Object.keys(node).forEach((key) => {
+      out[key] = resolveEnvPlaceholders(node[key]);
+    });
+    return out;
+  }
+  if (typeof node === 'string' && node.startsWith('ENV_VAR_')) {
+    const envKey = node.replace('ENV_VAR_', '');
+    return process.env[envKey] || '';
+  }
+  return node;
 }
+
+// Clone supported chains (config objects are immutable) and resolve placeholders
+let supportedChains = JSON.parse(JSON.stringify(config.get('supportedChains')));
+supportedChains = resolveEnvPlaceholders(supportedChains);
+
+// Export backward-compatible configuration
 export default {
-  mode,
+  DEFAULT_HARDFORK: config.get('chainDefaults.defaultHardfork'),
+  DEFAULT_MAX_RETRIES: config.get('app.maxRetries'),
   isTestnet,
-  port: process.env.PORT,
+  mode,
   oracleCache,
-  aws: {
-    AWS_S3_KEY: process.env.AWS_S3_KEY,
-    AWS_S3_SECRET: process.env.AWS_S3_SECRET,
-    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
-    AWS_S3_REGION: process.env.AWS_S3_REGION,
-    AWS_S3_PERMITTED_FOLDER: process.env.AWS_S3_PERMITTED_FOLDER,
-  },
-  logging: {
-    LOG_TO_FILE: process.env.LOG_TO_FILE !== 'false', // Default true - if false, writes to console
-    SYNC_INTERVAL_HOURS: parseInt(process.env.SYNC_INTERVAL_HOURS) || 1, // Default: sync every 1 hour
-    ENABLE_S3_SYNC: process.env.ENABLE_S3_SYNC !== 'false', // Default true - if false, S3 sync disabled
-  },
-  fio: {
-    FIO_SERVER_URL_HISTORY:
-      process.env.FIO_SERVER_URL_HISTORY &&
-      typeof process.env.FIO_SERVER_URL_HISTORY === 'string'
-        ? process.env.FIO_SERVER_URL_HISTORY.split(',').map((url) => url.trim())
-        : [],
-    FIO_SERVER_URL_ACTION:
-      process.env.FIO_SERVER_URL_ACTION &&
-      typeof process.env.FIO_SERVER_URL_ACTION === 'string'
-        ? process.env.FIO_SERVER_URL_ACTION.split(',').map((url) => url.trim())
-        : [],
-    FIO_ORACLE_PRIVATE_KEY: process.env.FIO_ORACLE_PRIVATE_KEY,
-    FIO_ORACLE_ACCOUNT: process.env.FIO_ORACLE_ACCOUNT,
-    FIO_ORACLE_PERMISSION: process.env.FIO_ORACLE_PERMISSION,
-    FIO_TRANSACTION_MAX_RETRIES: parseInt(process.env.FIO_TRANSACTION_MAX_RETRIES),
-    FIO_GET_TABLE_ROWS_OFFSET: parseInt(process.env.FIO_GET_TABLE_ROWS_OFFSET),
-    FIO_HISTORY_HYPERION_OFFSET: process.env.FIO_HISTORY_HYPERION_OFFSET,
-    LOWEST_ORACLE_ID: parseInt(process.env.LOWEST_ORACLE_ID),
-  },
-  gas: {
-    GAS_PRICE_LEVEL: process.env.GAS_PRICE_LEVEL,
-    USE_GAS_API: process.env.USE_GAS_API,
-  },
-  infura: {
-    apiKey: process.env.INFURA_API_KEY,
-  },
-  nfts: {
-    NFT_PROVIDER_API_KEY: process.env.MORALIS_API_KEY,
-  },
-  moralis: {
-    MORALIS_RPC_BASE_URL: process.env.MORALIS_RPC_BASE_URL,
-    MORALIS_RPC_BASE_URL_FALLBACK: process.env.MORALIS_RPC_BASE_URL_FALLBACK,
-    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS:
-      process.env.MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
-  },
-  thirdWeb: {
-    THIRDWEB_API_KEY: process.env.THIRDWEB_API_KEY,
-  },
-  jobTimeouts: {
-    DEFAULT_JOB_TIMEOUT: process.env.JOB_TIMEOUT,
-    BURN_DOMAINS_JOB_TIMEOUT: process.env.BURN_DOMAINS_JOB_TIMEOUT,
-  },
-  DEFAULT_MAX_RETRIES: process.env.DEFAULT_MAX_RETRIES,
-  DEFAULT_HARDFORK: process.env.DEFAULT_HARDFORK,
+  port: config.get('app.port'),
+
   app: {
-    RESTART_TIMEOUT: SECOND_IN_MILLISECONDS * 5, // 5 seconds
-    MAX_RETRIES: 3,
-    STABILITY_THRESHOLD: SECOND_IN_MILLISECONDS * 30, // 30 seconds
+    MAX_RETRIES: config.get('app.maxRetries'),
+    RESTART_TIMEOUT: config.get('app.restartTimeout') || SECOND_IN_MILLISECONDS * 5,
+    STABILITY_THRESHOLD:
+      config.get('app.stabilityThreshold') || SECOND_IN_MILLISECONDS * 30,
   },
+
+  autoRetryMissingActions: {
+    MAX_RETRIES: config.get('autoRetryMissingActions.maxRetries'),
+    RETRY_DELAY_MS: config.get('autoRetryMissingActions.retryDelayMs'),
+    TIME_RANGE_END: config.get('autoRetryMissingActions.timeRangeEnd'),
+    TIME_RANGE_START: config.get('autoRetryMissingActions.timeRangeStart'),
+  },
+
+  aws: {
+    AWS_S3_BUCKET: config.get('aws.s3Bucket'),
+    AWS_S3_KEY: config.get('aws.s3Key'),
+    AWS_S3_PERMITTED_FOLDER: config.get('aws.s3PermittedFolder'),
+    AWS_S3_REGION: config.get('aws.s3Region'),
+    AWS_S3_SECRET: config.get('aws.s3Secret'),
+  },
+
+  fio: {
+    FIO_GET_TABLE_ROWS_OFFSET: config.get('fio.getTableRowsOffset'),
+    FIO_HISTORY_HYPERION_OFFSET: config.get('fio.historyHyperionOffset'),
+    FIO_ORACLE_ACCOUNT: config.get('fio.account'),
+    FIO_ORACLE_PERMISSION: config.get('fio.permission'),
+    FIO_ORACLE_PRIVATE_KEY: config.get('fio.privateKey'),
+    FIO_SERVER_URL_ACTION: config.get('fio.serverUrlAction'),
+    FIO_SERVER_URL_HISTORY: config.get('fio.serverUrlHistory'),
+    FIO_TRANSACTION_MAX_RETRIES: config.get('fio.maxRetries'),
+    LOWEST_ORACLE_ID: config.get('fio.lowestOracleId'),
+  },
+
+  gas: {
+    GAS_PRICE_LEVEL: config.get('gas.priceLevel'),
+    USE_GAS_API: config.get('chainDefaults.useGasApi'),
+  },
+
+  jobTimeouts: {
+    AUTO_RETRY_MISSING_ACTIONS_TIMEOUT: config.get(
+      'jobTimeouts.autoRetryMissingActionsTimeout',
+    ),
+    BURN_DOMAINS_JOB_TIMEOUT: config.get('jobTimeouts.burnDomainsJobTimeout'),
+    DEFAULT_JOB_TIMEOUT: config.get('jobTimeouts.defaultJobTimeout'),
+  },
+
+  logging: {
+    ENABLE_S3_SYNC: config.get('logging.enableS3Sync'),
+    LOG_TO_FILE: config.get('logging.logToFile'),
+    SYNC_INTERVAL_HOURS: config.get('logging.syncIntervalHours'),
+  },
+
+  moralis: {
+    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS: config.get(
+      'moralis.defaultTimeoutBetweenCalls',
+    ),
+    MORALIS_RPC_BASE_URL: config.get('moralis.rpcBaseUrl'),
+    MORALIS_RPC_BASE_URL_FALLBACK: config.get('moralis.rpcBaseUrlFallback'),
+  },
+
+  nfts: {
+    NFT_PROVIDER_API_KEY: config.get('moralis.apiKey'),
+  },
+
   supportedChains,
+
+  thirdWeb: {
+    THIRDWEB_API_KEY: config.get('thirdWeb.apiKey'),
+  },
 };
