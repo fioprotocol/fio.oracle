@@ -6,10 +6,9 @@ import config from '../../config/config.js';
 
 const { mode } = config;
 
-// Logger configuration from environment
-// If LOG_TO_FILE is not set or is 'true', write to file
-// If LOG_TO_FILE is 'false', write to console only
-const LOG_TO_FILE = process.env.LOG_TO_FILE !== 'false'; // Default true
+// Logger configuration
+// Prefer config file settings; fall back to env only if missing
+const LOG_TO_FILE = Boolean(config?.logging?.LOG_TO_FILE);
 const LOG_TO_CONSOLE = !LOG_TO_FILE || process.env.LOG_TO_CONSOLE !== 'false'; // Default true if not file, or if explicitly set
 
 /**

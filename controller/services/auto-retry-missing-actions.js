@@ -6,7 +6,7 @@ import {
   FIO_CONTRACT_ACTIONS,
   CONTRACT_ACTIONS,
 } from '../constants/chain.js';
-import { SECOND_IN_MILLISECONDS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { estimateBlockRange } from '../utils/chain.js';
 import { runUnwrapFioTransaction, getOracleItems } from '../utils/fio-chain.js';
 import { fetchWithMultipleServers, convertTimestampIntoMs } from '../utils/general.js';
@@ -22,10 +22,14 @@ const {
 } = config;
 
 const CACHE_KEY = 'isAutoRetryMissingActionsExecuting';
-const MAX_RETRIES = 5;
-const RETRY_DELAY_MS = 5 * SECOND_IN_MILLISECONDS; // 5 seconds between retries
-const TIME_RANGE_START = 15 * MINUTE_IN_MILLISECONDS; // 15 minutes ago
-const TIME_RANGE_END = 60 * MINUTE_IN_MILLISECONDS; // 1 hour ago
+const {
+  autoRetryMissingActions: {
+    MAX_RETRIES,
+    RETRY_DELAY_MS,
+    TIME_RANGE_START,
+    TIME_RANGE_END,
+  },
+} = config;
 
 /**
  * Fetch wrap oracle items from get_table_rows with time filtering

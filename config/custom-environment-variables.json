@@ -1,0 +1,17 @@
+{
+  "aws": {
+    "s3Key": "AWS_S3_KEY",
+    "s3Secret": "AWS_S3_SECRET",
+    "s3PermittedFolder": "AWS_S3_PERMITTED_FOLDER"
+  },
+  "fio": {
+    "privateKey": "FIO_ORACLE_PRIVATE_KEY",
+    "account": "FIO_ORACLE_ACCOUNT"
+  },
+  "moralis": {
+    "apiKey": "MORALIS_API_KEY"
+  },
+  "thirdWeb": {
+    "apiKey": "THIRDWEB_API_KEY"
+  }
+}
