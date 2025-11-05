@@ -7,7 +7,6 @@ import fioCtrl from './api/fio.js';
 import { FIO_CHAIN_NAME, ACTION_TYPES } from './constants/chain.js';
 import { MINUTE_IN_MILLISECONDS } from './constants/general.js';
 import { checkAndReplacePendingTransactions } from './jobs/transactions.js';
-import fioRoute from './routes/fio.js';
 import healthRoute from './routes/health.js';
 import { autoRetryMissingActions } from './services/auto-retry-missing-actions.js';
 import { handleUnwrap } from './services/unwrap.js';
@@ -70,11 +69,7 @@ class MainCtrl {
 
           const { chainName, chainCode } = chainParams;
 
-          const web3ChainInstance = Web3Service.getWe3Instance({
-            chainCode,
-            rpcUrl: infura.rpcUrl,
-            apiKey: infura.apiKey,
-          });
+          const web3ChainInstance = Web3Service.getWe3Instance({ chainCode });
 
           if (!web3ChainInstance) {
             throw new Error(`Web3 instance not found for chain: ${chainCode}`);
@@ -274,7 +269,6 @@ class MainCtrl {
 
   initRoutes(app) {
     route.use(cors({ origin: '*' }));
-    app.use(fioRoute);
     app.use('/api/v1', healthRoute);
   }
 }

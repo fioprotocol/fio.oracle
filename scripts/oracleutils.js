@@ -25,14 +25,12 @@ export const handleWrapAction = async ({
   const currentChain = supportedChains[type].find(
     (chain) => chain.chainCode === chainCode,
   );
-  const { contractAddress, infura } = currentChain;
+  const { contractAddress } = currentChain;
 
   const contract = Web3Service.getWeb3Contract({
-    apiKey: infura.apiKey,
     type,
     chainCode,
     contractAddress,
-    rpcUrl: infura.rpcUrl,
   });
 
   await blockChainTransaction({
@@ -104,14 +102,12 @@ export const handleBurnNFTInPolygon = async ({
   const currentChain = supportedChains[type].find(
     (chain) => chain.chainCode === chainCode,
   );
-  const { contractAddress, infura } = currentChain;
+  const { contractAddress } = currentChain;
 
   const contract = Web3Service.getWeb3Contract({
-    apiKey: infura.apiKey,
     type,
     chainCode,
     contractAddress,
-    rpcUrl: infura.rpcUrl,
   });
 
   await blockChainTransaction({

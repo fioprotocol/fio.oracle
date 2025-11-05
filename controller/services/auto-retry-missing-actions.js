@@ -12,6 +12,12 @@ import { runUnwrapFioTransaction, getOracleItems } from '../utils/fio-chain.js';
 import { fetchWithMultipleServers, convertTimestampIntoMs } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { addLogMessage, handleServerError } from '../utils/log-files.js';
+import { splitRangeByProvider } from '../utils/logs-range.js';
+import {
+  MORALIS_SAFE_BLOCKS_PER_QUERY,
+  DEFAULT_BLOCKS_PER_QUERY,
+} from '../utils/logs-range.js';
+import { globalRequestQueue } from '../utils/request-queue.js';
 import { blockChainTransaction } from '../utils/transactions.js';
 import { Web3Service } from '../utils/web3-services.js';
 
@@ -140,53 +146,101 @@ const getUnwrapFioActions = async ({ afterTimestamp, beforeTimestamp }) => {
  * Gets consensus_activity, wrapped, and unwrapped events
  */
 const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd }) => {
-  const { chainParams, infura, contractAddress } = chain;
+  const { chainParams, contractAddress, blocksOffset = 0 } = chain;
   const { chainCode } = chainParams;
   const logPrefix = `Auto-Retry Missing Actions, ${chainCode} Events -->`;
 
   try {
-    const web3Instance = Web3Service.getWe3Instance({
-      chainCode,
-      rpcUrl: infura.rpcUrl,
-      apiKey: infura.apiKey,
-    });
+    const web3Instance = Web3Service.getWe3Instance({ chainCode });
 
-    const currentBlock = await web3Instance.eth.getBlockNumber();
+    const currentBlock = Number(await web3Instance.eth.getBlockNumber());
+    const lastInChainBlockNumber = Math.max(0, currentBlock - Number(blocksOffset || 0));
     const blocksInRange = estimateBlockRange(timeRangeEnd);
-    const fromBlock = Math.max(0, Number(currentBlock) - blocksInRange);
-    const toBlock = Number(currentBlock) - estimateBlockRange(timeRangeStart);
+    let fromBlock = Math.max(0, currentBlock - blocksInRange);
+    let toBlock = currentBlock - estimateBlockRange(timeRangeStart);
+    // Cap to last confirmed block using blocksOffset
+    toBlock = Math.min(toBlock, lastInChainBlockNumber);
+    if (fromBlock > toBlock) {
+      fromBlock = Math.max(0, toBlock - blocksInRange);
+    }
 
     console.log(
       `${logPrefix} Fetching events from block ${fromBlock} to ${toBlock} (estimated ${blocksInRange} blocks for time range)`,
     );
 
     const contract = await Web3Service.getWeb3Contract({
-      apiKey: infura.apiKey,
       type,
       chainCode,
       contractAddress,
-      rpcUrl: infura.rpcUrl,
     });
 
-    // Get all relevant events (consensus_activity, wrapped, unwrapped)
-    const allEvents = await contract.getPastEvents('allEvents', {
+    // Get all relevant events (consensus_activity, wrapped, unwrapped) in chunks
+    const allEvents = [];
+    const windows = splitRangeByProvider({
+      chainCode,
       fromBlock,
       toBlock,
+      preferChunk: DEFAULT_BLOCKS_PER_QUERY,
+      moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
     });
+
+    const fetchWindow = async (start, end) => {
+      try {
+        const events = await globalRequestQueue.enqueue(
+          async () =>
+            await contract.getPastEvents('allEvents', {
+              fromBlock: start,
+              toBlock: end,
+            }),
+          { logPrefix, from: start, to: end },
+        );
+        return events || [];
+      } catch (err) {
+        const msg = (err && err.message) || '';
+        const isRangeError =
+          err?.statusCode === 400 || msg.includes('Exceeded maximum block range');
+        if (!isRangeError) throw err;
+
+        console.warn(
+          `${logPrefix} Window ${start}-${end} failed (${msg}). Retrying with ${MORALIS_SAFE_BLOCKS_PER_QUERY}-block chunks...`,
+        );
+        const merged = [];
+        for (let s = start; s <= end; s += MORALIS_SAFE_BLOCKS_PER_QUERY) {
+          const e = Math.min(end, s + MORALIS_SAFE_BLOCKS_PER_QUERY - 1);
+          const part = await globalRequestQueue.enqueue(
+            async () =>
+              await contract.getPastEvents('allEvents', {
+                fromBlock: s,
+                toBlock: e,
+              }),
+            { logPrefix, from: s, to: e },
+          );
+          if (part && part.length) merged.push(...part);
+        }
+        return merged;
+      }
+    };
+
+    for (const w of windows) {
+      const chunk = await fetchWindow(w.from, w.to);
+      if (chunk && chunk.length) allEvents.push(...chunk);
+    }
 
     console.log(`${logPrefix} Found ${allEvents.length} total events`);
 
-    // Filter events by timestamp - batch block fetches
+    // Filter events by timestamp - batch block fetches with queue
     const uniqueBlockNumbers = [...new Set(allEvents.map((event) => event.blockNumber))];
     const blockTimestamps = {};
 
-    // Fetch block timestamps in batches to minimize calls
     if (uniqueBlockNumbers.length > 0) {
       console.log(
         `${logPrefix} Fetching timestamps for ${uniqueBlockNumbers.length} unique blocks...`,
       );
       for (const blockNumber of uniqueBlockNumbers) {
-        const block = await web3Instance.eth.getBlock(blockNumber);
+        const block = await globalRequestQueue.enqueue(
+          async () => await web3Instance.eth.getBlock(blockNumber),
+          { logPrefix, from: blockNumber, to: blockNumber },
+        );
         blockTimestamps[blockNumber] = Number(block.timestamp) * 1000;
       }
     }
@@ -394,11 +448,9 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const contract = await Web3Service.getWeb3Contract({
-        apiKey: chain.infura.apiKey,
         type,
         chainCode,
         contractAddress: chain.contractAddress,
-        rpcUrl: chain.infura.rpcUrl,
       });
 
       let isSuccess = false;
