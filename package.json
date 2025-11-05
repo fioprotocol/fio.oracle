@@ -1,6 +1,6 @@
 {
   "name": "oracle",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Oracle for moving tokens and code to and from the FIO chain",
   "main": "index.js",
   "scripts": {
@@ -11,9 +11,7 @@
     "start": "cross-env NODE_ENV=mainnet nodemon server.js",
     "start:testnet": "cross-env NODE_ENV=testnet nodemon --experimental-json-modules server.js",
     "oracle": "cross-env NODE_ENV=mainnet node scripts/oracle.js",
-    "oracle:testnet": "cross-env NODE_ENV=testnet node scripts/oracle.js",
-    "tryagain": "cross-env NODE_ENV=mainnet node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly",
-    "tryagain:testnet": "cross-env NODE_ENV=testnet node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly"
+    "oracle:testnet": "cross-env NODE_ENV=testnet node scripts/oracle.js"
   },
   "author": "",
   "license": "ISC",
