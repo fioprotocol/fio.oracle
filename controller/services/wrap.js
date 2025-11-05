@@ -111,7 +111,6 @@ export const handleWrap = async ({
             action: actionNameType,
             type,
             chainCode,
-            contract,
             contractActionParams: {
               amount,
               obtId: wrapOracleId,

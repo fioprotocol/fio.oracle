@@ -57,7 +57,6 @@ export const blockChainTransaction = async (transactionParams) => {
   const {
     action,
     chainCode,
-    contract,
     contractActionParams,
     handleSuccessedResult,
     isReplaceTx = false,
@@ -83,6 +82,12 @@ export const blockChainTransaction = async (transactionParams) => {
     thirdweb,
     web3Instance,
   } = await getDefaultTransactionParams({ chainCode, type });
+
+  const contract = Web3Service.getWeb3Contract({
+    type,
+    chainCode,
+    contractAddress,
+  });
 
   const { chainId, hardfork = DEFAULT_HARDFORK } = chainParams || {};
 

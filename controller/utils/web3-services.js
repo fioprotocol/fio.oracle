@@ -159,8 +159,9 @@ class MultiRpcProvider {
             status: err.statusCode,
             code: err.code,
             msg: err.message,
-            details:
-              err.responseSnippet || (err.data && JSON.stringify(err.data)).slice(0, 200),
+            details: (
+              err.responseSnippet || (err.data ? JSON.stringify(err.data) : '')
+            ).slice(0, 200),
           };
           console.warn(`[Web3 Fallback] Provider error, trying next`, meta);
           continue;
@@ -172,8 +173,9 @@ class MultiRpcProvider {
           status: err.statusCode,
           code: err.code,
           msg: err.message,
-          details:
-            err.responseSnippet || (err.data && JSON.stringify(err.data)).slice(0, 200),
+          details: (
+            err.responseSnippet || (err.data ? JSON.stringify(err.data) : '')
+          ).slice(0, 200),
         });
         throw err;
       }
