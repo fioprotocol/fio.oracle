@@ -447,12 +447,6 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const contract = await Web3Service.getWeb3Contract({
-        type,
-        chainCode,
-        contractAddress: chain.contractAddress,
-      });
-
       let isSuccess = false;
 
       const actionName = `${ACTIONS.WRAP} ${type}`;
@@ -461,7 +455,6 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
         action: actionName,
         type,
         chainCode,
-        contract,
         contractActionParams: {
           amount,
           obtId,

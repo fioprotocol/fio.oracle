@@ -1,14 +1,11 @@
 import 'dotenv/config';
 
-import config from '../config/config.js';
 import { ACTIONS, FIO_CONTRACT_ACTIONS } from '../controller/constants/chain.js';
 
+import { handleActionName } from '../controller/constants/chain.js';
 import { runUnwrapFioTransaction } from '../controller/utils/fio-chain.js';
 
 import { blockChainTransaction } from '../controller/utils/transactions.js';
-import { Web3Service } from '../controller/utils/web3-services.js';
-
-const { supportedChains } = config;
 
 export const handleWrapAction = async ({
   action,
@@ -21,22 +18,14 @@ export const handleWrapAction = async ({
   type,
 }) => {
   const logPrefix = `[MANUAL RUN] ${chainCode} ${action} ${type} --> address: ${address}, obtId: ${obtId}, ${amount ? `amount: ${amount}` : `nftName: ${nftName}`}`;
-
-  const currentChain = supportedChains[type].find(
-    (chain) => chain.chainCode === chainCode,
-  );
-  const { contractAddress } = currentChain;
-
-  const contract = Web3Service.getWeb3Contract({
+  console.log('prefix', logPrefix);
+  const actionNameType = handleActionName({
+    actionName: action,
     type,
-    chainCode,
-    contractAddress,
   });
-
   await blockChainTransaction({
-    action,
+    action: actionNameType,
     chainCode,
-    contract,
     contractActionParams: {
       amount,
       obtId,
@@ -96,24 +85,15 @@ export const handleBurnNFTInPolygon = async ({
   type,
 }) => {
   const logPrefix = `[MANUAL RUN] ${chainCode} ${action} ${type} --> obtId: ${obtId}, tokenID: ${tokenId}`;
-
-  const actionName = FIO_CONTRACT_ACTIONS[ACTIONS.BURN];
-
-  const currentChain = supportedChains[type].find(
-    (chain) => chain.chainCode === chainCode,
-  );
-  const { contractAddress } = currentChain;
-
-  const contract = Web3Service.getWeb3Contract({
+  console.log(logPrefix);
+  const actionName = handleActionName({
+    actionName: action,
     type,
-    chainCode,
-    contractAddress,
   });
 
   await blockChainTransaction({
     action: actionName,
     chainCode,
-    contract,
     contractActionParams: {
       tokenId,
       obtId,

@@ -1,5 +1,6 @@
 import { handleBurnNFTInPolygon } from './oracleutils.js';
 import { handleWrapAction, handleUnwrapAction } from './oracleutils.js';
+import config from '../config/config.js';
 import moralis from '../controller/api/moralis.js';
 import { ACTIONS } from '../controller/constants/chain.js';
 import { withLoadingIndicator } from '../controller/utils/general.js';
@@ -12,6 +13,8 @@ import {
   prepareLogFile,
   getLatestNonce,
 } from '../controller/utils/log-files.js';
+
+const { supportedChains } = config;
 
 const parseNamedParams = (args) => {
   const params = {
@@ -161,10 +164,15 @@ const main = async () => {
           );
         }
 
+        const currentChain = supportedChains[type].find(
+          (chain) => chain.chainParams && chain.chainParams.chainCode === chainCode,
+        );
+        const { chainParams, contractAddress } = currentChain || {};
+        const { chainId } = chainParams || {};
         let finalTokenId = tokenId;
         if ((!finalTokenId || Number.isNaN(finalTokenId)) && nftName) {
           const moralisTokenId = await withLoadingIndicator(
-            moralis.getTokenIdByDomain({ nftName }),
+            moralis.getTokenIdByDomain({ nftName, chainId, contractAddress }),
             `Try to find tokenId for nftName ${nftName}`,
           );
           if (!moralisTokenId) {

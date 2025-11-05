@@ -136,12 +136,38 @@ export const handleUnwrap = async () => {
             .sub(blocksOffset)
             .toNumber();
 
-          const lastProcessedBlockNumber = getLastProcessedBlockNumber({ chainCode });
-
-          if (new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber))
-            throw new Error(
-              `${logPrefix} ${ACTIONS.UNWRAP} ${type} Wrong start blockNumber, pls check stored value.`,
+          // Safely get last processed block number, handle missing file or invalid data
+          let lastProcessedBlockNumber;
+          try {
+            lastProcessedBlockNumber = getLastProcessedBlockNumber({ chainCode });
+          } catch (error) {
+            console.log(`${logPrefix} error: ${error}`);
+            // File doesn't exist or can't be read
+            console.warn(
+              `${logPrefix} ${ACTIONS.UNWRAP} ${type} Block number file not found or unreadable. Starting from current chain block: ${lastInChainBlockNumber}`,
             );
+            lastProcessedBlockNumber = lastInChainBlockNumber;
+            updateBlockNumber({
+              chainCode,
+              blockNumber: lastProcessedBlockNumber.toString(),
+            });
+          }
+
+          // Validate and fix invalid or corrupted block number
+          if (
+            isNaN(lastProcessedBlockNumber) ||
+            lastProcessedBlockNumber < 0 ||
+            new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber)
+          ) {
+            console.warn(
+              `${logPrefix} ${ACTIONS.UNWRAP} ${type} Invalid stored blockNumber (${lastProcessedBlockNumber}). Resetting to current chain block: ${lastInChainBlockNumber}`,
+            );
+            lastProcessedBlockNumber = lastInChainBlockNumber;
+            updateBlockNumber({
+              chainCode,
+              blockNumber: lastProcessedBlockNumber.toString(),
+            });
+          }
 
           let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 

@@ -109,7 +109,6 @@ export const handleBurnNFTs = async () => {
                 action: actionNameType,
                 type,
                 chainCode,
-                contract,
                 contractActionParams: {
                   tokenId,
                   obtId,

@@ -8,8 +8,6 @@ import {
   getDefaultTransactionParams,
 } from '../utils/transactions.js';
 
-import { Web3Service } from '../utils/web3-services.js';
-
 const { supportedChains } = config || {};
 
 export const checkAndReplacePendingTransactions = async () => {
@@ -21,7 +19,7 @@ export const checkAndReplacePendingTransactions = async () => {
         chainCode,
         type,
       });
-      const { publicKey, web3Instance, contractAddress } = defaultTransactionParams || {};
+      const { publicKey, web3Instance } = defaultTransactionParams || {};
 
       const pendingTransactionFilePath = getLogFilePath({
         key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
@@ -151,16 +149,10 @@ export const checkAndReplacePendingTransactions = async () => {
             );
           }
 
-          const contract = Web3Service.getWeb3Contract({
-            type,
-            chainCode,
-            contractAddress,
-          });
           // Only replace the earliest stuck transaction
           await blockChainTransaction({
             action,
             chainCode,
-            contract,
             contractActionParams,
             isReplaceTx: true,
             logPrefix,
