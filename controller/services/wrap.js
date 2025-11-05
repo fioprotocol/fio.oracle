@@ -76,11 +76,9 @@ export const handleWrap = async ({
 
   try {
     const contract = Web3Service.getWeb3Contract({
-      apiKey: infura.apiKey,
       type,
       chainCode,
       contractAddress,
-      rpcUrl: infura.rpcUrl,
     });
 
     const isOracleAddressValidResult = await isOracleAddressValid({

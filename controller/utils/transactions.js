@@ -38,13 +38,9 @@ export const getDefaultTransactionParams = async ({ chainCode, type }) => {
     throw new Error(`Unsupported chain: ${type} ${chainCode}`);
   }
 
-  const { publicKey, infura } = config;
+  const { publicKey } = config;
 
-  const web3Instance = Web3Service.getWe3Instance({
-    chainCode,
-    rpcUrl: infura.rpcUrl,
-    apiKey: infura.apiKey,
-  });
+  const web3Instance = Web3Service.getWe3Instance({ chainCode });
 
   const chainNonce = await web3Instance.eth.getTransactionCount(publicKey, 'pending');
 

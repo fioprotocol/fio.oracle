@@ -13,6 +13,10 @@ import {
   getLastProcessedBlockNumber,
   addLogMessage,
 } from '../utils/log-files.js';
+import {
+  splitRangeByProvider,
+  MORALIS_SAFE_BLOCKS_PER_QUERY,
+} from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
 import { globalRequestQueue } from '../utils/request-queue.js';
 import { Web3Service } from '../utils/web3-services.js';
@@ -28,7 +32,6 @@ export const handleUnwrap = async () => {
       const {
         blocksRangeLimit,
         blocksOffset = 0,
-        infura,
         contractAddress,
         contractTypeName,
         chainParams,
@@ -64,41 +67,69 @@ export const handleUnwrap = async () => {
       try {
         // Get contract instance once for all requests
         const contract = await Web3Service.getWeb3Contract({
-          apiKey: infura.apiKey,
           type,
           chainCode,
           contractAddress,
-          rpcUrl: infura.rpcUrl,
         });
 
         const getActionsLogs = async ({ from, to }) => {
-          // Enqueue the request through the global queue
-          // The queue handles rate limiting and retries automatically
-          return await globalRequestQueue.enqueue(
-            async () => {
-              console.log(`${logPrefix} Fetching events from block ${from} to ${to}...`);
+          const tryWindow = async (start, end) =>
+            await globalRequestQueue.enqueue(
+              async () => {
+                console.log(
+                  `${logPrefix} Fetching events from block ${start} to ${end}...`,
+                );
+                return await contract.getPastEvents(CONTRACT_ACTIONS.UNWRAPPED, {
+                  fromBlock: start,
+                  toBlock: end,
+                });
+              },
+              { logPrefix, from: start, to: end },
+            );
 
-              const events = await contract.getPastEvents(CONTRACT_ACTIONS.UNWRAPPED, {
-                fromBlock: from,
-                toBlock: to,
-              });
+          const windows = splitRangeByProvider({
+            chainCode,
+            fromBlock: from,
+            toBlock: to,
+            // prefer the whole window when not Moralis; util will clamp to 99 if Moralis
+            preferChunk: to - from + 1,
+            moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
+          });
 
-              return events;
-            },
-            {
-              logPrefix,
-              from,
-              to,
-            },
-          );
+          const combined = [];
+
+          const fetchWindow = async (start, end) => {
+            try {
+              const part = await tryWindow(start, end);
+              return part || [];
+            } catch (err) {
+              const msg = (err && err.message) || '';
+              const isRangeError =
+                err?.statusCode === 400 || msg.includes('Exceeded maximum block range');
+              if (!isRangeError) throw err;
+
+              console.warn(
+                `${logPrefix} Window ${start}-${end} failed (${msg}). Retrying with ${MORALIS_SAFE_BLOCKS_PER_QUERY}-block chunks...`,
+              );
+              const merged = [];
+              for (let s = start; s <= end; s += MORALIS_SAFE_BLOCKS_PER_QUERY) {
+                const e = Math.min(end, s + MORALIS_SAFE_BLOCKS_PER_QUERY - 1);
+                const sub = await tryWindow(s, e);
+                if (sub && sub.length) merged.push(...sub);
+              }
+              return merged;
+            }
+          };
+
+          for (const w of windows) {
+            const part = await fetchWindow(w.from, w.to);
+            if (part && part.length) combined.push(...part);
+          }
+          return combined;
         };
 
         const getUnprocessedActionsLogs = async () => {
-          const web3ChainInstance = Web3Service.getWe3Instance({
-            chainCode,
-            rpcUrl: infura.rpcUrl,
-            apiKey: infura.apiKey,
-          });
+          const web3ChainInstance = Web3Service.getWe3Instance({ chainCode });
 
           const chainBlockNumber = await web3ChainInstance.eth.getBlockNumber();
           const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))

@@ -21,8 +21,7 @@ export const checkAndReplacePendingTransactions = async () => {
         chainCode,
         type,
       });
-      const { publicKey, web3Instance, contractAddress, infura } =
-        defaultTransactionParams || {};
+      const { publicKey, web3Instance, contractAddress } = defaultTransactionParams || {};
 
       const pendingTransactionFilePath = getLogFilePath({
         key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
@@ -153,11 +152,9 @@ export const checkAndReplacePendingTransactions = async () => {
           }
 
           const contract = Web3Service.getWeb3Contract({
-            apiKey: infura.apiKey,
             type,
             chainCode,
             contractAddress,
-            rpcUrl: infura.rpcUrl,
           });
           // Only replace the earliest stuck transaction
           await blockChainTransaction({
