@@ -1,6 +1,11 @@
 import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
 
 export const isOracleAddressValid = async ({ contract, publicKey }) => {
+  if (!publicKey) {
+    console.error('isOracleAddressValid: publicKey is undefined');
+    return false;
+  }
+
   const registeredOraclesPublicKeys = await contract.methods.getOracles().call();
 
   return !!registeredOraclesPublicKeys

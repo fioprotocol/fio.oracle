@@ -4,12 +4,12 @@ import path from 'path';
 import { LOG_DIRECTORY_PATH_NAME, SYSTEM_LOG_FILE } from './log-file-templates.js';
 import config from '../../config/config.js';
 
-const { mode } = config;
+const {
+  mode,
+  logging: { LOG_TO_FILE },
+} = config;
 
-// Logger configuration
-// Prefer config file settings; fall back to env only if missing
-const LOG_TO_FILE = Boolean(config?.logging?.LOG_TO_FILE);
-const LOG_TO_CONSOLE = !LOG_TO_FILE || process.env.LOG_TO_CONSOLE !== 'false'; // Default true if not file, or if explicitly set
+const LOG_TO_CONSOLE = !Boolean(LOG_TO_FILE);
 
 /**
  * Logger class for flexible logging to console and/or file

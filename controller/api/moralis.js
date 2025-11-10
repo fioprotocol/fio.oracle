@@ -91,6 +91,15 @@ class GetMoralis {
       if (contractNftsResData && contractNftsResData.result) {
         nftsList.push(...contractNftsResData.result);
 
+        console.log(
+          '[MORALIS GET ALL CONTRACT NFTs] NFTs length',
+          contractNftsRes.result && contractNftsRes.result.length,
+        );
+        console.log(
+          '[MORALIS GET ALL CONTRACT NFTs] has next',
+          contractNftsRes.hasNext(),
+        );
+
         if (contractNftsRes.hasNext()) {
           await this.getAllContractNFTs({
             chainId,
