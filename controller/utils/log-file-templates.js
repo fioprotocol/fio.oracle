@@ -17,7 +17,7 @@ export const LOG_FILES_KEYS = {
   UNWRAP_ERROR: 'unwrap-error',
   ORACLE_ERRORS: 'oracleErrors',
   FIO: 'fio',
-  FIO_ORACLE_ITEM_ID: 'fioOracleItemId',
+  FIO_ORACLE_ITEM_ID: 'FIO-oracle-item-id',
   BURN_NFTS: 'burnNFTs',
   BURN_NFTS_ERROR: 'burnNFTs-error',
   MISSING_ACTIONS: 'missingActions',
@@ -70,7 +70,7 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
 
     // Application-wide logs (don't require chainCode)
     [LOG_FILES_KEYS.FIO]: `${LOG_DIRECTORY_PATH_NAME}FIO.log`,
-    [LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID]: `${LOG_DIRECTORY_PATH_NAME}fioOracleItemId.log`,
+    [LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID]: `${LOG_DIRECTORY_PATH_NAME}FIO-oracle-item-id.log`,
     [LOG_FILES_KEYS.ORACLE_ERRORS]: `${LOG_DIRECTORY_PATH_NAME}Error.log`,
     [LOG_FILES_KEYS.MISSING_ACTIONS]: `${LOG_DIRECTORY_PATH_NAME}missing-actions.log`,
     [LOG_FILES_KEYS.SYSTEM]: `${LOG_DIRECTORY_PATH_NAME}${SYSTEM_LOG_FILE}`,

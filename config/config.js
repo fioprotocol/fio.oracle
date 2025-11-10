@@ -100,6 +100,7 @@ export default {
     FIO_SERVER_URL_HISTORY: config.get('fio.serverUrlHistory'),
     FIO_TRANSACTION_MAX_RETRIES: config.get('fio.maxRetries'),
     LOWEST_ORACLE_ID: config.get('fio.lowestOracleId'),
+    FIO_SERVER_STALE_THRESHOLD_MINUTES: config.get('fio.serverStaleThresholdMinutes'),
   },
 
   gas: {

@@ -2,7 +2,13 @@ import fs from 'fs';
 
 import config from '../../config/config.js';
 
-import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
+import {
+  ACTIONS,
+  ACTION_TYPES,
+  FIO_ACCOUNT_NAMES,
+  FIO_CHAIN_NAME,
+  handleActionName,
+} from '../constants/chain.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { TRANSACTION_DELAY } from '../constants/transactions.js';
 import { isOracleAddressValid } from '../utils/chain.js';
@@ -25,12 +31,7 @@ export const handleBurnNFTs = async () => {
   for (const [type, chains] of Object.entries(supportedChains)) {
     if (type === ACTION_TYPES.NFTS) {
       for (const chain of chains) {
-        const {
-          contractAddress,
-          chainParams,
-          contractTypeName,
-          moralis: moralisConfig,
-        } = chain;
+        const { contractAddress, chainParams, contractTypeName, publicKey } = chain;
 
         const { chainCode } = chainParams || {};
 
@@ -41,9 +42,14 @@ export const handleBurnNFTs = async () => {
         });
 
         const isBurnNFTJobExecuting = oracleCache.get(cacheKey);
-        if (!isBurnNFTJobExecuting) {
-          oracleCache.set(cacheKey, true, 0);
+        if (isBurnNFTJobExecuting) {
+          console.log(
+            `${chainCode}, ${handleActionName({ actionName: ACTIONS.BURN, type })}: Job is already running, skipping.`,
+          );
+          return;
         }
+
+        oracleCache.set(cacheKey, true, 0);
 
         const transactionToProceed = fs
           .readFileSync(
@@ -79,7 +85,7 @@ export const handleBurnNFTs = async () => {
 
           const isOracleAddressValidResult = await isOracleAddressValid({
             contract,
-            publicKey: moralisConfig.publicKey,
+            publicKey,
           });
 
           if (!isOracleAddressValidResult) {
@@ -100,6 +106,22 @@ export const handleBurnNFTs = async () => {
                     type,
                   }),
                   message: `${chainCode} ${actionNameType} ${contractTypeName} ${receipt}`,
+                });
+
+                // Log to FIO log file for tracking executed burn transactions
+                addLogMessage({
+                  filePath: getLogFilePath({ key: LOG_FILES_KEYS.FIO }),
+                  message: {
+                    chain: FIO_CHAIN_NAME,
+                    contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+                    action: `${ACTIONS.BURN} ${chainCode}`,
+                    transaction: {
+                      obtId,
+                      nftName,
+                      tokenId,
+                      receipt,
+                    },
+                  },
                 });
 
                 isTransactionProceededSuccessfully = true;
