@@ -181,7 +181,7 @@ your-bucket/
     │   │   └── ...
     │   ├── block-number-ETH.log    (State files - no date)
     │   ├── nonce-ETH.log
-    │   └── fioOracleItemId.log
+    │   └── FIO-oracle-item-id.log
     └── testnet/
         └── ...
 ```

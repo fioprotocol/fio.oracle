@@ -105,7 +105,8 @@ export const handleUnwrap = async () => {
             } catch (err) {
               const msg = (err && err.message) || '';
               const isRangeError =
-                err?.statusCode === 400 || msg.includes('Exceeded maximum block range');
+                (err && err.statusCode === 400) ||
+                msg.includes('Exceeded maximum block range');
               if (!isRangeError) throw err;
 
               console.warn(

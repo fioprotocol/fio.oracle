@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 import 'dotenv/config';
 
 import { Fio } from '@fioprotocol/fiojs';
@@ -7,7 +9,11 @@ import * as textEncoderObj from 'text-encoding';
 import MathOp from './math.js';
 import config from '../../config/config.js';
 import { handleChainError } from '../../controller/utils/log-files.js';
-import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
+import {
+  FIO_ACCOUNT_NAMES,
+  FIO_TABLE_NAMES,
+  FIO_HANDLE_DELIMITER,
+} from '../constants/chain.js';
 import { SECOND_IN_MILLISECONDS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
 import {
   checkHttpResponseStatus,
@@ -40,6 +46,11 @@ const makeGetBlockUrl = (baseUrl) => `${baseUrl}v1/chain/get_block`;
 const makeGetRawAbiUrl = (baseUrl) => `${baseUrl}v1/chain/get_raw_abi`;
 const makePushTransactionUrl = (baseUrl) => `${baseUrl}v1/chain/push_transaction`;
 const makeTableRowsUrl = (baseUrl) => `${baseUrl}v1/chain/get_table_rows`;
+
+export const normalizeNftName = (name) =>
+  name && typeof name === 'string' ? name.toLowerCase() : '';
+
+export const isDomain = (fioName) => fioName.indexOf(FIO_HANDLE_DELIMITER) < 0;
 
 const getFioChainInfo = async () =>
   await (
@@ -278,7 +289,7 @@ export const getFioOracleNfts = async ({
 }) => {
   // Determine lower_bound: use provided option, or calculate from last accumulated row, or start at 0
   let lowerBound = 0;
-  if (options?.lowerBound !== undefined) {
+  if (options && options.lowerBound !== undefined) {
     lowerBound = options.lowerBound;
   } else if (accumulator.length > 0) {
     const lastRow = accumulator[accumulator.length - 1];
@@ -314,7 +325,8 @@ export const getFioOracleNfts = async ({
       });
 
       if (!getTableRowsActionResponse || !getTableRowsActionResponse.ok) {
-        const errorStatus = getTableRowsActionResponse?.status || 'unknown';
+        const errorStatus =
+          (getTableRowsActionResponse && getTableRowsActionResponse.status) || 'unknown';
         lastError = new Error(`HTTP error! status: ${errorStatus}`);
 
         // Retry on 429 (rate limit) or 5xx errors
@@ -338,7 +350,7 @@ export const getFioOracleNfts = async ({
 
       if (!response || !Array.isArray(response.rows)) {
         if (throwOnEmpty && accumulator.length === 0) {
-          throw new Error('Failed to fetch FIO Oracle NFT domain rows.');
+          throw new Error('Failed to fetch FIO Oracle NFT Names rows.');
         }
 
         // Return accumulated rows gathered so far
@@ -362,7 +374,8 @@ export const getFioOracleNfts = async ({
       return allRows;
     } catch (error) {
       lastError = error;
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      const errorMessage =
+        (error && error.message) || (error && error.toString()) || 'Unknown error';
 
       // Retry on network errors or retryable HTTP errors
       if (retryCount < DEFAULT_MAX_RETRIES) {
@@ -409,7 +422,7 @@ const checkServerFreshness = async (serverUrl) => {
     if (!response || !response.ok) {
       return {
         isFresh: false,
-        error: `HTTP error! status: ${response?.status || 'unknown'}`,
+        error: `HTTP error! status: ${response && response.status ? response.status : 'unknown'}`,
       };
     }
 
@@ -512,7 +525,8 @@ export const getFioOracleNftsWithConsensus = async ({ serverUrls } = {}) => {
 
       console.log(`${domainsLogPrefix}: server ${serverUrl}, length ${domains.length}`);
     } catch (error) {
-      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      const errorMessage =
+        (error && error.message) || (error && error.toString()) || 'Unknown error';
       statuses.push({ serverUrl, status: 'failed', error: errorMessage, count: 0 });
       console.error(
         `${domainsLogPrefix}: server ${serverUrl}, length 0 (failed: ${errorMessage})`,
@@ -553,7 +567,8 @@ export const getFioOracleNftsWithConsensus = async ({ serverUrls } = {}) => {
             `${domainsLogPrefix}: server ${staleServer.serverUrl}, length ${domains.length} (stale)`,
           );
         } catch (error) {
-          const errorMessage = error?.message || error?.toString() || 'Unknown error';
+          const errorMessage =
+            (error && error.message) || (error && error.toString()) || 'Unknown error';
           statuses.push({
             serverUrl: staleServer.serverUrl,
             status: 'failed',
@@ -642,4 +657,52 @@ export const getFioOracleNftsWithConsensus = async ({ serverUrls } = {}) => {
     domains: baseline.domains,
     serverSummaries: statuses,
   };
+};
+
+export const getFioNameFromChain = async ({ fioName }) => {
+  const logPrefix = '[Get FIO Name from FIO Chain]:';
+
+  const normalizedName = normalizeNftName(fioName);
+  if (!normalizedName) {
+    console.log(`${logPrefix} Skipping FIO name ${fioName} because can't normalize.`);
+    return null;
+  }
+
+  try {
+    // Create hash for FIO name lookup
+    const hash = crypto.createHash('sha1');
+    const bound =
+      '0x' +
+      hash.update(normalizedName).digest().subarray(0, 16).reverse().toString('hex');
+
+    const tableRowsParams = {
+      code: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+      scope: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+      lower_bound: bound,
+      upper_bound: bound,
+      key_type: 'i128',
+      json: true,
+    };
+
+    if (isDomain(normalizedName)) {
+      tableRowsParams.table = FIO_TABLE_NAMES.FIO_DOMAINS;
+      tableRowsParams.index_position = '4';
+    } else {
+      tableRowsParams.table = FIO_TABLE_NAMES.FIO_NAMES;
+      tableRowsParams.index_position = '5';
+    }
+
+    console.log(`${logPrefix} Querying FIO name ${normalizedName} with bound ${bound}`);
+    const response = await getTableRows({ logPrefix, tableRowsParams });
+
+    if (!response || !response.rows || response.rows.length === 0) {
+      return null;
+    }
+
+    // Return the first matching FIO name (should be only one with exact hash match)
+    return response.rows[0] || null;
+  } catch (error) {
+    console.error(`${logPrefix} Error querying FIO name ${fioName}:`, error);
+    return null;
+  }
 };

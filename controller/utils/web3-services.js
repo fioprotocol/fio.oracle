@@ -43,7 +43,10 @@ class HttpRpcProvider {
           parsed = JSON.parse(responseText);
         } catch {}
 
-        const extraMsg = parsed?.error?.message || (responseText || '').slice(0, 300);
+        const extraMsg =
+          parsed && parsed.error && parsed.error.message
+            ? parsed.error.message
+            : (responseText || '').slice(0, 300);
         const err = new Error(
           `${this.name} ${method} -> HTTP ${res.status} ${res.statusText}${extraMsg ? `: ${extraMsg}` : ''}`,
         );

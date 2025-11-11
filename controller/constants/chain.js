@@ -19,6 +19,7 @@ export const FIO_ACCOUNT_NAMES = {
 export const FIO_TABLE_NAMES = {
   FIO_ORACLE_LDGRS: 'oracleldgrs',
   FIO_DOMAINS: 'domains',
+  FIO_NAMES: 'fionames',
 };
 
 export const ACTION_TYPES = {
@@ -29,6 +30,7 @@ export const ACTION_TYPES = {
 export const CONTRACT_ACTIONS = {
   WRAPPED: 'wrapped',
   UNWRAPPED: 'unwrapped',
+  CONSENSUS_ACTIVITY: 'consensus_activity',
 };
 
 export const FIO_CONTRACT_ACTIONS = {
@@ -42,6 +44,8 @@ export const FIO_CONTRACT_ACTIONS = {
   },
   [ACTIONS.BURN]: 'burnnft',
 };
+
+export const FIO_HANDLE_DELIMITER = '@';
 
 export const handleActionName = ({ actionName, type }) => {
   // Allow passing either enum keys (e.g., 'WRAP', 'TOKENS') or values ('wrap', 'tokens')

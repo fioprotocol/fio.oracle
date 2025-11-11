@@ -92,7 +92,7 @@ export default {
 
   fio: {
     FIO_GET_TABLE_ROWS_OFFSET: config.get('fio.getTableRowsOffset'),
-    FIO_HISTORY_HYPERION_OFFSET: config.get('fio.historyHyperionOffset'),
+    FIO_HISTORY_OFFSET: config.get('fio.historyOffset'),
     FIO_ORACLE_ACCOUNT: config.get('fio.account'),
     FIO_ORACLE_PERMISSION: config.get('fio.permission'),
     FIO_ORACLE_PRIVATE_KEY: config.get('fio.privateKey'),
@@ -104,7 +104,7 @@ export default {
   },
 
   gas: {
-    GAS_PRICE_LEVEL: config.get('gas.priceLevel'),
+    GAS_PRICE_LEVEL: config.get('chainDefaults.gasPriceLevel'),
     USE_GAS_API: config.get('chainDefaults.useGasApi'),
   },
 

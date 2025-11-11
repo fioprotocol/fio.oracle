@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import moralis from './moralis.js';
 import config from '../../config/config.js';
 
@@ -13,24 +15,21 @@ import { handleBurnNFTs } from '../services/burnnfts.js';
 import { handleWrap } from '../services/wrap.js';
 import {
   createBurnRecordChecker,
-  getDomainOwner,
   isNonRetryableError,
   verifyAndFilterBurnList,
 } from '../utils/burn-utils.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
 import { getOracleCacheKey } from '../utils/cron-jobs.js';
 import {
-  getLastIrreversibleBlockOnFioChain,
   getOracleItems,
   runUnwrapFioTransaction,
   getFioOracleNftsWithConsensus,
+  normalizeNftName,
 } from '../utils/fio-chain.js';
-import { sleep, convertTimestampIntoMs, normalizeNftName } from '../utils/general.js';
+import { sleep, convertTimestampIntoMs } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import {
   addLogMessage,
-  updateBlockNumberFIOForBurnNFT,
-  getLastProceededBlockNumberOnFioChainForBurnNFT,
   getLastProcessedFioOracleItemId,
   updateFioOracleId,
   handleUpdatePendingItemsQueue,
@@ -351,12 +350,6 @@ class FIOCtrl {
     }
 
     const handleBurnNFTAction = async () => {
-      const lastProcessedFioBlockNumber =
-        getLastProceededBlockNumberOnFioChainForBurnNFT() || 0;
-      const lastIrreversibleBlock = (await getLastIrreversibleBlockOnFioChain()) || 0;
-
-      console.log(`${logPrefix} start Position = ${lastProcessedFioBlockNumber}`);
-
       let consensusResult;
       try {
         consensusResult = await getFioOracleNftsWithConsensus({
@@ -377,27 +370,17 @@ class FIOCtrl {
       );
 
       if (Array.isArray(serverSummaries) && serverSummaries.length) {
-        console.log(`${logPrefix} Domains retrieved per FIO server:`);
+        console.log(`${logPrefix} FIO Names retrieved per FIO server:`);
         serverSummaries.forEach((summary) => {
           const countValue = summary.count !== undefined ? summary.count : 'N/A';
           const errorText = summary.error ? ` | ${summary.error}` : '';
-          const serverLogMessage = `${logPrefix}   ${summary.serverUrl}: ${countValue} domains (${summary.status}${errorText})`;
+          const serverLogMessage = `${logPrefix}   ${summary.serverUrl}: ${countValue} FIO Names (${summary.status}${errorText})`;
           console.log(serverLogMessage);
         });
       }
 
-      const fioDomainsByName = new Map();
-      fioConsensusDomains.forEach((domain) => {
-        const domainName = domain && normalizeNftName(domain.name);
-        if (domainName) {
-          fioDomainsByName.set(domainName, domain);
-        }
-      });
-
       if (!fioConsensusDomains.length) {
-        console.log(
-          `${logPrefix} No FIO domains found via consensus. Skipping burn sync.`,
-        );
+        console.log(`${logPrefix} No FIO Names found via consensus. Skipping burn sync.`);
       } else {
         for (const [type, chains] of Object.entries(supportedChains)) {
           if (type === ACTION_TYPES.NFTS) {
@@ -417,11 +400,10 @@ class FIOCtrl {
               );
 
               // Create a checker function to see if transactions already exist in log files
-              const hasExistingBurnRecord = createBurnRecordChecker(
+              const hasExistingBurnRecord = createBurnRecordChecker({
                 chainCode,
-                type,
                 logPrefix,
-              );
+              });
 
               const burnCandidates = [];
               const candidateStats = {
@@ -452,11 +434,14 @@ class FIOCtrl {
 
                 if (!name) continue;
 
-                const normalizedName = normalizeNftName(name);
-                const fioDomainEntry = fioDomainsByName.get(normalizedName);
-                const fioOwner = getDomainOwner(fioDomainEntry);
+                const existingNftOnFioChain = fioConsensusDomains.find(
+                  (nft) => normalizeNftName(nft.name) === normalizeNftName(name),
+                );
 
-                if (fioOwner === FIO_ACCOUNT_NAMES.FIO_ORACLE) {
+                if (
+                  existingNftOnFioChain &&
+                  existingNftOnFioChain.account === FIO_ACCOUNT_NAMES.FIO_ORACLE
+                ) {
                   candidateStats.skippedOwnedByOracle += 1;
                   continue;
                 }
@@ -497,9 +482,8 @@ class FIOCtrl {
                 );
               }
 
-              const nftsListToBurn = verifyAndFilterBurnList({
+              const nftsListToBurn = await verifyAndFilterBurnList({
                 burnCandidates,
-                fioConsensusDomains,
                 chainCode,
                 type,
               });
@@ -510,15 +494,15 @@ class FIOCtrl {
 
               if (nftsListToBurn.length > 0) {
                 console.log(`${logPrefix} Items to burn for ${chainCode}:`);
+
                 const burnQueueFile = getLogFilePath({
                   key: LOG_FILES_KEYS.BURN_NFTS,
                   chainCode,
-                  type,
                 });
 
                 nftsListToBurn.forEach((item, index) => {
                   console.log(
-                    `  ${index + 1}. Domain: ${item.nftName}, TokenId: ${item.tokenId}, ObtId: ${item.obtId}`,
+                    `  ${index + 1}. NFT Name: ${item.nftName}, Token Id: ${item.tokenId}, Obt Id: ${item.obtId}`,
                   );
 
                   // Write to burn queue file
@@ -533,16 +517,10 @@ class FIOCtrl {
               } else {
                 console.log(`${logPrefix} No items to burn for ${chainCode}.`);
               }
-
-              console.log(
-                `${logPrefix} Update FIO Block Number for burn NFTS for ${chainCode}: ${lastIrreversibleBlock}`,
-              );
             }
           }
         }
       }
-
-      updateBlockNumberFIOForBurnNFT(lastIrreversibleBlock.toString());
 
       // Check if any burn NFT job is currently executing for any chain
       let isBurnNFTJobExecuting = false;

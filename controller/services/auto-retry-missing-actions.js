@@ -22,7 +22,7 @@ import { blockChainTransaction } from '../utils/transactions.js';
 import { Web3Service } from '../utils/web3-services.js';
 
 const {
-  fio: { FIO_SERVER_URL_HISTORY, FIO_HISTORY_HYPERION_OFFSET },
+  fio: { FIO_SERVER_URL_HISTORY, FIO_HISTORY_OFFSET },
   oracleCache,
   supportedChains,
 } = config;
@@ -81,44 +81,158 @@ const getWrapOracleItems = async ({ afterTimestamp, beforeTimestamp }) => {
 };
 
 /**
- * Fetch unwrap actions from history v2 API with time filtering
+ * Fetch actions for account from FIO blockchain v1 history API with time filtering
+ * Uses pagination with pos and offset parameters
+ */
+const getAccountActions = async ({ accountName, startTime, endTime }) => {
+  const logPrefix = 'Auto-Retry Missing Actions, FIO Actions -->';
+
+  // Prepare server URLs array (handle both string and array)
+  const serverUrls = Array.isArray(FIO_SERVER_URL_HISTORY)
+    ? FIO_SERVER_URL_HISTORY
+    : typeof FIO_SERVER_URL_HISTORY === 'string' && FIO_SERVER_URL_HISTORY
+      ? FIO_SERVER_URL_HISTORY.split(',')
+          .map((url) => url.trim())
+          .filter(Boolean)
+      : [];
+
+  if (serverUrls.length === 0) {
+    throw new Error('No FIO history server URLs configured');
+  }
+
+  const allActions = [];
+  let pos = -1;
+  const offset = -FIO_HISTORY_OFFSET;
+  let hasMore = true;
+
+  console.log(`${logPrefix} Fetching actions for ${accountName}`);
+  console.log(`${logPrefix} Start time (older): ${startTime}`);
+  console.log(`${logPrefix} End time (newer): ${endTime}`);
+
+  while (hasMore) {
+    try {
+      const params = {
+        account_name: accountName,
+        pos: pos,
+        offset: offset,
+      };
+
+      const response = await fetchWithMultipleServers({
+        serverUrls: serverUrls,
+        urlBuilder: (baseUrl) => {
+          // Handle trailing slash - baseUrl may or may not have one
+          const normalizedBaseUrl = baseUrl.endsWith('/')
+            ? baseUrl.slice(0, -1)
+            : baseUrl;
+          return `${normalizedBaseUrl}/v1/history/get_actions`;
+        },
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.actions || data.actions.length === 0) {
+        console.log(`${logPrefix} No more actions found`);
+        break;
+      }
+
+      console.log(
+        `${logPrefix} Fetched ${data.actions.length} actions with last action time: ${data.actions.length ? data.actions[data.actions.length - 1].block_time : 'No data'}`,
+      );
+
+      // Process each action
+      // Convert ISO strings to timestamps for accurate comparison
+      const startTimeMs = new Date(startTime).getTime();
+      const endTimeMs = new Date(endTime).getTime();
+
+      for (const action of data.actions) {
+        const actionTime = action.block_time;
+        const actionTimeMs = new Date(actionTime).getTime();
+
+        // If action is after end time (too new) - skip it
+        if (actionTimeMs > endTimeMs) {
+          continue;
+        }
+
+        // If action is before start time (too old) - stop completely
+        if (actionTimeMs < startTimeMs) {
+          console.log(`${logPrefix} Reached action before start time: ${actionTime}`);
+          hasMore = false;
+          break;
+        }
+
+        // Normalize v1 API response structure for compatibility with downstream code
+        // v1 returns action.action_trace.act, but downstream expects action.act
+        const normalizedAction = {
+          ...action,
+          // Preserve original structure
+          act:
+            action.action_trace && action.action_trace.act
+              ? action.action_trace.act
+              : action.act,
+        };
+
+        // Action is in range - add it
+        allActions.push(normalizedAction);
+      }
+
+      console.log(`${logPrefix} Total collected: ${allActions.length}`);
+
+      // If we found actions older than start time, stop
+      if (!hasMore) {
+        break;
+      }
+
+      // Prepare next page
+      const lastAction = data.actions[data.actions.length - 1];
+      pos = lastAction.account_action_seq - 1;
+
+      // If we got fewer actions than requested, we reached the end
+      if (data.actions.length < Math.abs(offset)) {
+        console.log(`${logPrefix} Reached end of history`);
+        break;
+      }
+
+      // Small delay to be nice to the API
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error(`${logPrefix} Error fetching actions:`, error.message);
+      break;
+    }
+  }
+
+  return allActions;
+};
+
+/**
+ * Fetch unwrap actions from history v1 API with time filtering
  * For unwrap actions, we need history API to get the transaction data
  */
 const getUnwrapFioActions = async ({ afterTimestamp, beforeTimestamp }) => {
   const logPrefix = 'Auto-Retry Missing Actions, FIO Unwrap Actions -->';
 
   try {
-    const params = {
-      account: FIO_ACCOUNT_NAMES.FIO_ORACLE,
-      limit: FIO_HISTORY_HYPERION_OFFSET,
-      sort: 'desc',
-      after: new Date(afterTimestamp).toISOString(),
-      before: new Date(beforeTimestamp).toISOString(),
-    };
-
-    const queryString = new URLSearchParams(params).toString();
-
-    const response = await fetchWithMultipleServers({
-      serverUrls: FIO_SERVER_URL_HISTORY,
-      urlBuilder: (baseUrl) => `${baseUrl}v2/history/get_actions?${queryString}`,
+    // Fetch all actions for the account in the time range
+    const allActions = await getAccountActions({
+      accountName: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+      startTime: new Date(afterTimestamp).toISOString(),
+      endTime: new Date(beforeTimestamp).toISOString(),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const actions = data.actions || [];
-
-    console.log(`${logPrefix} Found ${actions.length} total FIO actions`);
+    console.log(`${logPrefix} Found ${allActions.length} total FIO actions`);
 
     // Filter only unwrap actions
-    const unwrapTokensActions = actions.filter(
+    // Actions are normalized in getAccountActions, so action.act is available
+    const unwrapTokensActions = allActions.filter(
       (action) =>
         action.act &&
         action.act.name === FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][ACTION_TYPES.TOKENS],
     );
-    const unwrapDomainsActions = actions.filter(
+    const unwrapDomainsActions = allActions.filter(
       (action) =>
         action.act &&
         action.act.name === FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][ACTION_TYPES.NFTS],
@@ -198,7 +312,7 @@ const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd }) => 
       } catch (err) {
         const msg = (err && err.message) || '';
         const isRangeError =
-          err?.statusCode === 400 || msg.includes('Exceeded maximum block range');
+          (err && err.statusCode === 400) || msg.includes('Exceeded maximum block range');
         if (!isRangeError) throw err;
 
         console.warn(
@@ -256,7 +370,7 @@ const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd }) => 
 
     // Separate event types
     const consensusEvents = filteredEvents.filter(
-      (e) => e.event === 'consensus_activity',
+      (e) => e.event === CONTRACT_ACTIONS.CONSENSUS_ACTIVITY,
     );
     const wrappedEvents = filteredEvents.filter(
       (e) => e.event === CONTRACT_ACTIONS.WRAPPED,

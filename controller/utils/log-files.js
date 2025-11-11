@@ -6,7 +6,6 @@ import {
   LOG_DIRECTORY_PATH_NAME,
 } from './log-file-templates.js';
 import config from '../../config/config.js';
-import { FIO_CHAIN_NAME } from '../constants/chain.js';
 import { replaceNewLines } from '../utils/general.js';
 
 const { oracleCache } = config;
@@ -114,26 +113,10 @@ export const updateFioOracleId = (oracleId) => {
   fs.writeFileSync(getLogFilePath({ key: LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID }), oracleId);
 };
 
-export const updateBlockNumberFIOForBurnNFT = (blockNumber) => {
-  fs.writeFileSync(
-    getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode: FIO_CHAIN_NAME }),
-    blockNumber,
-  );
-};
-
 export const updateNonce = ({ chainCode, nonce }) => {
   fs.writeFileSync(
     getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }),
     nonce ? nonce.toString() : '',
-  );
-};
-
-export const getLastProceededBlockNumberOnFioChainForBurnNFT = () => {
-  return parseFloat(
-    fs.readFileSync(
-      getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode: FIO_CHAIN_NAME }),
-      'utf8',
-    ),
   );
 };
 
@@ -281,11 +264,24 @@ export const handleChainError = ({ logMessage, consoleMessage }) => {
 export const getLatestNonce = ({ chainCode }) => {
   const filePath = getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode });
 
-  if (!fs.existsSync(filePath)) {
-    createLogFile({
-      filePath,
-      dataToWrite: '0',
-      showSuccessConsole: true,
-    });
+  try {
+    // If file does not exist yet, create it initialized with 0
+    if (!fs.existsSync(filePath)) {
+      createLogFile({
+        filePath,
+        dataToWrite: '0',
+        showSuccessConsole: true,
+      });
+      return 0;
+    }
+
+    const raw = fs.readFileSync(filePath, 'utf8').trim();
+    if (!raw) return 0;
+
+    const parsed = parseInt(raw, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  } catch (error) {
+    console.error(`Get latest nonce error: ${error.message}`);
+    return 0;
   }
 };
