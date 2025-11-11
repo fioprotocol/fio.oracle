@@ -1,10 +1,6 @@
 import { CONTRACT_ACTIONS } from '../../constants/chain.js';
 import { estimateBlockRange } from '../chain.js';
-import {
-  splitRangeByProvider,
-  MORALIS_SAFE_BLOCKS_PER_QUERY,
-  DEFAULT_BLOCKS_PER_QUERY,
-} from '../logs-range.js';
+import { splitRangeByProvider, MORALIS_SAFE_BLOCKS_PER_QUERY } from '../logs-range.js';
 import { globalRequestQueue } from '../request-queue.js';
 import { Web3Service } from '../web3-services.js';
 
@@ -36,7 +32,7 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       chainCode,
       fromBlock,
       toBlock,
-      preferChunk: DEFAULT_BLOCKS_PER_QUERY,
+      preferChunk: toBlock - fromBlock + 1,
       moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
     });
 

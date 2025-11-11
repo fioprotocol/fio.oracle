@@ -1,7 +1,6 @@
 import { Web3Service } from './web3-services.js';
 
 export const MORALIS_SAFE_BLOCKS_PER_QUERY = 95;
-export const DEFAULT_BLOCKS_PER_QUERY = 950;
 
 // Returns true if the active provider for the chain looks like Moralis
 export const isMoralisProviderActive = ({ chainCode }) => {
@@ -10,24 +9,24 @@ export const isMoralisProviderActive = ({ chainCode }) => {
 };
 
 // Split a [fromBlock, toBlock] range into windows using a provider-aware chunk size
-// preferChunk: desired chunk size (e.g., 950 or the whole window length)
-// moralisMax: max chunk size for Moralis (default 99 to stay under 100)
+// preferChunk: desired chunk size (e.g., 3000 or the whole window length)
+// moralisMax: max chunk size for Moralis (default 95 to stay under 100)
 export const splitRangeByProvider = ({
   chainCode,
   fromBlock,
   toBlock,
-  preferChunk = DEFAULT_BLOCKS_PER_QUERY,
+  preferChunk,
   moralisMax = MORALIS_SAFE_BLOCKS_PER_QUERY,
 }) => {
   const from = Number(fromBlock);
   const to = Number(toBlock);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return [];
 
-  // If ANY Moralis provider is configured for this chain, cap chunks to moralisMax (<=99)
-  // This avoids Moralis 400 errors even if a non-Moralis provider is currently active
-  const hasMoralis = Web3Service.hasMoralisProvider({ chainCode });
+  // Only cap to Moralis max if Moralis is the active provider right now.
+  // If another provider is active (Infura/Thirdweb), use preferChunk and rely on
+  // the caller's fallback logic to split further on range errors.
   const isMoralisActive = isMoralisProviderActive({ chainCode });
-  const shouldCapToMoralis = hasMoralis || isMoralisActive;
+  const shouldCapToMoralis = isMoralisActive;
   const chunk = Math.max(
     1,
     Math.min(preferChunk, shouldCapToMoralis ? moralisMax : preferChunk),
@@ -53,7 +52,7 @@ export const fetchEventsChunked = async ({
   toBlock,
   logPrefix = '',
   queue,
-  preferChunk = DEFAULT_BLOCKS_PER_QUERY,
+  preferChunk,
   moralisMax = MORALIS_SAFE_BLOCKS_PER_QUERY,
 }) => {
   const windows = splitRangeByProvider({
