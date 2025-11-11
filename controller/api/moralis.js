@@ -166,7 +166,6 @@ class GetMoralis {
     try {
       await this.init();
       let cursor = null;
-      // const chain = EvmChain[chainName];
 
       while (true) {
         let contractNftsRes;
