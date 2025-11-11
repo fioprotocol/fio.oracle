@@ -24,3 +24,7 @@ template
 
 # log directory
 controller/api/logs*
+
+config/default.json
+config/mainnet.json
+config/testnet.json

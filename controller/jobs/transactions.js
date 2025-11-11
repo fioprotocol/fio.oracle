@@ -1,5 +1,6 @@
-import { ETH_CHAIN_NAME_CONSTANT, POLYGON_CHAIN_NAME } from '../constants/chain.js';
+import config from '../../config/config.js';
 import { TRANSACTION_NOT_FOUND, MAX_TRANSACTION_AGE } from '../constants/transactions.js';
+import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { readLogFile, removePendingTransaction } from '../utils/log-files.js';
 import { handleChainError } from '../utils/log-files.js';
 import {
@@ -7,19 +8,28 @@ import {
   getDefaultTransactionParams,
 } from '../utils/transactions.js';
 
+const { supportedChains } = config || {};
+
 export const checkAndReplacePendingTransactions = async () => {
-  const handlePendingTransaction = async ({ chainName }) => {
-    const logPrefix = `${chainName} Pending transactions handle: --> `;
+  const handlePendingTransaction = async ({ chainCode, type }) => {
+    const logPrefix = `${chainCode} Pending transactions handle: --> `;
 
     try {
-      const defaultTransactionParams = await getDefaultTransactionParams(chainName);
-      const { oraclePublicKey, pendingTransactionFilePath, web3Instance } =
-        defaultTransactionParams;
+      const defaultTransactionParams = await getDefaultTransactionParams({
+        chainCode,
+        type,
+      });
+      const { publicKey, web3Instance } = defaultTransactionParams || {};
+
+      const pendingTransactionFilePath = getLogFilePath({
+        key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
+        chainCode,
+      });
 
       const currentTime = Date.now();
 
       const latestNonce = Number(
-        await web3Instance.eth.getTransactionCount(oraclePublicKey, 'latest'),
+        await web3Instance.eth.getTransactionCount(publicKey, 'latest'),
       );
 
       let pendingTransactions = [];
@@ -36,7 +46,14 @@ export const checkAndReplacePendingTransactions = async () => {
           .filter((line) => line.trim()) // Remove empty lines
           .map((line) => {
             try {
-              const [hash, dataStr] = line.split(' ');
+              // Split only on the first space to handle actions with spaces like "wrap nfts"
+              const spaceIndex = line.indexOf(' ');
+              if (spaceIndex === -1) {
+                console.error(`${logPrefix} Invalid transaction line format:`, line);
+                return null;
+              }
+              const hash = line.substring(0, spaceIndex);
+              const dataStr = line.substring(spaceIndex + 1);
               return {
                 hash,
                 ...JSON.parse(dataStr),
@@ -92,7 +109,7 @@ export const checkAndReplacePendingTransactions = async () => {
 
       for (const {
         action,
-        chainName,
+        chainCode,
         contractActionParams,
         hash,
         isReplaceTx,
@@ -131,29 +148,37 @@ export const checkAndReplacePendingTransactions = async () => {
               `${logPrefix} Transaction ${hash} not in mempool and timed out, attempting replacement`,
             );
           }
+
           // Only replace the earliest stuck transaction
           await blockChainTransaction({
             action,
-            chainName,
+            chainCode,
             contractActionParams,
             isReplaceTx: true,
             logPrefix,
             originalTxHash: hash,
             pendingTxNonce: pendingTxNonce,
+            type,
           });
         }
       }
     } catch (error) {
       handleChainError({
-        logMessage: `${logPrefix} ${chainName} checking pending transactions failed: ${error}`,
+        logMessage: `${logPrefix} ${chainCode} checking pending transactions failed: ${error}`,
         consoleMessage: error,
       });
     }
   };
 
   try {
-    await handlePendingTransaction({ chainName: ETH_CHAIN_NAME_CONSTANT });
-    await handlePendingTransaction({ chainName: POLYGON_CHAIN_NAME });
+    for (const [type, chains] of Object.entries(supportedChains)) {
+      for (const chain of chains) {
+        await handlePendingTransaction({
+          chainCode: chain.chainParams.chainCode,
+          type,
+        });
+      }
+    }
   } catch (error) {
     handleChainError({
       logMessage: `Failed to check and replace pending transactions: ${error}`,

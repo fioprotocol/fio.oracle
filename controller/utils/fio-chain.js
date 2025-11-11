@@ -1,13 +1,25 @@
+import crypto from 'crypto';
+
 import 'dotenv/config';
 
 import { Fio } from '@fioprotocol/fiojs';
+import fetch from 'node-fetch';
 import * as textEncoderObj from 'text-encoding';
 
 import MathOp from './math.js';
 import config from '../../config/config.js';
 import { handleChainError } from '../../controller/utils/log-files.js';
-import { FIO_ACCOUNT_NAMES, FIO_TABLE_NAMES } from '../constants/chain.js';
-import { checkHttpResponseStatus, fetchWithRateLimit } from '../utils/general.js';
+import {
+  FIO_ACCOUNT_NAMES,
+  FIO_TABLE_NAMES,
+  FIO_HANDLE_DELIMITER,
+} from '../constants/chain.js';
+import { SECOND_IN_MILLISECONDS, MINUTE_IN_MILLISECONDS } from '../constants/general.js';
+import {
+  checkHttpResponseStatus,
+  fetchWithMultipleServers,
+  sleep,
+} from '../utils/general.js';
 
 const defaultTextEncoderObj = textEncoderObj.default || {};
 
@@ -18,15 +30,14 @@ const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
 
 const {
+  DEFAULT_MAX_RETRIES,
   fio: {
-    FIO_SERVER_URL_HISTORY,
-    FIO_SERVER_URL_HISTORY_BACKUP,
     FIO_SERVER_URL_ACTION,
-    FIO_SERVER_URL_ACTION_BACKUP,
     FIO_GET_TABLE_ROWS_OFFSET,
     FIO_ORACLE_PERMISSION,
     FIO_ORACLE_PRIVATE_KEY,
     FIO_ORACLE_ACCOUNT,
+    FIO_SERVER_STALE_THRESHOLD_MINUTES,
   },
 } = config;
 
@@ -35,67 +46,58 @@ const makeGetBlockUrl = (baseUrl) => `${baseUrl}v1/chain/get_block`;
 const makeGetRawAbiUrl = (baseUrl) => `${baseUrl}v1/chain/get_raw_abi`;
 const makePushTransactionUrl = (baseUrl) => `${baseUrl}v1/chain/push_transaction`;
 const makeTableRowsUrl = (baseUrl) => `${baseUrl}v1/chain/get_table_rows`;
-const makeDeltasUrl = ({ baseUrl, params }) => {
-  const queryString = new URLSearchParams(params).toString();
-  return `${baseUrl}v2/history/get_deltas?${queryString}`;
-};
+
+export const normalizeNftName = (name) =>
+  name && typeof name === 'string' ? name.toLowerCase() : '';
+
+export const isDomain = (fioName) => fioName.indexOf(FIO_HANDLE_DELIMITER) < 0;
 
 const getFioChainInfo = async () =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetInfoUrl,
     })
   ).json();
 
 const getFioBlockInfo = async (lastIrreversibleBlock) =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetBlockUrl(FIO_SERVER_URL_ACTION),
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetBlockUrl,
       options: {
         body: JSON.stringify({ block_num_or_id: lastIrreversibleBlock }),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetBlockUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     })
   ).json();
 
 const getFioOracleRawAbi = async () =>
   await (
-    await fetchWithRateLimit({
-      url: makeGetRawAbiUrl(FIO_SERVER_URL_ACTION),
+    await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeGetRawAbiUrl,
       options: {
         body: JSON.stringify({ account_name: FIO_ACCOUNT_NAMES.FIO_ORACLE }),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeGetRawAbiUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     })
   ).json();
 
 const pushFioTransaction = async (tx) =>
-  await fetchWithRateLimit({
-    url: makePushTransactionUrl(FIO_SERVER_URL_ACTION),
+  await fetchWithMultipleServers({
+    serverUrls: FIO_SERVER_URL_ACTION,
+    urlBuilder: makePushTransactionUrl,
     options: {
       body: JSON.stringify(tx),
       method: 'POST',
     },
-    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-      ? makePushTransactionUrl(FIO_SERVER_URL_ACTION_BACKUP)
-      : null,
   });
 
 export const getLastIrreversibleBlockOnFioChain = async () => {
-  const fioChainInfoResponse = await fetchWithRateLimit({
-    url: makeGetInfoUrl(FIO_SERVER_URL_ACTION),
-    backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-      ? makeGetInfoUrl(FIO_SERVER_URL_ACTION_BACKUP)
-      : null,
+  const fioChainInfoResponse = await fetchWithMultipleServers({
+    serverUrls: FIO_SERVER_URL_ACTION,
+    urlBuilder: makeGetInfoUrl,
   });
 
   await checkHttpResponseStatus(
@@ -114,15 +116,13 @@ export const getLastIrreversibleBlockOnFioChain = async () => {
 
 export const getTableRows = async ({ logPrefix, tableRowsParams }) => {
   try {
-    const tableRowsResponse = await fetchWithRateLimit({
-      url: makeTableRowsUrl(FIO_SERVER_URL_ACTION),
+    const tableRowsResponse = await fetchWithMultipleServers({
+      serverUrls: FIO_SERVER_URL_ACTION,
+      urlBuilder: makeTableRowsUrl,
       options: {
         body: JSON.stringify(tableRowsParams),
         method: 'POST',
       },
-      backupUrl: FIO_SERVER_URL_ACTION_BACKUP
-        ? makeTableRowsUrl(FIO_SERVER_URL_ACTION_BACKUP)
-        : null,
     });
 
     return tableRowsResponse ? tableRowsResponse.json() : null;
@@ -215,30 +215,6 @@ export const getOracleItems = async ({
   }
 };
 
-export const getFioDeltasV2 = async (params) => {
-  let response = null;
-
-  const url = makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY, params });
-
-  try {
-    const res = await fetchWithRateLimit({
-      url,
-      backupUrl: FIO_SERVER_URL_HISTORY_BACKUP
-        ? makeDeltasUrl({ baseUrl: FIO_SERVER_URL_HISTORY_BACKUP, params })
-        : null,
-    });
-    response = res.json();
-  } catch (error) {
-    console.log('error', error);
-    handleChainError({
-      logMessage: `Failed to fetch deltas from V2 ${url}: ${error.message}`,
-      consoleMessage: `Failed to fetch deltas from V2 ${url}: ${error}`,
-    });
-  }
-
-  return response;
-};
-
 export const runUnwrapFioTransaction = async ({ actionName, transactionActionData }) => {
   try {
     const contract = FIO_ACCOUNT_NAMES.FIO_ORACLE,
@@ -302,5 +278,431 @@ export const runUnwrapFioTransaction = async ({ actionName, transactionActionDat
   } catch (error) {
     console.log('Unwrap FIO transaction fail:', error);
     throw error;
+  }
+};
+
+export const getFioOracleNfts = async ({
+  serverUrl,
+  throwOnEmpty = false,
+  options = {},
+  accumulator = [],
+}) => {
+  // Determine lower_bound: use provided option, or calculate from last accumulated row, or start at 0
+  let lowerBound = 0;
+  if (options && options.lowerBound !== undefined) {
+    lowerBound = options.lowerBound;
+  } else if (accumulator.length > 0) {
+    const lastRow = accumulator[accumulator.length - 1];
+    if (lastRow && lastRow.id !== undefined) {
+      lowerBound = lastRow.id + 1;
+    }
+  }
+
+  const tableRowsParams = {
+    code: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+    scope: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+    table: FIO_TABLE_NAMES.FIO_DOMAINS,
+    json: true,
+    lower_bound: lowerBound,
+    limit: FIO_GET_TABLE_ROWS_OFFSET,
+  };
+
+  const logPrefix = '[Get NFTS from Oracle]: ';
+
+  console.log(
+    `${logPrefix} ${serverUrl}, lower_bound: ${lowerBound}, accumulated: ${accumulator.length}`,
+  );
+
+  // Retry logic with exponential backoff
+  let retryCount = 0;
+  let lastError = null;
+
+  while (retryCount <= DEFAULT_MAX_RETRIES) {
+    try {
+      const getTableRowsActionResponse = await fetch(makeTableRowsUrl(serverUrl), {
+        method: 'POST',
+        body: JSON.stringify(tableRowsParams),
+      });
+
+      if (!getTableRowsActionResponse || !getTableRowsActionResponse.ok) {
+        const errorStatus =
+          (getTableRowsActionResponse && getTableRowsActionResponse.status) || 'unknown';
+        lastError = new Error(`HTTP error! status: ${errorStatus}`);
+
+        // Retry on 429 (rate limit) or 5xx errors
+        if (
+          (errorStatus === 429 || (errorStatus >= 500 && errorStatus < 600)) &&
+          retryCount < DEFAULT_MAX_RETRIES
+        ) {
+          retryCount++;
+          const backoffDelay = SECOND_IN_MILLISECONDS * Math.pow(2, retryCount - 1);
+          console.log(
+            `${logPrefix} Retry ${retryCount}/${DEFAULT_MAX_RETRIES} after ${backoffDelay}ms for status ${errorStatus}`,
+          );
+          await sleep(backoffDelay);
+          continue;
+        }
+
+        throw lastError;
+      }
+
+      const response = await getTableRowsActionResponse.json();
+
+      if (!response || !Array.isArray(response.rows)) {
+        if (throwOnEmpty && accumulator.length === 0) {
+          throw new Error('Failed to fetch FIO Oracle NFT Names rows.');
+        }
+
+        // Return accumulated rows gathered so far
+        return accumulator;
+      }
+
+      // Accumulate all rows (don't filter yet - we need all rows to get the last id)
+      const allRows = [...accumulator, ...response.rows];
+
+      // If there are more pages, continue fetching
+      if (response.more === true && response.rows.length > 0) {
+        return await getFioOracleNfts({
+          serverUrl,
+          throwOnEmpty,
+          options,
+          accumulator: allRows,
+        });
+      }
+
+      // No more pages - return accumulated rows
+      return allRows;
+    } catch (error) {
+      lastError = error;
+      const errorMessage =
+        (error && error.message) || (error && error.toString()) || 'Unknown error';
+
+      // Retry on network errors or retryable HTTP errors
+      if (retryCount < DEFAULT_MAX_RETRIES) {
+        retryCount++;
+        const backoffDelay = SECOND_IN_MILLISECONDS * Math.pow(2, retryCount - 1);
+        console.log(
+          `${logPrefix} Retry ${retryCount}/${DEFAULT_MAX_RETRIES} after ${backoffDelay}ms due to error: ${errorMessage}`,
+        );
+        await sleep(backoffDelay);
+        continue;
+      }
+
+      // Max retries exceeded
+      if (throwOnEmpty && accumulator.length === 0) {
+        throw new Error(
+          `Failed to fetch FIO Oracle NFT domain rows after ${DEFAULT_MAX_RETRIES} retries: ${errorMessage}`,
+        );
+      }
+
+      // Return what we have so far if there's an error
+      return accumulator;
+    }
+  }
+
+  // This should never be reached, but handle it just in case
+  if (lastError) {
+    if (throwOnEmpty && accumulator.length === 0) {
+      throw lastError;
+    }
+    return accumulator;
+  }
+
+  // Fallback return (should never reach here)
+  return accumulator;
+};
+
+const checkServerFreshness = async (serverUrl) => {
+  // Default to 5 minutes, can be overridden via environment variable FIO_SERVER_STALE_THRESHOLD_MINUTES
+  const STALE_THRESHOLD_MS = FIO_SERVER_STALE_THRESHOLD_MINUTES * MINUTE_IN_MILLISECONDS;
+
+  try {
+    const response = await fetch(makeGetInfoUrl(serverUrl));
+
+    if (!response || !response.ok) {
+      return {
+        isFresh: false,
+        error: `HTTP error! status: ${response && response.status ? response.status : 'unknown'}`,
+      };
+    }
+
+    const chainInfo = await response.json();
+    const headBlockTime = chainInfo && chainInfo.head_block_time;
+
+    if (!headBlockTime) {
+      return {
+        isFresh: false,
+        error: 'Missing head_block_time in chain info',
+      };
+    }
+
+    // Parse as UTC - ensure ISO string has Z suffix for UTC
+    const blockTimeIso = headBlockTime.endsWith('Z')
+      ? headBlockTime
+      : `${headBlockTime}Z`;
+    const blockTime = new Date(blockTimeIso);
+    if (Number.isNaN(blockTime.getTime())) {
+      return {
+        isFresh: false,
+        error: `Invalid head_block_time format: ${headBlockTime}`,
+      };
+    }
+
+    // Both times are in UTC milliseconds (Date.now() and getTime() return UTC)
+    const nowUtc = Date.now();
+    const blockTimeUtc = blockTime.getTime();
+    const timeDiff = nowUtc - blockTimeUtc;
+
+    if (timeDiff > STALE_THRESHOLD_MS) {
+      const minutesAgo = Math.floor(timeDiff / MINUTE_IN_MILLISECONDS);
+      return {
+        isFresh: false,
+        error: `Server is stale: head_block_time is ${minutesAgo} minutes old (${headBlockTime})`,
+        blockTime: blockTimeUtc,
+        timeDiff,
+      };
+    }
+
+    return { isFresh: true, blockTime: blockTimeUtc, timeDiff };
+  } catch (error) {
+    return {
+      isFresh: false,
+      error: `Failed to check server freshness: ${error.message}`,
+    };
+  }
+};
+
+export const getFioOracleNftsWithConsensus = async ({ serverUrls } = {}) => {
+  const logPrefix = '[FIO Consensus]';
+  const domainsLogPrefix = '[GET FIO DOMAINS]';
+
+  if (!Array.isArray(serverUrls) || serverUrls.length === 0) {
+    throw new Error(
+      'getFioOracleNftsWithConsensus requires a non-empty array of server URLs.',
+    );
+  }
+
+  const responses = [];
+  const statuses = [];
+  const staleServers = [];
+
+  for (const serverUrl of serverUrls) {
+    // Check server freshness before querying
+    const freshnessCheck = await checkServerFreshness(serverUrl);
+
+    if (!freshnessCheck.isFresh) {
+      const alertMessage = `${logPrefix} Server ${serverUrl} is stale: ${freshnessCheck.error}`;
+      handleChainError({
+        logMessage: alertMessage,
+        consoleMessage: alertMessage,
+      });
+
+      // Store stale server info for potential consensus check
+      if (freshnessCheck.blockTime !== undefined) {
+        staleServers.push({
+          serverUrl,
+          blockTime: freshnessCheck.blockTime,
+          timeDiff: freshnessCheck.timeDiff,
+          error: freshnessCheck.error,
+        });
+      }
+
+      statuses.push({
+        serverUrl,
+        status: 'skipped',
+        error: freshnessCheck.error,
+        count: 0,
+      });
+      console.log(`${domainsLogPrefix}: server ${serverUrl}, length 0 (stale)`);
+      continue;
+    }
+
+    try {
+      const domains = await getFioOracleNfts({ serverUrl, throwOnEmpty: true });
+
+      responses.push({ serverUrl, domains });
+      statuses.push({ serverUrl, status: 'success', count: domains.length });
+
+      console.log(`${domainsLogPrefix}: server ${serverUrl}, length ${domains.length}`);
+    } catch (error) {
+      const errorMessage =
+        (error && error.message) || (error && error.toString()) || 'Unknown error';
+      statuses.push({ serverUrl, status: 'failed', error: errorMessage, count: 0 });
+      console.error(
+        `${domainsLogPrefix}: server ${serverUrl}, length 0 (failed: ${errorMessage})`,
+      );
+    }
+  }
+
+  // If all servers are stale but in sync, allow proceeding
+  if (responses.length === 0 && staleServers.length >= 2) {
+    const SYNC_THRESHOLD_MS = 5 * MINUTE_IN_MILLISECONDS; // Servers must be within 5 min of each other
+    const blockTimes = staleServers.map((s) => s.blockTime).sort((a, b) => a - b);
+    const timeSpread = blockTimes[blockTimes.length - 1] - blockTimes[0];
+
+    if (timeSpread <= SYNC_THRESHOLD_MS) {
+      const warningMessage = `${logPrefix} All servers are stale but in sync (within ${Math.floor(timeSpread / MINUTE_IN_MILLISECONDS)} minutes). Proceeding with stale servers.`;
+      console.warn(warningMessage);
+      handleChainError({
+        logMessage: warningMessage,
+        consoleMessage: warningMessage,
+      });
+
+      // Proceed with stale servers
+      for (const staleServer of staleServers) {
+        try {
+          const domains = await getFioOracleNfts({
+            serverUrl: staleServer.serverUrl,
+            throwOnEmpty: true,
+          });
+
+          responses.push({ serverUrl: staleServer.serverUrl, domains });
+          statuses.push({
+            serverUrl: staleServer.serverUrl,
+            status: 'success (stale)',
+            count: domains.length,
+          });
+
+          console.log(
+            `${domainsLogPrefix}: server ${staleServer.serverUrl}, length ${domains.length} (stale)`,
+          );
+        } catch (error) {
+          const errorMessage =
+            (error && error.message) || (error && error.toString()) || 'Unknown error';
+          statuses.push({
+            serverUrl: staleServer.serverUrl,
+            status: 'failed',
+            error: errorMessage,
+            count: 0,
+          });
+          console.error(
+            `${domainsLogPrefix}: server ${staleServer.serverUrl}, length 0 (failed: ${errorMessage})`,
+          );
+        }
+      }
+    }
+  }
+
+  const successfulResponses = responses;
+
+  if (successfulResponses.length < 2) {
+    const statusMessage = statuses
+      .map(
+        (status) =>
+          `${status.serverUrl}: ${status.status}${
+            status.error ? ` (${status.error})` : ''
+          }`,
+      )
+      .join('; ');
+
+    const errorMessage = `${logPrefix} Consensus failed: fewer than 2 servers succeeded. Statuses: ${statusMessage}`;
+    handleChainError({
+      logMessage: errorMessage,
+      consoleMessage: errorMessage,
+    });
+    throw new Error(errorMessage);
+  }
+
+  // Compare array lengths instead of deep comparison
+  const [baseline, ...others] = successfulResponses;
+  const baselineCount = baseline.domains.length;
+
+  for (const other of others) {
+    const otherCount = other.domains.length;
+
+    if (baselineCount !== otherCount) {
+      const differenceMessage = `${logPrefix} Domain count mismatch: ${baseline.serverUrl}=${baselineCount}, ${other.serverUrl}=${otherCount}`;
+      handleChainError({
+        logMessage: differenceMessage,
+        consoleMessage: differenceMessage,
+      });
+      throw new Error(differenceMessage);
+    }
+  }
+
+  // Log detailed summary of items retrieved from each server
+  console.log(`${logPrefix} Items retrieved per server:`);
+  statuses.forEach((status) => {
+    const count = status.count !== undefined ? status.count : 0;
+    const statusText =
+      status.status === 'success'
+        ? '✓'
+        : status.status === 'success (stale)'
+          ? '✓ (stale)'
+          : status.status === 'skipped'
+            ? '✗ (skipped)'
+            : '✗ (failed)';
+    console.log(`  ${statusText} ${status.serverUrl}: ${count} items`);
+  });
+
+  const statusSummary = statuses
+    .map((status) => {
+      let statusDetail = '';
+
+      if (status.count !== undefined) {
+        statusDetail = ` (${status.count} items)`;
+      } else if (status.error) {
+        statusDetail = ` (${status.error})`;
+      }
+
+      return `${status.serverUrl}: ${status.status}${statusDetail}`;
+    })
+    .join('; ');
+
+  console.log(
+    `${logPrefix} Consensus established across servers. Status summary: ${statusSummary}`,
+  );
+
+  return {
+    domains: baseline.domains,
+    serverSummaries: statuses,
+  };
+};
+
+export const getFioNameFromChain = async ({ fioName }) => {
+  const logPrefix = '[Get FIO Name from FIO Chain]:';
+
+  const normalizedName = normalizeNftName(fioName);
+  if (!normalizedName) {
+    console.log(`${logPrefix} Skipping FIO name ${fioName} because can't normalize.`);
+    return null;
+  }
+
+  try {
+    // Create hash for FIO name lookup
+    const hash = crypto.createHash('sha1');
+    const bound =
+      '0x' +
+      hash.update(normalizedName).digest().subarray(0, 16).reverse().toString('hex');
+
+    const tableRowsParams = {
+      code: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+      scope: FIO_ACCOUNT_NAMES.FIO_ADDRESS,
+      lower_bound: bound,
+      upper_bound: bound,
+      key_type: 'i128',
+      json: true,
+    };
+
+    if (isDomain(normalizedName)) {
+      tableRowsParams.table = FIO_TABLE_NAMES.FIO_DOMAINS;
+      tableRowsParams.index_position = '4';
+    } else {
+      tableRowsParams.table = FIO_TABLE_NAMES.FIO_NAMES;
+      tableRowsParams.index_position = '5';
+    }
+
+    console.log(`${logPrefix} Querying FIO name ${normalizedName} with bound ${bound}`);
+    const response = await getTableRows({ logPrefix, tableRowsParams });
+
+    if (!response || !response.rows || response.rows.length === 0) {
+      return null;
+    }
+
+    // Return the first matching FIO name (should be only one with exact hash match)
+    return response.rows[0] || null;
+  } catch (error) {
+    console.error(`${logPrefix} Error querying FIO name ${fioName}:`, error);
+    return null;
   }
 };

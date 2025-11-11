@@ -1,6 +1,6 @@
 {
   "name": "oracle",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Oracle for moving tokens and code to and from the FIO chain",
   "main": "index.js",
   "scripts": {
@@ -11,9 +11,7 @@
     "start": "cross-env NODE_ENV=mainnet nodemon server.js",
     "start:testnet": "cross-env NODE_ENV=testnet nodemon --experimental-json-modules server.js",
     "oracle": "cross-env NODE_ENV=mainnet node scripts/oracle.js",
-    "oracle:testnet": "cross-env NODE_ENV=testnet node scripts/oracle.js",
-    "tryagain": "cross-env NODE_ENV=mainnet node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly",
-    "tryagain:testnet": "cross-env NODE_ENV=testnet node scripts/try-again.js JOB_LIST=wrapEth,unwrapEth,wrapPoly,unwrapPoly"
+    "oracle:testnet": "cross-env NODE_ENV=testnet node scripts/oracle.js"
   },
   "author": "",
   "license": "ISC",
@@ -30,11 +28,12 @@
     "prettier": "3.3.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.922.0",
     "@babel/runtime": "7.20.1",
-    "@ethereumjs/common": "4.4.0",
     "@fioprotocol/fiojs": "1.0.2",
     "big.js": "6.2.1",
     "body-parser": "1.20.1",
+    "config": "4.1.1",
     "cors": "2.8.5",
     "dotenv": "16.4.5",
     "dotenv-safe": "9.1.0",
