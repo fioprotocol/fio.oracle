@@ -4,198 +4,232 @@ Oracle:
 - unwrapping FIO tokens and FIO domains from other chains to FIO chain
 - burn FIO domains from FIO chain to selected NFT chain
 
-## Dependencies to install
+## Requirements
 
-node 20.14.0
+- Node.js 22.14.0
+- Linux host (e.g., Ubuntu Server 20.04)
 
-Ubuntu Server 20.04
+## Config And Env Overview
 
-## Environment variables
+The app now uses the `config` package with environment-specific JSON files. Most tunables moved from `.env` into `config/*.json`.
 
-To configure your application, create a .env files with the following parameters in the root of the fio.oracle directory.
-There are 2 types of .env files:
-1) `.env.mainnet` - for mainnet env vars
-2) `.env.testnet` - for testnet env vars
+- Base config: `config/default.json`
+- Overrides by network: `config/mainnet.json`, `config/testnet.json`
+- Scalar env injection (API keys, secrets): `config/custom-environment-variables.json`
+- Runtime resolver for `ENV_VAR_*` placeholders inside config: `config/config.js`
 
+Environment selection is driven by `NODE_ENV` and matching dotenv file:
+- `NODE_ENV=mainnet` → loads `config/mainnet.json` and `.env.mainnet`
+- `NODE_ENV=testnet` → loads `config/testnet.json` and `.env.testnet`
+
+References:
+- `config/config.js:1` explains the load order and environment selection
+- `config/custom-environment-variables.json:1` maps env vars to config paths
+
+## What Stays In .env
+
+Create both `.env.mainnet` and `.env.testnet` in repo root (use `.env.example` as a guide): `.env.example:1`
+
+Required/env-injected values:
+- FIO keys/account
+  - `FIO_ORACLE_PRIVATE_KEY`, `FIO_ORACLE_ACCOUNT`
+- Chain oracle keys (used via `ENV_VAR_*` placeholders in config)
+  - `ETH_ORACLE_PRIVATE`, `ETH_ORACLE_PUBLIC`
+  - `POLYGON_ORACLE_PRIVATE`, `POLYGON_ORACLE_PUBLIC`
+  - `BASE_ORACLE_PRIVATE`, `BASE_ORACLE_PUBLIC`
+- RPC/API keys
+  - `INFURA_ETH_TOKENS_API_KEY`, `INFURA_BASE_TOKENS_API_KEY`, `INFURA_POLYGON_NFTS_API_KEY`
+  - `MORALIS_API_KEY`
+  - `MORALIS_RPC_NODE_API_KEY_ETHEREUM`, `MORALIS_RPC_NODE_API_KEY_POLYGON`, `MORALIS_RPC_NODE_API_KEY_BASE`
+  - `THIRDWEB_API_KEY`
+- AWS creds for S3 log sync
+  - `AWS_S3_KEY`, `AWS_S3_SECRET`, `AWS_S3_PERMITTED_FOLDER`
+
+Moved to config (no longer in .env):
+- App port, restart/retry timing, gas settings, FIO servers, job timeouts, logging flags, AWS bucket/region, etc. See `config/default.json:1`.
+
+## Config File Structure
+
+These are examples/skeletons showing the current shape and where values come from.
+
+Main base config: `config/default.json:1`
 ```
-PORT=                        # The port that the fio.oracle service will run on when started
-
-# FIO Server URLs - Multiple servers supported (comma-separated)
-# The oracle will automatically cycle through servers if one fails or hits rate limits
-# Example: https://server1.com/,https://server2.com/,https://server3.com/
-FIO_SERVER_URL_HISTORY=      # Comma-separated list of FIO history node URLs
-FIO_SERVER_URL_ACTION=       # Comma-separated list of FIO API node URLs
-
-FIO_HISTORY_HYPERION_OFFSET= # The number of actions to get from history when using hyperion version
-FIO_TRANSACTION_MAX_RETRIES= # The number of retries when FIO action call fails
-FIO_GET_TABLE_ROWS_OFFSET=   # Offset for FIO get tables rows action
-LOWEST_ORACLE_ID=            # WARNING! This is REQUIRED! If not set, incorrect wraps could be created, and tokens may be lost! The value of the wrapped oracle ID from the FIO chain table. Oracle items lower than this value should not be used to avoid wrapping already processed items.
-
-FIO_ORACLE_PRIVATE_KEY=      # The FIO private key used for approving unwrap transactions
-FIO_ORACLE_ACCOUNT=          # The FIO account used for approving unwrap transactions
-FIO_ORACLE_PERMISSION=       # The custom permission on FIO unwrap actions (defaults to "active")
-
-ETH_ORACLE_PUBLIC=           # The ETH oracle public key used for signing ERC20 transactions
-ETH_ORACLE_PRIVATE=          # The ETH oracle private key used for signing ERC20 transactions
-ETH_CHAIN_NAME=              # The Ethereum chain name for mainnet = 'mainnet' for testnet = 'sepolia' (any other ETH testnet name)
-ETH_CONTRACT=                # Ethereum address of the erc20 token contract
-BLOCKS_RANGE_LIMIT_ETH=      # The limitation for Block numbers used for ETH chain to make pastEvents contract call
-BLOCKS_OFFSET_ETH=           # The number of confirmations (blocks) required to validate Ethereum transactions 
-
-POLYGON_ORACLE_PUBLIC=       # The POLYGON oracle public key used for signing ERC721 transactions
-POLYGON_ORACLE_PRIVATE=      # The POLYGON oracle private key used for signing ERC721 transactions
-POLYGON_CONTRACT=            # The Polygon address of the erc721 NFT contract
-BLOCKS_RANGE_LIMIT_POLY=     # The limitation for Block numbers used for Polygon chain to make pastEvents contract call
-
-NFT_CHAIN_NAME=              # NFT chain name (POLYGON|POLYGON-AMOY)
-
-JOB_TIMEOUT=                 # Milliseconds between running job events (60 seconds=60000)
-BURN_DOMAINS_JOB_TIMEOUT=    # Milliseconds between running burn domains job event (3 hrs = 10800000)
-DEFAULT_MAX_RETRIES=         # Max retries for fetch actions (set 5 by default)
-
-USE_GAS_API=                 # Boolean to use manual price an limit settings or user the API (0 = manual, 1 = use API)
-GAS_PRICE_LEVEL=             # Which price to use from the gas price API (low/average/high)
-T_GAS_LIMIT=                 # Manual gas limit for ETH erc20
-T_GAS_PRICE=                 # Manual gas price for ETH erc20
-P_GAS_LIMIT=                 # Manual gas limit for Polygon erc721
-P_GAS_PRICE=                 # Manual gas price for Polygon erc721
-
-MORALIS_API_KEY=             # Moralis API Key
-MORALIS_RPC_BASE_URL=        # Moralis RPC Base Url
-MORALIS_RPC_BASE_URL_FALLBACK=      # Moralis Fallback RPC Base Url
-MORALIS_RPC_NODE_API_KEY_ETHEREUM=  # Moralis RPC Node API key for ETH
-MORALIS_RPC_NODE_API_KEY_POLYGON=   # Moralis RPC Node API key for Polygon
-MORALIS_RPC_ETH_CHAIN_NAME=         # Moralis RPC ETH chain name (ethereum|sepolia)
-MORALIS_RPC_POLYGON_CHAIN_NAME=     # Moralis RPC Polygon RPC chain name (polygon|amoy)
-MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS= # Moralis timeout between calls
-
-THIRDWEB_API_KEY=            # Thirdweb API key
-
-INFURA_ETH=                  # The Ethereum chain Infura API URL
-INFURA_POLYGON=              # The Polygon chain Infura API URL
-```
-
-### FIO Server Failover and Retry Strategy
-
-The oracle implements an intelligent multi-server failover system:
-
-1. **Multiple Servers**: Configure multiple FIO servers (comma-separated) for both HISTORY and ACTION endpoints
-2. **Automatic Failover**: If one server fails or hits rate limits, the oracle automatically tries the next server
-3. **Retry Cycles**: After trying all servers, the oracle will retry the entire server list up to 5 times with exponential backoff
-4. **Per-Server Rate Limiting**: Each server gets its own rate limit retry attempts before moving to the next
-5. **Intelligent Logging**: Detailed logging shows which server is being used and why failovers occur
-
-**Example Configuration:**
-```bash
-FIO_SERVER_URL_HISTORY=https://fio1.example.com/,https://fio2.example.com/,https://fio3.example.com/
-FIO_SERVER_URL_ACTION=https://api1.example.com/,https://api2.example.com/
-```
-
-## Installation
-
-Navigate to the directory where the files are and run the following commands:
-
-```
-npm install
-npm run start
-```
-
-To run testnet you need to run
-```
-npm run start:testnet
-```
-
-## Health Check Endpoint
-
-The oracle service provides a health check endpoint at `/health` that can be used to monitor the service status. 
-
-To check the service health:
-```
-GET http://localhost:{PORT}/api/v1/health
-```
-
-The endpoint returns:
-- Status code `200` if the service is running properly
-- JSON response with service status information:
-```json
 {
-  "status": "ok",
-  "timestamp": "2024-03-21T10:30:15.123Z"
+  "app": { "port": 3000, "restartTimeout": 5000, "maxRetries": 5, "stabilityThreshold": 30000 },
+  "autoRetryMissingActions": { "maxRetries": 5, "retryDelayMs": 5000, "timeRangeStart": 900000, "timeRangeEnd": 3600000 },
+  "aws": { "s3Key": "", "s3Secret": "", "s3Bucket": "fio-oracle-logs", "s3Region": "us-east-1", "s3PermittedFolder": "" },
+  "chainDefaults": { "useGasApi": 1, "gasPriceLevel": "average", "defaultHardfork": "london" },
+  "fio": { "serverUrlHistory": [], "serverUrlAction": [], "getTableRowsOffset": 1000, "historyOffset": 1000, "lowestOracleId": 0, "maxRetries": 5, "privateKey": "", "account": "", "permission": "active", "serverStaleThresholdMinutes": 5 },
+  "jobTimeouts": { "defaultJobTimeout": 60000, "burnDomainsJobTimeout": 10800000, "autoRetryMissingActionsTimeout": 600000 },
+  "logging": { "logToFile": false, "syncIntervalHours": 1, "enableS3Sync": false },
+  "moralis": { "apiKey": "", "rpcBaseUrl": "https://site1.moralis-nodes.com", "rpcBaseUrlFallback": "https://site2.moralis-nodes.com", "defaultTimeoutBetweenCalls": 1000 },
+  "thirdWeb": { "apiKey": "" },
+  "supportedChains": { "tokens": [], "nfts": [] }
 }
 ```
 
-You can use this endpoint for monitoring and health checks in your infrastructure.
-
-## Log files
-
-### Local Log Files
-
-Log files for different environments are stored in different folders:
-- `controller/api/logs-mainnet` - Mainnet logs
-- `controller/api/logs-testnet` - Testnet logs
-
-### Enhanced Logging System with AWS S3 Integration
-
-The oracle now includes an advanced logging system with automatic backup to AWS S3 and date-based organization.
-
-#### Features
-
-- **Flexible Console/File Logging** - Write to files or console
-- **AWS S3 Sync** - Automatic hourly backup to S3 with date-based folder structure
-- **Date-Based Organization** - Transaction logs organized by date in S3
-- **State File Preservation** - Critical state files (block-number, nonce) never cleared
-- **System Logs** - Separate system log file for application events
-- **Secure** - No external API endpoints for log control
-
-#### Additional Environment Variables
-
-Add these to your `.env.mainnet` or `.env.testnet` file:
-
-```bash
-# AWS S3 Configuration
-AWS_S3_KEY=                     # AWS Access Key ID
-AWS_S3_SECRET=                  # AWS Secret Access Key
-AWS_S3_BUCKET=                  # S3 Bucket Name
-AWS_S3_REGION=                  # AWS Region (e.g., us-east-1)
-AWS_S3_PERMITTED_FOLDER=        # Folder name in S3 bucket (e.g., oracle-logs)
-
-# Logging Configuration
-LOG_TO_FILE=true                # Write logs to files (default: true). If false, writes to console
-SYNC_INTERVAL_HOURS=1           # Hours between S3 syncs (default: 1). Logs are never cleared locally
+Mainnet overrides: `config/mainnet.json:1`
+```
+{
+  "app": { "port": 3030 },
+  "fio": {
+    "serverUrlHistory": ["https://fio.server-url.io/", "https://fio.server-url-2.io/"],
+    "serverUrlAction":  ["https://fio.server-url.io/", "https://fio.server-url-2.io/"],
+    "lowestOracleId": 900
+  },
+  "logging": { "enableS3Sync": false },
+  "supportedChains": {
+    "tokens": [
+      {
+        "chainParams": { "chainName": "ethereum", "chainCode": "ETH", "chainId": 1 },
+        "contractAddress": "0x...",
+        "contractTypeName": "fio.erc20",
+        "blocksRangeLimit": 3000,
+        "blocksOffset": 7,
+        "gasLimit": 200000,
+        "defaultGasPrice": 30,
+        "infura": { "rpcUrl": "https://mainnet.infura.io/v3", "apiKey": "ENV_VAR_INFURA_ETH_TOKENS_API_KEY" },
+        "moralis": { "rpcNodeApiKey": "ENV_VAR_MORALIS_RPC_NODE_API_KEY_ETHEREUM", "chainName": "eth" },
+        "thirdweb": { "chainName": "ethereum" },
+        "privateKey": "ENV_VAR_ETH_ORACLE_PRIVATE",
+        "publicKey":  "ENV_VAR_ETH_ORACLE_PUBLIC"
+      }
+      // ...additional chains
+    ],
+    "nfts": [
+      {
+        "chainParams": { "chainName": "polygon", "chainCode": "POL", "chainId": 137 },
+        "contractAddress": "0x...",
+        "contractTypeName": "fio.erc721",
+        "blocksRangeLimit": 3000,
+        "gasLimit": 200000,
+        "defaultGasPrice": 50,
+        "infura": { "rpcUrl": "https://polygon-mainnet.infura.io/v3", "apiKey": "ENV_VAR_INFURA_POLYGON_NFTS_API_KEY" },
+        "moralis": { "rpcNodeApiKey": "ENV_VAR_MORALIS_RPC_NODE_API_KEY_POLYGON", "chainName": "polygon" },
+        "thirdweb": { "chainName": "polygon" },
+        "privateKey": "ENV_VAR_POLYGON_ORACLE_PRIVATE",
+        "publicKey":  "ENV_VAR_POLYGON_ORACLE_PUBLIC"
+      }
+    ]
+  }
+}
 ```
 
-#### S3 Folder Structure
-
-Logs are organized in S3 as follows:
-
+Testnet overrides: `config/testnet.json:1`
 ```
-your-bucket/
-└── oracle-logs/              (AWS_S3_PERMITTED_FOLDER)
-    ├── mainnet/
-    │   ├── 2025-11-04/       (Transaction logs by date)
-    │   │   ├── Error.log
-    │   │   ├── tokens-ETH.log
-    │   │   ├── wrap-tokens-transactions-queue-ETH.log
-    │   │   └── system.log
-    │   ├── 2025-11-05/
-    │   │   └── ...
-    │   ├── block-number-ETH.log    (State files - no date)
-    │   ├── nonce-ETH.log
-    │   └── FIO-oracle-item-id.log
-    └── testnet/
-        └── ...
+{
+  "app": { "port": 3020 },
+  "fio": {
+    "serverUrlHistory": ["https://testnet.fio.server-url.io/", "https://testnet.fio.server-url-2.io/"],
+    "serverUrlAction":  ["https://testnet.fio.server-url.io/", "https://testnet.fio.server-url-2.io/"],
+    "lowestOracleId": 416
+  },
+  "supportedChains": {
+    "tokens": [
+      {
+        "chainParams": { "chainName": "sepolia", "chainCode": "ETH", "chainId": 11155111 },
+        "contractAddress": "0x...",
+        "contractTypeName": "fio.erc20",
+        "blocksRangeLimit": 3000,
+        "blocksOffset": 7,
+        "gasLimit": 200000,
+        "defaultGasPrice": 30,
+        "infura": { "rpcUrl": "https://sepolia.infura.io/v3", "apiKey": "ENV_VAR_INFURA_ETH_TOKENS_API_KEY" },
+        "moralis": { "rpcNodeApiKey": "ENV_VAR_MORALIS_RPC_NODE_API_KEY_ETHEREUM", "chainName": "sepolia" },
+        "thirdweb": { "chainName": "sepolia" },
+        "privateKey": "ENV_VAR_ETH_ORACLE_PRIVATE",
+        "publicKey":  "ENV_VAR_ETH_ORACLE_PUBLIC"
+      }
+      // ...additional chains
+    ],
+    "nfts": [
+      {
+        "chainParams": { "chainName": "polygon amoy", "chainCode": "POL", "chainId": 80002 },
+        "contractAddress": "0x...",
+        "contractTypeName": "fio.erc721",
+        "blocksRangeLimit": 3000,
+        "gasLimit": 200000,
+        "defaultGasPrice": 50,
+        "infura": { "rpcUrl": "https://polygon-amoy.infura.io/v3", "apiKey": "ENV_VAR_INFURA_POLYGON_NFTS_API_KEY" },
+        "moralis": { "rpcNodeApiKey": "ENV_VAR_MORALIS_RPC_NODE_API_KEY_POLYGON", "chainName": "amoy" },
+        "thirdweb": { "chainName": "polygonAmoy" },
+        "privateKey": "ENV_VAR_POLYGON_ORACLE_PRIVATE",
+        "publicKey":  "ENV_VAR_POLYGON_ORACLE_PUBLIC"
+      }
+    ]
+  }
+}
 ```
 
-#### Documentation
+Notes:
+- Any string value starting with `ENV_VAR_` is resolved at runtime to the respective environment variable by `config/config.js:38`.
+- Scalar values like `aws.s3Key`, `fio.privateKey`, `moralis.apiKey`, `thirdWeb.apiKey` are mapped to env vars by `config/custom-environment-variables.json:1`.
 
-For detailed information about the logging system:
-- See `LOGGING_CONFIG.md` for configuration details
-- See `TESTING_GUIDE.md` for testing procedures
+## Install And Run
 
-#### Quick Start
+- Copy `.env.example` → `.env.mainnet` and `.env.testnet` and fill required keys
+- Install deps: `npm install`
 
-1. Configure AWS credentials in your `.env` file
-2. Start the server - logs will be written locally
-3. Automatic S3 sync runs every hour (configurable)
-4. Local log files are never cleared - they continue to append
-5. Check your S3 bucket for organized log backups
+Run server:
+- Mainnet: `npm run start` (`package.json:7`)
+- Testnet: `npm run start:testnet` (`package.json:8`)
+
+Server listens on `app.port` from config. Startup/retry behavior is controlled by values in `config/default.json:1` and logged to console. See `server.js:1` and `controller/main.js:1`.
+
+## Manual Oracle Scripts
+
+There is a helper CLI for on-demand wrap/unwrap/burn actions with optional queueing.
+
+- Mainnet: `npm run oracle`
+- Testnet: `npm run oracle:testnet`
+
+Usage (from `scripts/oracle.js:1`):
+```
+npm run oracle <action> <type> [key:value params]
+
+<action>: wrap | unwrap | burn
+<type>:   tokens | nfts
+
+Params (key:value):
+  chainCode:<code>          - required (ETH, POL, BASE, ...)
+  nftName:<name>            - for nfts (wrap/unwrap/burn)
+  tokenId:<id>              - for burn nfts (optional if nftName resolves to tokenId)
+  amount:<value>            - for tokens (wrap/unwrap) amount in SUF
+  address:<addr>            - EVM address for wrap; FIO handle for unwrap
+  obtId:<id>                - wrap: oracle id from FIO table; unwrap/burn: FIO tx hash
+  clean:true|false          - if true, enqueue into normal job log instead of immediate execution
+  manualSetGasPrice:<wei>   - optional manual gas price override
+
+Examples:
+  npm run oracle wrap tokens chainCode:ETH amount:12000000000 address:0x... obtId:944 clean:true manualSetGasPrice:1650000016
+  npm run oracle wrap nfts chainCode:POL nftName:fiohacker address:0x... obtId:945 clean:true
+  npm run oracle unwrap tokens chainCode:BASE amount:12000000000 address:alice@fiotestnet obtId:<fioTxHash>
+  npm run oracle burn nfts chainCode:POL nftName:fiodomainname obtId:<fioTxHash>
+```
+
+## FIO Server Failover And Retry
+
+Multiple FIO servers can be configured and the app rotates on failures. Configure in config:
+- `fio.serverUrlHistory[]` and `fio.serverUrlAction[]` in `config/mainnet.json:1` or `config/testnet.json:1`.
+- Retries and backoff settings are in `app`, `autoRetryMissingActions`, and `fio.maxRetries` in `config/default.json:1`.
+
+## Health Check
+
+Endpoint: `GET /api/v1/health` (`controller/routes/health.js:1`)
+
+Example: `http://localhost:<port>/api/v1/health`
+
+Returns 200 `{ status: "ok", timestamp: "..." }` when healthy.
+
+## Logs And S3 Sync
+
+- Local log roots per environment are prepared under `controller/api/`.
+- S3 sync is controlled in config:
+  - Enable/disable: `logging.enableS3Sync` (default false)
+  - Interval hours: `logging.syncIntervalHours`
+  - File vs console: `logging.logToFile`
+- AWS credentials come from env; bucket/region are in config:
+  - Env: `AWS_S3_KEY`, `AWS_S3_SECRET`, `AWS_S3_PERMITTED_FOLDER`
+  - Config: `aws.s3Bucket`, `aws.s3Region`
+
+Tip: On startup the app prints chain balances and gas price suggestions when `chainDefaults.useGasApi` is enabled. See `controller/main.js:1`.
