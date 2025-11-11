@@ -217,9 +217,6 @@ export const convertTimestampIntoMs = (timestamp) => {
   throw new Error('Invalid input: Unable to convert timestamp into milliseconds.');
 };
 
-export const normalizeNftName = (name) =>
-  typeof name === 'string' ? name.toLowerCase() : '';
-
 export const stringifyWithBigInt = (obj) => {
   return JSON.stringify(obj, (key, value) => {
     // Handle arrays to maintain their structure

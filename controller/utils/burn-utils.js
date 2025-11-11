@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { normalizeNftName } from './general.js';
+import { getFioNameFromChain, normalizeNftName } from './fio-chain.js';
 import { getLogFilePath, LOG_FILES_KEYS } from './log-file-templates.js';
 import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
 import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
@@ -13,9 +13,6 @@ import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
 export const isNonRetryableError = (errorString) => {
   return FIO_NON_RETRYABLE_ERRORS.some((pattern) => errorString.includes(pattern));
 };
-
-export const getDomainOwner = (domain) =>
-  domain && (domain.account || domain.owner || domain.owner_account || '');
 
 /**
  * Checks if a transaction ID exists in FIO log file with a successful receipt
@@ -47,12 +44,16 @@ const hasSuccessfulTransactionInFioLog = (fioLogContent, transactionId) => {
  * Creates a function to check if a burn transaction already exists in log files
  * Reads both FIO log and burn log files once and returns a checker function
  * @param {string} chainCode - Chain code (e.g., 'POL', 'ETH')
- * @param {string} type - Type (e.g., 'nfts', 'tokens')
  * @param {string} logPrefix - Log prefix for error messages
  * @returns {Function} Function that takes obtId and returns true if transaction exists
  */
-export const createBurnRecordChecker = (chainCode, type, logPrefix = '') => {
-  const burnLogFile = getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS, chainCode, type });
+export const createBurnRecordChecker = ({ chainCode, logPrefix = '' }) => {
+  if (!chainCode) {
+    throw new Error(
+      `[createBurnRecordChecker] chainCode is required. Received: ${chainCode}`,
+    );
+  }
+  const burnLogFile = getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS, chainCode });
   const fioLogFile = getLogFilePath({ key: LOG_FILES_KEYS.FIO });
 
   const logContents = [];
@@ -93,25 +94,18 @@ export const createBurnRecordChecker = (chainCode, type, logPrefix = '') => {
   };
 };
 
-export const verifyAndFilterBurnList = ({
+export const verifyAndFilterBurnList = async ({
   burnCandidates = [],
-  fioConsensusDomains = [],
   chainCode,
   type,
 }) => {
-  const logPrefix = `[Burn Verification] ${chainCode || 'UNKNOWN'} ${type || ''}`.trim();
-
-  const fioDomainMap = new Map();
-  fioConsensusDomains.forEach((domain) => {
-    const domainName = domain && normalizeNftName(domain.name);
-    if (domainName) fioDomainMap.set(domainName, domain);
-  });
+  const logPrefix = `[Burn Verification] ${chainCode || 'UNKNOWN'} ${type || ''}`;
 
   // Use the reusable helper function to check for existing burn records
-  const hasExistingBurnRecord = createBurnRecordChecker(chainCode, type, logPrefix);
+  const hasExistingBurnRecord = createBurnRecordChecker({ chainCode, logPrefix });
 
-  const domainDecisionCache = new Map();
-  const domainOccurrences = new Map();
+  const fioNameDecisionCache = new Map();
+  const fioNameOccurrences = new Map();
   const duplicateNames = new Set();
   const filtered = [];
 
@@ -129,43 +123,54 @@ export const verifyAndFilterBurnList = ({
     if (!normalizedName) {
       stats.anomalies += 1;
       console.warn(
-        `${logPrefix} Skipping candidate with missing domain name. tokenId=${tokenId}, obtId=${obtId}`,
+        `${logPrefix} Skipping candidate with missing FIO name. tokenId=${tokenId}, obtId=${obtId}`,
       );
       continue;
     }
 
-    const nameOccurrences = (domainOccurrences.get(normalizedName) || 0) + 1;
-    domainOccurrences.set(normalizedName, nameOccurrences);
-    if (nameOccurrences > 1) duplicateNames.add(nftName);
-
-    let domainDecision = domainDecisionCache.get(normalizedName);
-
-    if (!domainDecision) {
-      const fioDomain = fioDomainMap.get(normalizedName);
-      const domainOwner = getDomainOwner(fioDomain);
-      const shouldBurnBasedOnFio =
-        fioDomain && domainOwner !== FIO_ACCOUNT_NAMES.FIO_ORACLE;
-
-      domainDecision = { shouldBurnBasedOnFio, domainOwner };
-      domainDecisionCache.set(normalizedName, domainDecision);
-
-      if (!shouldBurnBasedOnFio) {
-        console.log(
-          `${logPrefix} Removing ${nftName} (tokenId=${tokenId}) because it still exists on FIO with owner ${domainOwner}.`,
-        );
-      }
-    }
-
-    if (!domainDecision.shouldBurnBasedOnFio) {
-      stats.removedOwnedByOracle += 1;
-      continue;
-    }
-
+    // Check log files first
     if (hasExistingBurnRecord(obtId)) {
       stats.removedAlreadyBurned += 1;
       console.log(
         `${logPrefix} Removing ${nftName} (tokenId=${tokenId}) because obtId ${obtId} already exists in execution logs.`,
       );
+      continue;
+    }
+
+    const nameOccurrences = (fioNameOccurrences.get(normalizedName) || 0) + 1;
+    fioNameOccurrences.set(normalizedName, nameOccurrences);
+    if (nameOccurrences > 1) duplicateNames.add(nftName);
+
+    // Check if we already decided for this FIO name
+    let fioNameDecision = fioNameDecisionCache.get(normalizedName);
+
+    if (!fioNameDecision) {
+      // Query FIO chain to check if FIO name exists
+      const fioName = await getFioNameFromChain({ fioName: nftName });
+
+      // FIO name should be burned if:
+      // - FIO name doesn't exist on FIO chain, OR
+      // - FIO name exists but owner is not fio.oracle
+      const shouldBurnBasedOnFio =
+        !fioName || (fioName.account && fioName.account !== FIO_ACCOUNT_NAMES.FIO_ORACLE);
+
+      const fioNameOwner = fioName ? fioName.account : null;
+
+      fioNameDecision = {
+        shouldBurnBasedOnFio,
+        fioNameOwner,
+      };
+      fioNameDecisionCache.set(normalizedName, fioNameDecision);
+
+      if (!shouldBurnBasedOnFio) {
+        console.log(
+          `${logPrefix} Removing ${nftName} (tokenId=${tokenId}) because it still exists on FIO with owner ${fioNameOwner}.`,
+        );
+      }
+    }
+
+    if (!fioNameDecision.shouldBurnBasedOnFio) {
+      stats.removedOwnedByOracle += 1;
       continue;
     }
 
@@ -175,7 +180,7 @@ export const verifyAndFilterBurnList = ({
 
   if (duplicateNames.size) {
     console.log(
-      `${logPrefix} Detected duplicate domain names with multiple tokenIds: ${Array.from(
+      `${logPrefix} Detected duplicate FIO names with multiple tokenIds: ${Array.from(
         duplicateNames,
       ).join(', ')}`,
     );

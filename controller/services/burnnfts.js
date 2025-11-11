@@ -56,7 +56,6 @@ export const handleBurnNFTs = async () => {
             getLogFilePath({
               key: LOG_FILES_KEYS.BURN_NFTS,
               chainCode,
-              type,
             }),
           )
           .toString()
@@ -164,7 +163,6 @@ export const handleBurnNFTs = async () => {
               logFilePath: getLogFilePath({
                 key: LOG_FILES_KEYS.BURN_NFTS,
                 chainCode,
-                type,
               }),
               jobIsRunningCacheKey: cacheKey,
             });
