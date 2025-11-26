@@ -1,8 +1,13 @@
+import config from '../../../config/config.js';
 import { CONTRACT_ACTIONS } from '../../constants/chain.js';
 import { estimateBlockRange } from '../chain.js';
 import { splitRangeByProvider, MORALIS_SAFE_BLOCKS_PER_QUERY } from '../logs-range.js';
 import { globalRequestQueue } from '../request-queue.js';
 import { Web3Service } from '../web3-services.js';
+
+const {
+  autoRetryMissingActions: { maxBlockCacheSize: MAX_BLOCK_CACHE_SIZE = 5000 },
+} = config;
 
 // Fetch consensus_activity, wrapped, and unwrapped events for a chain within a time range
 export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd }) => {
@@ -75,25 +80,45 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       if (chunk && chunk.length) allEvents.push(...chunk);
     }
 
-    // Fetch block timestamps
+    // Fetch block timestamps with memory-efficient caching
+    // Limit cache size to prevent memory exhaustion (configurable in config)
     const uniqueBlockNumbers = [...new Set(allEvents.map((event) => event.blockNumber))];
-    const blockTimestamps = {};
+    const blockTimestamps = new Map();
+
+    console.log(
+      `${logPrefix} Fetching timestamps for ${uniqueBlockNumbers.length} unique blocks`,
+    );
+
     for (const blockNumber of uniqueBlockNumbers) {
+      // Evict oldest entries if cache grows too large (simple FIFO)
+      if (blockTimestamps.size >= MAX_BLOCK_CACHE_SIZE) {
+        const firstKey = blockTimestamps.keys().next().value;
+        blockTimestamps.delete(firstKey);
+      }
+
       const block = await globalRequestQueue.enqueue(
         async () => await web3Instance.eth.getBlock(blockNumber),
         { logPrefix, from: blockNumber, to: blockNumber },
       );
-      blockTimestamps[blockNumber] = Number(block.timestamp) * 1000;
+      blockTimestamps.set(blockNumber, Number(block.timestamp) * 1000);
     }
 
-    // Time filter
+    // Time filter with progress logging
     const now = Date.now();
     const filteredEvents = allEvents.filter((event) => {
-      const blockTimestamp = blockTimestamps[event.blockNumber];
+      const blockTimestamp = blockTimestamps.get(event.blockNumber);
       return (
         blockTimestamp >= now - timeRangeEnd && blockTimestamp <= now - timeRangeStart
       );
     });
+
+    console.log(
+      `${logPrefix} Filtered ${filteredEvents.length} events (from ${allEvents.length} total) within time range`,
+    );
+
+    // Clear large arrays to free memory
+    allEvents.length = 0;
+    blockTimestamps.clear();
 
     // Split by event type
     const consensusEvents = filteredEvents.filter(
