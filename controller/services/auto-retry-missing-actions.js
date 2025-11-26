@@ -1,6 +1,7 @@
 import config from '../../config/config.js';
 import { ACTIONS, ACTION_TYPES, FIO_CONTRACT_ACTIONS } from '../constants/chain.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
+import { ALREADY_COMPLETED } from '../constants/transactions.js';
 import { getChainEvents } from '../utils/auto-retry/evm-data.js';
 import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio-data.js';
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
@@ -209,6 +210,21 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
         return true;
       }
     } catch (error) {
+      // Check if this is an "already X" error - treat as success
+      // Catches: "already complete", "already approved", "already executed", etc.
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorReason = (error.reason || '').toLowerCase();
+      const isAlreadyComplete =
+        errorMessage.includes(ALREADY_COMPLETED) ||
+        errorReason.includes(ALREADY_COMPLETED);
+
+      if (isAlreadyComplete) {
+        console.log(
+          `${logPrefix} Action already complete - skipping (already processed)`,
+        );
+        return true; // Consider this a success - action was already done
+      }
+
       console.error(
         `${logPrefix} Attempt ${attempt}/${MAX_RETRIES} failed:`,
         error.message,
@@ -271,6 +287,21 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
         );
       }
     } catch (error) {
+      // Check if this is an "already X" error - treat as success
+      // Catches: "already complete", "already approved", "already executed", etc.
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorReason = (error.reason || '').toLowerCase();
+      const isAlreadyComplete =
+        errorMessage.includes(ALREADY_COMPLETED) ||
+        errorReason.includes(ALREADY_COMPLETED);
+
+      if (isAlreadyComplete) {
+        console.log(
+          `${logPrefix} Action already complete - skipping (already processed)`,
+        );
+        return true; // Consider this a success
+      }
+
       console.error(
         `${logPrefix} Attempt ${attempt}/${MAX_RETRIES} failed:`,
         error.message,
@@ -302,6 +333,12 @@ export const autoRetryMissingActions = async () => {
 
   oracleCache.set(CACHE_KEY, true, 0);
   console.log(`${logPrefix} Starting...`);
+
+  // Log initial memory usage
+  const startMem = process.memoryUsage();
+  console.log(
+    `${logPrefix} Memory at start: ${Math.round(startMem.heapUsed / 1024 / 1024)}MB / ${Math.round(startMem.heapTotal / 1024 / 1024)}MB`,
+  );
 
   try {
     const now = Date.now();
@@ -375,6 +412,12 @@ export const autoRetryMissingActions = async () => {
         });
 
         allMissingUnwrapActions.push(...missingUnwrapActions);
+
+        // Clear event arrays to free memory before next chain
+        // These can be large (thousands of events × ~2KB each)
+        consensusEvents.length = 0;
+        wrappedEvents.length = 0;
+        unwrappedEvents.length = 0;
       }
     }
 
@@ -483,6 +526,12 @@ export const autoRetryMissingActions = async () => {
     console.error(`${logPrefix} Error:`, error.message);
     handleServerError(error, 'Auto-Retry Missing Actions');
   } finally {
+    // Log final memory usage
+    const endMem = process.memoryUsage();
+    console.log(
+      `${logPrefix} Memory at end: ${Math.round(endMem.heapUsed / 1024 / 1024)}MB / ${Math.round(endMem.heapTotal / 1024 / 1024)}MB`,
+    );
+
     oracleCache.set(CACHE_KEY, false, 0);
   }
 };

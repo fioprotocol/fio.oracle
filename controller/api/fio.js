@@ -517,8 +517,18 @@ class FIOCtrl {
               } else {
                 console.log(`${logPrefix} No items to burn for ${chainCode}.`);
               }
+
+              // Clear large NFT list to free memory before next chain
+              if (nftsList && nftsList.length) {
+                nftsList.length = 0;
+              }
             }
           }
+        }
+
+        // Clear FIO consensus domains after all chains processed
+        if (fioConsensusDomains && fioConsensusDomains.length) {
+          fioConsensusDomains.length = 0;
         }
       }
 
