@@ -87,4 +87,70 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
   return filePath;
 };
 
+/**
+ * Generate all valid log file names based on supported chains configuration
+ * Reuses getLogFilePath to avoid code duplication
+ * @param {Object} supportedChains - The supported chains configuration from config
+ * @returns {Set<string>} Set of valid log file names (without directory path)
+ */
+export const getAllValidLogFileNames = (supportedChains) => {
+  const validFilePaths = new Set();
+
+  // Add application-wide log files (these don't depend on chains)
+  validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.FIO }));
+  validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID }));
+  validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }));
+  validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.MISSING_ACTIONS }));
+  validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.SYSTEM }));
+
+  // Add FIO block number file
+  validFilePaths.add(
+    getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode: 'FIO' }),
+  );
+
+  // Add chain-specific log files
+  for (const [type, chains] of Object.entries(supportedChains)) {
+    for (const chain of chains) {
+      const { chainCode } = chain.chainParams || {};
+      if (!chainCode) continue;
+
+      // Chain-specific files
+      validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.CHAIN, chainCode, type }));
+      validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode }));
+      validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }));
+      validFilePaths.add(
+        getLogFilePath({ key: LOG_FILES_KEYS.PENDING_TRANSACTIONS, chainCode }),
+      );
+
+      // Transaction queue files
+      validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.WRAP, chainCode, type }));
+      validFilePaths.add(
+        getLogFilePath({ key: LOG_FILES_KEYS.WRAP_ERROR, chainCode, type }),
+      );
+      validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP, chainCode, type }));
+      validFilePaths.add(
+        getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP_ERROR, chainCode, type }),
+      );
+
+      // Burn NFT files (only for nfts type)
+      if (type === 'nfts') {
+        validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS, chainCode }));
+        validFilePaths.add(
+          getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS_ERROR, chainCode }),
+        );
+      }
+    }
+  }
+
+  // Extract just the filenames from the full paths
+  const validFileNames = new Set();
+  for (const filePath of validFilePaths) {
+    // Extract filename from path (everything after the last /)
+    const fileName = filePath.split('/').pop();
+    validFileNames.add(fileName);
+  }
+
+  return validFileNames;
+};
+
 export default getLogFilePath;

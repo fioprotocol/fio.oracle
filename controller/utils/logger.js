@@ -37,7 +37,7 @@ class Logger {
   }
 
   /**
-   * Write to system log file
+   * Write to system log file (async to prevent blocking)
    * @param {string} message - Message to write
    */
   writeToFile(message) {
@@ -50,10 +50,16 @@ class Logger {
         fs.mkdirSync(logDir, { recursive: true });
       }
 
-      fs.appendFileSync(this.systemLogPath, message + '\n');
+      // Use async write to prevent blocking the event loop
+      fs.appendFile(this.systemLogPath, message + '\n', (err) => {
+        if (err) {
+          // Use original console to prevent recursion
+          this.originalConsole.error(`Failed to write to log file: ${err.message}`);
+        }
+      });
     } catch (error) {
       // If we can't write to file, at least log to console
-      console.error(`Failed to write to log file: ${error.message}`);
+      this.originalConsole.error(`Failed to write to log file: ${error.message}`);
     }
   }
 

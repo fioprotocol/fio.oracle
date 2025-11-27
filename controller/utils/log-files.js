@@ -1,14 +1,16 @@
 import fs from 'fs';
+import path from 'path';
 
 import {
   LOG_FILES_KEYS,
   getLogFilePath,
   LOG_DIRECTORY_PATH_NAME,
+  getAllValidLogFileNames,
 } from './log-file-templates.js';
 import config from '../../config/config.js';
 import { replaceNewLines } from '../utils/general.js';
 
-const { oracleCache } = config;
+const { oracleCache, supportedChains } = config;
 
 export const createLogFile = ({ filePath, dataToWrite, showSuccessConsole }) => {
   fs.writeFileSync(filePath, dataToWrite, (err) => {
@@ -284,4 +286,153 @@ export const getLatestNonce = ({ chainCode }) => {
     console.error(`Get latest nonce error: ${error.message}`);
     return 0;
   }
+};
+
+/**
+ * Clean up log files that don't match the expected file names from log-file-templates.js
+ * This should be called on app startup to remove any orphaned or outdated log files
+ * @param {boolean} withLogsInConsole - Whether to log actions to console (default: true)
+ * @returns {Object} - Statistics about the cleanup operation
+ */
+export const cleanupInvalidLogFiles = (withLogsInConsole = true) => {
+  const logPrefix = '[Log Cleanup]';
+
+  try {
+    // Check if log directory exists
+    if (!fs.existsSync(LOG_DIRECTORY_PATH_NAME)) {
+      if (withLogsInConsole) {
+        console.log(
+          `${logPrefix} Log directory does not exist yet. Nothing to clean up.`,
+        );
+      }
+      return { deleted: 0, kept: 0, errors: 0 };
+    }
+
+    // Get all valid log file names
+    const validFileNames = getAllValidLogFileNames(supportedChains);
+
+    if (withLogsInConsole) {
+      console.log(
+        `${logPrefix} Found ${validFileNames.size} valid log file patterns in configuration`,
+      );
+    }
+
+    // Read all files in the log directory
+    const files = fs.readdirSync(LOG_DIRECTORY_PATH_NAME);
+    const stats = { deleted: 0, kept: 0, errors: 0 };
+
+    for (const file of files) {
+      const filePath = path.join(LOG_DIRECTORY_PATH_NAME, file);
+
+      // Skip if it's not a file
+      try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) continue;
+      } catch (error) {
+        if (withLogsInConsole) {
+          console.error(`${logPrefix} Error checking file ${file}: ${error.message}`);
+        }
+        stats.errors++;
+        continue;
+      }
+
+      // Check if file is valid
+      if (validFileNames.has(file)) {
+        stats.kept++;
+      } else {
+        // Delete invalid file
+        try {
+          fs.unlinkSync(filePath);
+          stats.deleted++;
+          if (withLogsInConsole) {
+            console.log(`${logPrefix} Deleted invalid log file: ${file}`);
+          }
+        } catch (error) {
+          stats.errors++;
+          if (withLogsInConsole) {
+            console.error(`${logPrefix} Failed to delete ${file}: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    if (withLogsInConsole) {
+      console.log(
+        `${logPrefix} Cleanup complete - Kept: ${stats.kept}, Deleted: ${stats.deleted}, Errors: ${stats.errors}`,
+      );
+    }
+
+    return stats;
+  } catch (error) {
+    if (withLogsInConsole) {
+      console.error(`${logPrefix} Cleanup failed: ${error.message}`);
+    }
+    return { deleted: 0, kept: 0, errors: 1 };
+  }
+};
+
+/**
+ * Clear specific log files (set their content to empty string)
+ * This should be called after successful S3 sync
+ * @param {boolean} withLogsInConsole - Whether to log actions to console (default: true)
+ * @returns {Object} - Statistics about the clear operation
+ */
+export const clearLogFiles = (withLogsInConsole = true) => {
+  const logPrefix = '[Clear Logs]';
+  const stats = { cleared: 0, notFound: 0, errors: 0 };
+
+  // List of log files to clear after S3 sync
+  const filesToClear = [
+    getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }), // Error.log
+    getLogFilePath({ key: LOG_FILES_KEYS.SYSTEM }), // system.log
+    getLogFilePath({ key: LOG_FILES_KEYS.MISSING_ACTIONS }), // missing-actions.log
+  ];
+
+  // Add chain-specific error queue files
+  for (const [type, chains] of Object.entries(supportedChains)) {
+    for (const chain of chains) {
+      const { chainCode } = chain.chainParams || {};
+      if (!chainCode) continue;
+
+      // Add error queue files for this chain
+      filesToClear.push(
+        getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP_ERROR, chainCode, type }),
+        getLogFilePath({ key: LOG_FILES_KEYS.WRAP_ERROR, chainCode, type }),
+      );
+    }
+  }
+
+  // Clear each file
+  for (const filePath of filesToClear) {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, '');
+        stats.cleared++;
+        if (withLogsInConsole) {
+          const fileName = path.basename(filePath);
+          console.log(`${logPrefix} Cleared: ${fileName}`);
+        }
+      } else {
+        stats.notFound++;
+        if (withLogsInConsole) {
+          const fileName = path.basename(filePath);
+          console.log(`${logPrefix} File not found (skipped): ${fileName}`);
+        }
+      }
+    } catch (error) {
+      stats.errors++;
+      if (withLogsInConsole) {
+        const fileName = path.basename(filePath);
+        console.error(`${logPrefix} Failed to clear ${fileName}: ${error.message}`);
+      }
+    }
+  }
+
+  if (withLogsInConsole) {
+    console.log(
+      `${logPrefix} Clear complete - Cleared: ${stats.cleared}, Not Found: ${stats.notFound}, Errors: ${stats.errors}`,
+    );
+  }
+
+  return stats;
 };

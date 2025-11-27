@@ -24,6 +24,7 @@ import {
   prepareLogFile,
   handleServerError,
   getLatestNonce,
+  cleanupInvalidLogFiles,
 } from './utils/log-files.js';
 import { initializeLogScheduler } from './utils/log-scheduler.js';
 import logger from './utils/logger.js';
@@ -60,6 +61,9 @@ class MainCtrl {
 
       // Prepare logs file
       prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
+
+      // Clean up invalid log files (those not matching current configuration)
+      cleanupInvalidLogFiles(true);
 
       // Check oracle addresses balances on chains
       for (const [type, chains] of Object.entries(supportedChains)) {

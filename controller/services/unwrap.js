@@ -213,8 +213,13 @@ export const handleUnwrap = async () => {
 
             // Log progress every 10 requests
             if (requestCount % 10 === 0) {
-              console.log(`${logPrefix} Processed ${requestCount} batches...`);
+              console.log(
+                `${logPrefix} Processed ${requestCount} batches, ${result.length} events so far...`,
+              );
               globalRequestQueue.printStats(`${logPrefix} `);
+
+              // Allow GC to run every 10 batches to prevent memory buildup
+              await new Promise((resolve) => setImmediate(resolve));
             }
           }
 
@@ -270,4 +275,7 @@ export const handleUnwrap = async () => {
   console.log('='.repeat(60));
   globalRequestQueue.printStats('All chains completed --> ');
   console.log('='.repeat(60));
+
+  // Reset stats for next cycle to prevent infinite accumulation
+  globalRequestQueue.resetStats();
 };
