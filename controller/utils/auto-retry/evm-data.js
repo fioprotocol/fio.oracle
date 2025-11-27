@@ -21,10 +21,26 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
     const currentBlock = Number(await web3Instance.eth.getBlockNumber());
     const lastInChainBlockNumber = Math.max(0, currentBlock - Number(blocksOffset || 0));
     const blocksInRange = estimateBlockRange(timeRangeEnd);
-    let fromBlock = Math.max(0, currentBlock - blocksInRange);
-    let toBlock = currentBlock - estimateBlockRange(timeRangeStart);
+
+    // Add 20% buffer to block range to account for:
+    // 1. Block time variability
+    // 2. Timing mismatches between FIO oracle item creation and EVM consensus signing
+    // 3. Network congestion causing slower block times
+    const BLOCK_RANGE_BUFFER_PERCENT = 0.2;
+    const bufferedBlocksInRange = Math.ceil(
+      blocksInRange * (1 + BLOCK_RANGE_BUFFER_PERCENT),
+    );
+
+    let fromBlock = Math.max(0, currentBlock - bufferedBlocksInRange);
+    let toBlock =
+      currentBlock -
+      Math.max(
+        0,
+        estimateBlockRange(timeRangeStart) -
+          Math.ceil(blocksInRange * BLOCK_RANGE_BUFFER_PERCENT),
+      );
     toBlock = Math.min(toBlock, lastInChainBlockNumber);
-    if (fromBlock > toBlock) fromBlock = Math.max(0, toBlock - blocksInRange);
+    if (fromBlock > toBlock) fromBlock = Math.max(0, toBlock - bufferedBlocksInRange);
 
     const contract = await Web3Service.getWeb3Contract({
       type,
