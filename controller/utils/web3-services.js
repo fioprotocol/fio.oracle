@@ -10,6 +10,11 @@ const require = createRequire(import.meta.url);
 
 import config from '../../config/config.js';
 import { ACTION_TYPES } from '../constants/chain.js';
+import {
+  NETWORK_ERROR_CODES,
+  NETWORK_ERROR_MESSAGES,
+  NO_FALLBACK_ERROR_MESSAGES,
+} from '../constants/transactions.js';
 
 const fioABI = require('../../config/ABI/FIO.json');
 const fioNftABI = require('../../config/ABI/FIOMATICNFT.json');
@@ -75,6 +80,17 @@ class HttpRpcProvider {
     } catch (e) {
       // Attach provider name for diagnostics
       e.providerName = this.name;
+
+      // Mark DNS and fetch-level network errors as network errors for fallback
+      const errMsg = (e.message || '').toLowerCase();
+      if (
+        NETWORK_ERROR_CODES.includes(e.code) ||
+        NETWORK_ERROR_MESSAGES.some((msg) => errMsg.includes(msg)) ||
+        e.name === 'FetchError'
+      ) {
+        e.isNetworkError = true;
+      }
+
       throw e;
     }
   }
@@ -116,16 +132,15 @@ class MultiRpcProvider {
   shouldFallbackOnError(err) {
     // Only fallback on probable network/rate-limit issues.
     const msg = (err && err.message ? err.message : '').toLowerCase();
+
     if (err && (err.isNetworkError || err.isRateLimitError)) return true;
-    if (msg.includes('rate limit') || msg.includes('too many requests')) return true;
-    if (msg.includes('network') || msg.includes('timeout')) return true;
-    // Do NOT fallback on provider-enforced range limitations; upper layers will retry with smaller windows
-    if (msg.includes('exceeded maximum block range')) return false;
-    // Don't fallback on logical execution errors (nonce too low, reverted, etc.)
-    if (msg.includes('nonce too low')) return false;
-    if (msg.includes('replacement transaction underpriced')) return false;
-    if (msg.includes('already known')) return false;
-    if (msg.includes('execution reverted')) return false;
+
+    // Check if message matches any network error patterns
+    if (NETWORK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return true;
+
+    // Do NOT fallback on specific error types (provider-enforced range limitations, logical execution errors, etc.)
+    if (NO_FALLBACK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return false;
+
     return false;
   }
 
