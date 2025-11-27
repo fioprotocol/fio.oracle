@@ -20,9 +20,9 @@ export const schedulePeriodicSync = (intervalHours = 1) => {
     originalConsole.log(`${logPrefix} Starting sync...`);
 
     try {
-      // Never clear local files - just sync to S3
+      // Sync to S3 and automatically clear specific log files after successful sync
       // S3 sync happens ALWAYS, even if LOG_TO_FILE=false
-      await syncLogsToS3({ clearAfterSync: false });
+      await syncLogsToS3();
       originalConsole.log(`${logPrefix} ✓ Sync completed`);
     } catch (error) {
       originalConsole.error(`${logPrefix} ✗ Sync failed: ${error.message}`);

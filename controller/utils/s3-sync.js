@@ -7,6 +7,7 @@ import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/clien
 
 import { formatDateForFolder } from './general.js';
 import { LOG_DIRECTORY_PATH_NAME } from './log-file-templates.js';
+import { clearLogFiles } from './log-files.js';
 import config from '../../config/config.js';
 
 const execAsync = promisify(exec);
@@ -117,11 +118,10 @@ const uploadArchiveToS3 = async ({ archivePath, s3Key, s3Client }) => {
  * Sync entire log folder to S3 as a compressed archive
  * This function runs ALWAYS, regardless of LOG_TO_FILE setting
  * Even in console-only mode (LOG_TO_FILE=false), logs are backed up to S3
- * @param {Object} options
- * @param {boolean} options.clearAfterSync - Whether to clear local logs after successful sync (not used with archive approach)
+ * After successful sync, specific log files are automatically cleared
  * @returns {Promise<Object>} - Sync results
  */
-export const syncLogsToS3 = async ({ clearAfterSync = false } = {}) => {
+export const syncLogsToS3 = async () => {
   const logPrefix = '[S3 Sync]';
   const s3Client = createS3Client();
 
@@ -190,11 +190,14 @@ export const syncLogsToS3 = async ({ clearAfterSync = false } = {}) => {
       );
       console.log(`${logPrefix} S3 location: ${results.s3Location}`);
 
-      // Note: We don't clear logs after sync as they continue to append
-      if (clearAfterSync) {
-        console.warn(
-          `${logPrefix} ⚠️  clearAfterSync parameter ignored - logs continue to append`,
-        );
+      // Clear log files after successful sync
+      try {
+        console.log(`${logPrefix} Clearing log files after successful sync...`);
+        const clearStats = clearLogFiles(true);
+        results.clearedFiles = clearStats;
+      } catch (clearError) {
+        console.error(`${logPrefix} Failed to clear logs: ${clearError.message}`);
+        results.errors.push(`Clear logs failed: ${clearError.message}`);
       }
     } else {
       results.success = false;
