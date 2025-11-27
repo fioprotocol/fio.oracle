@@ -7,7 +7,7 @@ import {
   NONCE_TOO_LOW_ERROR,
   LOW_GAS_PRICE,
   REVERTED_BY_THE_EVM,
-  ALREADY_APPROVED_HASH,
+  ALREADY_COMPLETED,
   MAX_TRANSACTION_AGE,
 } from '../constants/transactions.js';
 import { executeContractAction } from '../utils/chain.js';
@@ -234,16 +234,25 @@ export const blockChainTransaction = async (transactionParams) => {
       const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);
       const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
       const revertedByTheEvm = error.message.includes(REVERTED_BY_THE_EVM);
-      const alreadyApprovedHash =
-        error.reason && error.reason.includes(ALREADY_APPROVED_HASH);
+      const alreadyCompleted =
+        (error.reason && error.reason.toLowerCase().includes(ALREADY_COMPLETED)) ||
+        (error.message && error.message.toLowerCase().includes(ALREADY_COMPLETED));
+
+      // Don't retry if action is already complete
+      if (alreadyCompleted) {
+        console.log(
+          `${logPrefix} Action already complete - not retrying (transaction was already processed)`,
+        );
+        if (shouldThrowError) throw error;
+        return;
+      }
 
       if (
         retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS &&
         (nonceTooLowError ||
           transactionAlreadyKnown ||
           lowGasPriceError ||
-          revertedByTheEvm) &&
-        !alreadyApprovedHash
+          revertedByTheEvm)
       ) {
         // Retry with an incremented nonce
         console.log(

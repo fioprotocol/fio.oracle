@@ -1,6 +1,7 @@
 import config from '../../config/config.js';
 import { ACTIONS, ACTION_TYPES, FIO_CONTRACT_ACTIONS } from '../constants/chain.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
+import { ALREADY_COMPLETED } from '../constants/transactions.js';
 import { getChainEvents } from '../utils/auto-retry/evm-data.js';
 import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio-data.js';
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
@@ -19,6 +20,22 @@ const {
     TIME_RANGE_END,
   },
 } = config;
+
+/**
+ * Safely stringify an object that may contain BigInt values
+ * @param {any} obj - Object to stringify
+ * @returns {string} - JSON string with BigInt values converted to strings
+ */
+const safeStringify = (obj) => {
+  try {
+    return JSON.stringify(obj, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value,
+    );
+  } catch {
+    // Fallback: return string representation
+    return String(obj);
+  }
+};
 
 /**
  * Find missing wrap actions
@@ -181,6 +198,107 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
 
   console.log(`${logPrefix} Attempting to execute missing wrap action`);
 
+  // Pre-check: Verify if this action is already complete before attempting execution
+  // This prevents unnecessary gas estimation calls and false-positive missing actions
+  try {
+    const { Web3Service } = await import('../utils/web3-services.js');
+    const web3Instance = Web3Service.getWe3Instance({ chainCode });
+    const contract = await Web3Service.getWeb3Contract({
+      type,
+      chainCode,
+      contractAddress: chain.contractAddress,
+    });
+
+    // FIRST: Check if our oracle has already approved this action by checking getApproval
+    try {
+      // Compute the hash the same way the contract does
+      // For tokens: keccak256(abi.encodePacked(pubaddress, amount, obtId))
+      // For NFTs: keccak256(abi.encodePacked(pubaddress, nftname, obtId))
+      const hashInput =
+        type === ACTION_TYPES.TOKENS
+          ? web3Instance.utils.encodePacked(
+              { value: pubaddress, type: 'address' },
+              { value: amount, type: 'uint256' },
+              { value: obtId, type: 'string' },
+            )
+          : web3Instance.utils.encodePacked(
+              { value: pubaddress, type: 'address' },
+              { value: nftname, type: 'string' },
+              { value: obtId, type: 'string' },
+            );
+
+      const approvalHash = web3Instance.utils.keccak256(hashInput);
+
+      // Check if approval exists and if our public key is in the approvers list
+      const approvalData = await contract.methods.getApproval(approvalHash).call();
+      const approvers = approvalData[3]; // 4th return value is address[] of approvers
+
+      if (approvers && Array.isArray(approvers)) {
+        const hasOurApproval = approvers.some(
+          (approver) =>
+            approver &&
+            chain.publicKey &&
+            approver.toLowerCase() === chain.publicKey.toLowerCase(),
+        );
+
+        if (hasOurApproval) {
+          console.log(
+            `${logPrefix} Our oracle (${chain.publicKey}) has already approved this action - skipping`,
+          );
+          return true; // Already approved, consider it a success
+        }
+      }
+    } catch (approvalCheckError) {
+      // If getApproval fails, it's OK - might mean approval doesn't exist yet
+      console.log(
+        `${logPrefix} Could not check approvals (${approvalCheckError.message}), continuing with simulation check`,
+      );
+    }
+
+    // SECOND: Try to call the wrap function with static call (no gas cost, just simulation)
+    // If it reverts with "already X" error, skip execution
+    const contractMethod =
+      type === ACTION_TYPES.TOKENS
+        ? contract.methods.wrap(pubaddress, amount, obtId)
+        : contract.methods.wrapnft(pubaddress, nftname, obtId);
+
+    await contractMethod.call({ from: chain.publicKey });
+    console.log(`${logPrefix} Pre-check passed, action is not yet complete`);
+  } catch (preCheckError) {
+    // Extract all possible error message sources from nested error structure
+    const errorMsg = (preCheckError.message || '').toLowerCase();
+    const errorReason = (preCheckError.reason || '').toLowerCase();
+    const errorData = (preCheckError.data || '').toLowerCase();
+    const innerErrorMsg = (preCheckError.innerError?.message || '').toLowerCase();
+    const nestedErrorMsg = (preCheckError.error?.message || '').toLowerCase();
+    const causeMsg = (preCheckError.cause?.message || '').toLowerCase();
+
+    // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
+    const fullErrorString = safeStringify(preCheckError).toLowerCase();
+
+    // Check if any error property contains "already"
+    const isAlreadyComplete =
+      errorMsg.includes(ALREADY_COMPLETED) ||
+      errorReason.includes(ALREADY_COMPLETED) ||
+      errorData.includes(ALREADY_COMPLETED) ||
+      innerErrorMsg.includes(ALREADY_COMPLETED) ||
+      nestedErrorMsg.includes(ALREADY_COMPLETED) ||
+      causeMsg.includes(ALREADY_COMPLETED) ||
+      fullErrorString.includes(ALREADY_COMPLETED);
+
+    if (isAlreadyComplete) {
+      console.log(
+        `${logPrefix} Pre-check detected action already complete - skipping execution`,
+      );
+      return true; // Already complete, consider it a success
+    }
+
+    // Other errors during pre-check are OK, proceed with execution
+    console.log(
+      `${logPrefix} Pre-check inconclusive (${preCheckError.message}), proceeding with execution`,
+    );
+  }
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       let isSuccess = false;
@@ -209,6 +327,34 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
         return true;
       }
     } catch (error) {
+      // Check if this is an "already X" error - treat as success
+      // Catches: "already complete", "already approved", "already executed", etc.
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorReason = (error.reason || '').toLowerCase();
+      const errorData = (error.data || '').toLowerCase();
+      const innerErrorMsg = (error.innerError?.message || '').toLowerCase();
+      const nestedErrorMsg = (error.error?.message || '').toLowerCase();
+      const causeMsg = (error.cause?.message || '').toLowerCase();
+
+      // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
+      const fullErrorString = safeStringify(error).toLowerCase();
+
+      const isAlreadyComplete =
+        errorMessage.includes(ALREADY_COMPLETED) ||
+        errorReason.includes(ALREADY_COMPLETED) ||
+        errorData.includes(ALREADY_COMPLETED) ||
+        innerErrorMsg.includes(ALREADY_COMPLETED) ||
+        nestedErrorMsg.includes(ALREADY_COMPLETED) ||
+        causeMsg.includes(ALREADY_COMPLETED) ||
+        fullErrorString.includes(ALREADY_COMPLETED);
+
+      if (isAlreadyComplete) {
+        console.log(
+          `${logPrefix} Action already complete - skipping (already processed)`,
+        );
+        return true; // Consider this a success - action was already done
+      }
+
       console.error(
         `${logPrefix} Attempt ${attempt}/${MAX_RETRIES} failed:`,
         error.message,
@@ -271,6 +417,34 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
         );
       }
     } catch (error) {
+      // Check if this is an "already X" error - treat as success
+      // Catches: "already complete", "already approved", "already executed", etc.
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorReason = (error.reason || '').toLowerCase();
+      const errorData = (error.data || '').toLowerCase();
+      const innerErrorMsg = (error.innerError?.message || '').toLowerCase();
+      const nestedErrorMsg = (error.error?.message || '').toLowerCase();
+      const causeMsg = (error.cause?.message || '').toLowerCase();
+
+      // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
+      const fullErrorString = safeStringify(error).toLowerCase();
+
+      const isAlreadyComplete =
+        errorMessage.includes(ALREADY_COMPLETED) ||
+        errorReason.includes(ALREADY_COMPLETED) ||
+        errorData.includes(ALREADY_COMPLETED) ||
+        innerErrorMsg.includes(ALREADY_COMPLETED) ||
+        nestedErrorMsg.includes(ALREADY_COMPLETED) ||
+        causeMsg.includes(ALREADY_COMPLETED) ||
+        fullErrorString.includes(ALREADY_COMPLETED);
+
+      if (isAlreadyComplete) {
+        console.log(
+          `${logPrefix} Action already complete - skipping (already processed)`,
+        );
+        return true; // Consider this a success
+      }
+
       console.error(
         `${logPrefix} Attempt ${attempt}/${MAX_RETRIES} failed:`,
         error.message,
@@ -302,6 +476,12 @@ export const autoRetryMissingActions = async () => {
 
   oracleCache.set(CACHE_KEY, true, 0);
   console.log(`${logPrefix} Starting...`);
+
+  // Log initial memory usage
+  const startMem = process.memoryUsage();
+  console.log(
+    `${logPrefix} Memory at start: ${Math.round(startMem.heapUsed / 1024 / 1024)}MB / ${Math.round(startMem.heapTotal / 1024 / 1024)}MB`,
+  );
 
   try {
     const now = Date.now();
@@ -375,6 +555,12 @@ export const autoRetryMissingActions = async () => {
         });
 
         allMissingUnwrapActions.push(...missingUnwrapActions);
+
+        // Clear event arrays to free memory before next chain
+        // These can be large (thousands of events × ~2KB each)
+        consensusEvents.length = 0;
+        wrappedEvents.length = 0;
+        unwrappedEvents.length = 0;
       }
     }
 
@@ -443,7 +629,11 @@ export const autoRetryMissingActions = async () => {
         `${logPrefix} Executing missing unwrap action ${i + 1}/${allMissingUnwrapActions.length}`,
       );
 
-      // Log missing action
+      // Log missing action (convert BigInt values to strings for JSON serialization)
+      const returnValuesWithoutBigInt = JSON.parse(
+        safeStringify(missingUnwrap.chainEvent.returnValues),
+      );
+
       addLogMessage({
         filePath: getLogFilePath({ key: LOG_FILES_KEYS.MISSING_ACTIONS }),
         message: {
@@ -452,7 +642,7 @@ export const autoRetryMissingActions = async () => {
           type: missingUnwrap.type,
           chainCode,
           txHash: missingUnwrap.txHash,
-          details: missingUnwrap.chainEvent.returnValues,
+          details: returnValuesWithoutBigInt,
         },
       });
 
@@ -483,6 +673,12 @@ export const autoRetryMissingActions = async () => {
     console.error(`${logPrefix} Error:`, error.message);
     handleServerError(error, 'Auto-Retry Missing Actions');
   } finally {
+    // Log final memory usage
+    const endMem = process.memoryUsage();
+    console.log(
+      `${logPrefix} Memory at end: ${Math.round(endMem.heapUsed / 1024 / 1024)}MB / ${Math.round(endMem.heapTotal / 1024 / 1024)}MB`,
+    );
+
     oracleCache.set(CACHE_KEY, false, 0);
   }
 };
