@@ -14,6 +14,7 @@ import {
   getLastIrreversibleBlockOnFioChain,
   getLastFioOracleItemId,
 } from './utils/fio-chain.js';
+import { logAppVersionToSystemLog } from './utils/general.js';
 import {
   LOG_DIRECTORY_PATH_NAME,
   getLogFilePath,
@@ -59,8 +60,14 @@ class MainCtrl {
       // Show startup information
       logger.showStartupInfo();
 
-      // Prepare logs file
+      // Prepare logs directory first (must exist before writing to log files)
       prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
+
+      // Log app version after directory is created
+      await logAppVersionToSystemLog({
+        context: `Starting in ${mode} mode`,
+        logPrefix,
+      });
 
       // Clean up invalid log files (those not matching current configuration)
       cleanupInvalidLogFiles(true);

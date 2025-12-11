@@ -29,13 +29,13 @@ export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => 
     if (withLogsInConsole) console.log('The log directory exists.');
   } else {
     if (withLogsInConsole) console.log('The log directory does not exist.');
-    fs.mkdir(directoryPath, (err) => {
-      //create new file
-      if (err) {
-        return console.log(err);
-      }
+    try {
+      fs.mkdirSync(directoryPath);
       if (withLogsInConsole) console.log('The log directory was created!');
-    });
+    } catch (err) {
+      console.log(err);
+      throw err; // Re-throw to prevent app from continuing with missing directory
+    }
   }
 };
 
