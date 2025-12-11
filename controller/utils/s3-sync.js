@@ -5,7 +5,7 @@ import { promisify } from 'util';
 
 import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 
-import { formatDateForFolder } from './general.js';
+import { formatDateForFolder, logAppVersionToSystemLog } from './general.js';
 import { LOG_DIRECTORY_PATH_NAME } from './log-file-templates.js';
 import { clearLogFiles } from './log-files.js';
 import config from '../../config/config.js';
@@ -199,6 +199,12 @@ export const syncLogsToS3 = async () => {
         console.error(`${logPrefix} Failed to clear logs: ${clearError.message}`);
         results.errors.push(`Clear logs failed: ${clearError.message}`);
       }
+
+      // Log app version to system.log after clearing (so it persists in new log cycle)
+      await logAppVersionToSystemLog({
+        context: 'Sync completed successfully',
+        logPrefix,
+      });
     } else {
       results.success = false;
       results.errors.push('Failed to upload archive to S3');
