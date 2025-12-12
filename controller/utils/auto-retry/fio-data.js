@@ -7,6 +7,11 @@ import {
 } from '../../constants/chain.js';
 import { getOracleItems } from '../fio-chain.js';
 import { fetchWithMultipleServers, convertTimestampIntoMs } from '../general.js';
+import {
+  createMemoryCheckpoint,
+  logMemoryDelta,
+  logArraySize,
+} from '../memory-logger.js';
 
 const {
   fio: { FIO_SERVER_URL_HISTORY, FIO_HISTORY_OFFSET },
@@ -15,21 +20,34 @@ const {
 // Fetch wrap oracle items from FIO get_table_rows and filter by time range
 export const getWrapOracleItems = async ({ afterTimestamp, beforeTimestamp }) => {
   const logPrefix = 'Auto-Retry Missing Actions, FIO Wrap Oracle Items -->';
+  const functionStart = createMemoryCheckpoint('getWrapOracleItems start', logPrefix);
 
   try {
+    const beforeFetch = createMemoryCheckpoint('Before fetching oracle items', logPrefix);
     const oracleItems = await getOracleItems({
       logPrefix,
       lowerBound: 0,
     });
+    logMemoryDelta('After fetching oracle items', beforeFetch, logPrefix);
+    logArraySize('oracleItems (all)', oracleItems, logPrefix);
 
+    const beforeFilter = createMemoryCheckpoint(
+      'Before filtering oracle items',
+      logPrefix,
+    );
     const filtered = oracleItems.filter(({ timestamp }) => {
       const tsMs = convertTimestampIntoMs(timestamp);
       return tsMs >= afterTimestamp && tsMs <= beforeTimestamp;
     });
+    logMemoryDelta('After filtering by time range', beforeFilter, logPrefix);
+    logArraySize('oracleItems (filtered)', filtered, logPrefix);
 
     const wrapTokensItems = filtered.filter((item) => item.amount);
     const wrapDomainsItems = filtered.filter((item) => item.nftname);
+    logArraySize('wrapTokensItems', wrapTokensItems, logPrefix);
+    logArraySize('wrapDomainsItems', wrapDomainsItems, logPrefix);
 
+    logMemoryDelta('getWrapOracleItems complete', functionStart, logPrefix);
     return { wrapTokensItems, wrapDomainsItems };
   } catch (error) {
     console.error(`${logPrefix} Error fetching wrap oracle items:`, error.message);
@@ -118,14 +136,19 @@ export const getAccountActions = async ({ accountName, startTime, endTime }) => 
 // Fetch unwrap actions from history and filter by action name
 export const getUnwrapFioActions = async ({ afterTimestamp, beforeTimestamp }) => {
   const logPrefix = 'Auto-Retry Missing Actions, FIO Unwrap Actions -->';
+  const functionStart = createMemoryCheckpoint('getUnwrapFioActions start', logPrefix);
 
   try {
+    const beforeFetch = createMemoryCheckpoint('Before fetching FIO actions', logPrefix);
     const allActions = await getAccountActions({
       accountName: FIO_ACCOUNT_NAMES.FIO_ORACLE,
       startTime: new Date(afterTimestamp).toISOString(),
       endTime: new Date(beforeTimestamp).toISOString(),
     });
+    logMemoryDelta('After fetching FIO actions', beforeFetch, logPrefix);
+    logArraySize('allActions', allActions, logPrefix);
 
+    const beforeFilter = createMemoryCheckpoint('Before filtering actions', logPrefix);
     const unwrapTokensActions = allActions.filter(
       (a) =>
         a.act && a.act.name === FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][ACTION_TYPES.TOKENS],
@@ -134,7 +157,11 @@ export const getUnwrapFioActions = async ({ afterTimestamp, beforeTimestamp }) =
       (a) =>
         a.act && a.act.name === FIO_CONTRACT_ACTIONS[ACTIONS.UNWRAP][ACTION_TYPES.NFTS],
     );
+    logMemoryDelta('After filtering actions', beforeFilter, logPrefix);
+    logArraySize('unwrapTokensActions', unwrapTokensActions, logPrefix);
+    logArraySize('unwrapDomainsActions', unwrapDomainsActions, logPrefix);
 
+    logMemoryDelta('getUnwrapFioActions complete', functionStart, logPrefix);
     return { unwrapTokensActions, unwrapDomainsActions };
   } catch (error) {
     console.error(`${logPrefix} Error fetching unwrap actions:`, error.message);

@@ -7,6 +7,12 @@ import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { addLogMessage, handleServerError, readLogFile } from '../utils/log-files.js';
+import {
+  createMemoryCheckpoint,
+  logMemoryDelta,
+  logArraySize,
+  forceGCAndLog,
+} from '../utils/memory-logger.js';
 import { blockChainTransaction } from '../utils/transactions.js';
 
 const { oracleCache, supportedChains } = config;
@@ -524,11 +530,8 @@ export const autoRetryMissingActions = async () => {
   oracleCache.set(CACHE_KEY, true, 0);
   console.log(`${logPrefix} Starting...`);
 
-  // Log initial memory usage
-  const startMem = process.memoryUsage();
-  console.log(
-    `${logPrefix} Memory at start: ${Math.round(startMem.heapUsed / 1024 / 1024)}MB / ${Math.round(startMem.heapTotal / 1024 / 1024)}MB`,
-  );
+  // Create memory checkpoint at start
+  const startCheckpoint = createMemoryCheckpoint('Auto-retry start', logPrefix);
 
   try {
     const now = Date.now();
@@ -540,16 +543,27 @@ export const autoRetryMissingActions = async () => {
     );
 
     // Fetch wrap oracle items from get_table_rows
+    const beforeFioFetch = createMemoryCheckpoint('Before fetching FIO data', logPrefix);
     const { wrapTokensItems, wrapDomainsItems } = await getWrapOracleItems({
       afterTimestamp,
       beforeTimestamp,
     });
+    logMemoryDelta('After fetching FIO wrap items', beforeFioFetch, logPrefix);
+    logArraySize('wrapTokensItems', wrapTokensItems, logPrefix);
+    logArraySize('wrapDomainsItems', wrapDomainsItems, logPrefix);
 
     // Fetch unwrap actions from history API
+    const beforeHistoryFetch = createMemoryCheckpoint(
+      'Before fetching FIO history',
+      logPrefix,
+    );
     const { unwrapTokensActions, unwrapDomainsActions } = await getUnwrapFioActions({
       afterTimestamp,
       beforeTimestamp,
     });
+    logMemoryDelta('After fetching FIO unwrap actions', beforeHistoryFetch, logPrefix);
+    logArraySize('unwrapTokensActions', unwrapTokensActions, logPrefix);
+    logArraySize('unwrapDomainsActions', unwrapDomainsActions, logPrefix);
 
     // Collect all missing actions first
     const allMissingWrapActions = [];
@@ -559,15 +573,30 @@ export const autoRetryMissingActions = async () => {
     for (const [type, chains] of Object.entries(supportedChains)) {
       for (const chain of chains) {
         const { chainCode } = chain.chainParams;
-        console.log(`${logPrefix} Processing ${chainCode} ${type}...`);
+        const chainCheckpoint = createMemoryCheckpoint(
+          `Before processing ${chainCode} ${type}`,
+          logPrefix,
+        );
 
         // Fetch all relevant events (consensus_activity, wrapped, unwrapped)
+        const beforeEvents = createMemoryCheckpoint(
+          `Before fetching ${chainCode} ${type} events`,
+          logPrefix,
+        );
         const { consensusEvents, wrappedEvents, unwrappedEvents } = await getChainEvents({
           chain,
           type,
           timeRangeStart: TIME_RANGE_START,
           timeRangeEnd: TIME_RANGE_END,
         });
+        logMemoryDelta(
+          `After fetching ${chainCode} ${type} events`,
+          beforeEvents,
+          logPrefix,
+        );
+        logArraySize(`${chainCode} ${type} consensusEvents`, consensusEvents, logPrefix);
+        logArraySize(`${chainCode} ${type} wrappedEvents`, wrappedEvents, logPrefix);
+        logArraySize(`${chainCode} ${type} unwrappedEvents`, unwrappedEvents, logPrefix);
 
         // Find missing wrap actions (using oracle items)
         const fioWrapItems =
@@ -604,16 +633,30 @@ export const autoRetryMissingActions = async () => {
         allMissingUnwrapActions.push(...missingUnwrapActions);
 
         // Clear event arrays to free memory before next chain
-        // These can be large (thousands of events × ~2KB each)
+        const beforeClear = createMemoryCheckpoint(
+          `Before clearing ${chainCode} ${type} arrays`,
+          logPrefix,
+        );
         consensusEvents.length = 0;
         wrappedEvents.length = 0;
         unwrappedEvents.length = 0;
+        logMemoryDelta(
+          `After clearing ${chainCode} ${type} arrays`,
+          beforeClear,
+          logPrefix,
+        );
+
+        // Log memory after processing this chain
+        logMemoryDelta(`Completed ${chainCode} ${type}`, chainCheckpoint, logPrefix);
       }
     }
 
     console.log(
       `${logPrefix} Found ${allMissingWrapActions.length} missing wrap actions and ${allMissingUnwrapActions.length} missing unwrap actions`,
     );
+    logArraySize('allMissingWrapActions', allMissingWrapActions, logPrefix);
+    logArraySize('allMissingUnwrapActions', allMissingUnwrapActions, logPrefix);
+    logMemoryDelta('After finding all missing actions', startCheckpoint, logPrefix);
 
     // Execute all missing wrap actions one by one with 5 second delay
     for (let i = 0; i < allMissingWrapActions.length; i++) {
@@ -716,15 +759,26 @@ export const autoRetryMissingActions = async () => {
     }
 
     console.log(`${logPrefix} Completed successfully`);
+    logMemoryDelta('Before final cleanup', startCheckpoint, logPrefix);
+
+    // Explicitly clear large arrays to help GC
+    const beforeArrayCleanup = createMemoryCheckpoint('Before array cleanup', logPrefix);
+    allMissingWrapActions.length = 0;
+    allMissingUnwrapActions.length = 0;
+    wrapTokensItems.length = 0;
+    wrapDomainsItems.length = 0;
+    unwrapTokensActions.length = 0;
+    unwrapDomainsActions.length = 0;
+    logMemoryDelta('After array cleanup', beforeArrayCleanup, logPrefix);
   } catch (error) {
     console.error(`${logPrefix} Error:`, error.message);
     handleServerError(error, 'Auto-Retry Missing Actions');
   } finally {
-    // Log final memory usage
-    const endMem = process.memoryUsage();
-    console.log(
-      `${logPrefix} Memory at end: ${Math.round(endMem.heapUsed / 1024 / 1024)}MB / ${Math.round(endMem.heapTotal / 1024 / 1024)}MB`,
-    );
+    // Force GC and log results
+    forceGCAndLog(logPrefix);
+
+    // Log final memory usage compared to start
+    logMemoryDelta('Final memory (end of job)', startCheckpoint, logPrefix);
 
     oracleCache.set(CACHE_KEY, false, 0);
   }
