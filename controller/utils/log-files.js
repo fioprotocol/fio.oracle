@@ -183,11 +183,14 @@ export const handleNonceValue = ({ chainNonce, chainCode }) => {
 
   const savedNonce = getLatestNonce({ chainCode });
 
-  if (savedNonce && Number(savedNonce) === Number(txNonce)) {
-    txNonce = txNonce++;
+  // If saved nonce is higher than chain nonce, use saved nonce (indicates pending transactions)
+  // If they're equal, increment to use next available nonce
+  if (savedNonce && Number(savedNonce) >= Number(txNonce)) {
+    txNonce = Number(savedNonce) + 1; // Fixed: properly increment nonce
   }
 
-  updateNonce({ chainCode, nonce: txNonce });
+  // DON'T save the nonce here - it should only be saved when transaction is actually sent
+  // The nonce gets saved in signAndSendTransaction when transaction hash is received
 
   return txNonce;
 };

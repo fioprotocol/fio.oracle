@@ -64,6 +64,7 @@ export const blockChainTransaction = async (transactionParams) => {
     manualSetGasPrice,
     originalTxHash = null,
     pendingTxNonce,
+    replacementAttempt = 0,
     shouldThrowError,
     type,
   } = transactionParams;
@@ -118,6 +119,7 @@ export const blockChainTransaction = async (transactionParams) => {
         logPrefix,
         isRetry: retryCount > 0,
         isReplace: isReplaceTx,
+        replacementAttempt,
       });
     }
 
@@ -154,8 +156,6 @@ export const blockChainTransaction = async (transactionParams) => {
       gasLimit: web3Instance.utils.toHex(gasLimit),
       nonce: web3Instance.utils.toHex(txNonce),
       chainId,
-      // Using 'prague' hardfork as default (EIP-1559 compatible)
-      // You can add hardfork to chainParams if you need chain-specific values
       hardfork,
     };
 
@@ -177,6 +177,10 @@ export const blockChainTransaction = async (transactionParams) => {
           console.log(
             `${isReplaceTx ? 'Replacement of' : ''} Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce} ${isReplaceTx ? `, replacing: ${originalTxHash}` : ''}`,
           );
+
+          // Save the nonce now that transaction is actually sent
+          updateNonce({ chainCode, nonce: txNonce });
+
           // Store transaction
           addLogMessage({
             filePath: getLogFilePath({
@@ -234,11 +238,16 @@ export const blockChainTransaction = async (transactionParams) => {
       const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);
       const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
       const revertedByTheEvm = error.message.includes(REVERTED_BY_THE_EVM);
-      const alreadyCompleted =
-        (error.reason && error.reason.toLowerCase().includes(ALREADY_COMPLETED)) ||
-        (error.message && error.message.toLowerCase().includes(ALREADY_COMPLETED));
 
-      // Don't retry if action is already complete
+      // Check for "already completed" but EXCLUDE "already known"
+      // "already known" means transaction is in mempool (still pending)
+      // "already completed/approved/wrapped" means action was completed on contract (should not retry)
+      const alreadyCompleted =
+        !transactionAlreadyKnown &&
+        ((error.reason && error.reason.toLowerCase().includes(ALREADY_COMPLETED)) ||
+          (error.message && error.message.toLowerCase().includes(ALREADY_COMPLETED)));
+
+      // Don't retry if action is already complete (but DO retry if transaction is "already known")
       if (alreadyCompleted) {
         console.log(
           `${logPrefix} Action already complete - not retrying (transaction was already processed)`,
@@ -247,12 +256,20 @@ export const blockChainTransaction = async (transactionParams) => {
         return;
       }
 
+      // Special handling for "already known" error
+      // This means the transaction is already in the mempool - don't retry, just wait
+      if (transactionAlreadyKnown) {
+        console.log(
+          `${logPrefix} Transaction already in mempool - not retrying. The pending transaction handler will monitor it.`,
+        );
+        // Transaction remains in pending log and will be handled by checkAndReplacePendingTransactions
+        if (shouldThrowError) throw error;
+        return;
+      }
+
       if (
         retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS &&
-        (nonceTooLowError ||
-          transactionAlreadyKnown ||
-          lowGasPriceError ||
-          revertedByTheEvm)
+        (nonceTooLowError || lowGasPriceError || revertedByTheEvm)
       ) {
         // Retry with an incremented nonce
         console.log(

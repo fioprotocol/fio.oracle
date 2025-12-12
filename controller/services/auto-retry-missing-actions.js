@@ -6,7 +6,7 @@ import { getChainEvents } from '../utils/auto-retry/evm-data.js';
 import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio-data.js';
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
-import { addLogMessage, handleServerError } from '../utils/log-files.js';
+import { addLogMessage, handleServerError, readLogFile } from '../utils/log-files.js';
 import { blockChainTransaction } from '../utils/transactions.js';
 
 const { oracleCache, supportedChains } = config;
@@ -35,6 +35,41 @@ const safeStringify = (obj) => {
     // Fallback: return string representation
     return String(obj);
   }
+};
+
+/**
+ * Check if there are pending transactions for a chain
+ * This prevents creating duplicate transactions with the same nonce
+ * @param {string} chainCode - The chain code to check
+ * @param {string} logPrefix - Logging prefix for context
+ * @returns {boolean} - True if should skip retry (has pending), false if should proceed
+ */
+const shouldSkipDueToPendingTransactions = (chainCode, logPrefix) => {
+  try {
+    const pendingTxFile = getLogFilePath({
+      key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
+      chainCode,
+    });
+
+    const pendingContent = readLogFile(pendingTxFile);
+    if (pendingContent && pendingContent.trim()) {
+      const pendingLines = pendingContent.split('\n').filter((line) => line.trim());
+      if (pendingLines.length > 0) {
+        console.log(
+          `${logPrefix} Found ${pendingLines.length} pending transaction(s) for ${chainCode}. Skipping retry to avoid nonce conflicts.`,
+        );
+        console.log(
+          `${logPrefix} The pending transaction handler will process these. This action will be retried on next missing-actions check if still missing.`,
+        );
+        return true; // Skip retry, let pending tx handler deal with it
+      }
+    }
+  } catch (pendingCheckError) {
+    console.log(
+      `${logPrefix} Could not check pending transactions: ${pendingCheckError.message}. Proceeding with caution.`,
+    );
+  }
+  return false; // No pending transactions, safe to proceed
 };
 
 /**
@@ -299,6 +334,12 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
     );
   }
 
+  // Check if there are pending transactions for this chain before attempting retry
+  // This prevents creating duplicate transactions with same nonce
+  if (shouldSkipDueToPendingTransactions(chainCode, logPrefix)) {
+    return false;
+  }
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       let isSuccess = false;
@@ -386,6 +427,12 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
   const domain = eventData.domain;
 
   console.log(`${logPrefix} Attempting to execute missing unwrap action`);
+
+  // Check if there are pending transactions for this chain before attempting retry
+  // This prevents creating duplicate transactions with same nonce
+  if (shouldSkipDueToPendingTransactions(chainCode, logPrefix)) {
+    return false;
+  }
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
