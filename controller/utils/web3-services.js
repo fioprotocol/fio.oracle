@@ -272,6 +272,8 @@ export class Web3Service {
   // Cache web3 instances per chain using fallback provider
   static _instances = new Map();
   static _providers = new Map();
+  // Cache contract instances to prevent memory leaks from repeated instantiation
+  static _contracts = new Map();
 
   static getWe3Instance({ chainCode, rpcUrl, apiKey }) {
     const errorLogPrefix = `WEB3 ERROR [Get instance] chain [${chainCode}]:`;
@@ -303,20 +305,35 @@ export class Web3Service {
   }
 
   static getWeb3Contract({ type, chainCode, contractAddress }) {
+    // Create cache key based on chain, type, and address
+    const cacheKey = `${chainCode}-${type}-${contractAddress}`;
+
+    // Return cached contract if it exists
+    if (this._contracts.has(cacheKey)) {
+      return this._contracts.get(cacheKey);
+    }
+
     const web3ChainInstance = this.getWe3Instance({ chainCode });
 
     if (!web3ChainInstance) {
       throw new Error('Web3 instance not found');
     }
 
+    let contract;
     switch (type) {
       case ACTION_TYPES.TOKENS:
-        return new web3ChainInstance.eth.Contract(fioABI, contractAddress);
+        contract = new web3ChainInstance.eth.Contract(fioABI, contractAddress);
+        break;
       case ACTION_TYPES.NFTS:
-        return new web3ChainInstance.eth.Contract(fioNftABI, contractAddress);
+        contract = new web3ChainInstance.eth.Contract(fioNftABI, contractAddress);
+        break;
       default:
         throw new Error('Invalid chain type');
     }
+
+    // Cache the contract instance for reuse
+    this._contracts.set(cacheKey, contract);
+    return contract;
   }
 
   static getCurrentRpcProviderName({ chainCode }) {
@@ -333,5 +350,40 @@ export class Web3Service {
     if (!provider || !provider.providers) return false;
     const isMoralisName = (prov) => (prov.name || '').toLowerCase().includes('moralis');
     return provider.providers.some(isMoralisName);
+  }
+
+  /**
+   * Clear cached contract instances (useful for cleanup or testing)
+   * @param {string} chainCode - Optional chain code to clear specific contracts
+   * @param {string} type - Optional type to clear specific contracts
+   */
+  static clearContractCache({ chainCode, type } = {}) {
+    if (!chainCode && !type) {
+      // Clear all contracts
+      const count = this._contracts.size;
+      this._contracts.clear();
+      console.log(`[Web3Service] Cleared ${count} cached contract instances`);
+      return count;
+    }
+
+    // Clear specific contracts matching criteria
+    let cleared = 0;
+    for (const [key] of this._contracts) {
+      const shouldClear =
+        (!chainCode || key.startsWith(`${chainCode}-`)) &&
+        (!type || key.includes(`-${type}-`));
+
+      if (shouldClear) {
+        this._contracts.delete(key);
+        cleared++;
+      }
+    }
+
+    if (cleared > 0) {
+      console.log(
+        `[Web3Service] Cleared ${cleared} cached contract instances for ${chainCode || 'all chains'}, ${type || 'all types'}`,
+      );
+    }
+    return cleared;
   }
 }
