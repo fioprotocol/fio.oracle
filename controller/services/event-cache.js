@@ -549,7 +549,8 @@ export const runEventCacheService = async () => {
 
     // Log total memory usage
     const totalEvents = Array.from(eventCache.values()).reduce(
-      (sum, cache) => sum + (cache.events?.length || 0),
+      (sum, cache) =>
+        sum + (cache.events && cache.events.length ? cache.events.length : 0),
       0,
     );
     logEventCache(

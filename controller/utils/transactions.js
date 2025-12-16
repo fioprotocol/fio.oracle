@@ -223,7 +223,10 @@ export const blockChainTransaction = async (transactionParams) => {
     } catch (error) {
       // Transaction failed or was rejected
       // Try to extract transaction hash from error (if it was broadcast and mined)
-      const txHash = error.receipt?.transactionHash || null;
+      const txHash =
+        error && error.receipt && error.receipt.transactionHash
+          ? error.receipt.transactionHash
+          : null;
 
       if (txHash) {
         console.log(
