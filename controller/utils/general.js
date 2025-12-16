@@ -45,7 +45,7 @@ export const logAppVersionToSystemLog = async ({ context, logPrefix = '[Version]
 
     // Only write to file if LOG_TO_FILE is enabled
     const { logging } = config;
-    if (logging?.LOG_TO_FILE) {
+    if (logging && logging.LOG_TO_FILE) {
       addLogMessage({
         filePath: getLogFilePath({ key: LOG_FILES_KEYS.SYSTEM }),
         message: versionMessage,
@@ -54,7 +54,8 @@ export const logAppVersionToSystemLog = async ({ context, logPrefix = '[Version]
 
     // Use original console to avoid double logging to file
     // (console.log is intercepted by Logger and would write to file again)
-    const originalConsole = logger?.originalConsole || console;
+    const originalConsole =
+      logger && logger.originalConsole ? logger.originalConsole : console;
     originalConsole.log(`${logPrefix} ${versionMessage}`);
   } catch (error) {
     console.warn(`${logPrefix} Failed to log version: ${error.message}`);

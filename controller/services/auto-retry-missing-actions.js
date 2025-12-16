@@ -192,10 +192,22 @@ const isWrapActionCompleteInCache = ({ obtId, oracleItem, chain, type, logPrefix
     (e) => e.event === CONTRACT_ACTIONS.WRAPPED,
   );
   const wrappedEvent = wrappedEvents.find((event) => {
-    const eventObtId = event.returnValues?.obtid;
-    const eventAccount = event.returnValues?.account;
-    const eventAmount = event.returnValues?.amount;
-    const eventNftName = event.returnValues?.domain;
+    const eventObtId =
+      event && event.returnValues && event.returnValues.obtid
+        ? event.returnValues.obtid
+        : null;
+    const eventAccount =
+      event && event.returnValues && event.returnValues.account
+        ? event.returnValues.account
+        : null;
+    const eventAmount =
+      event && event.returnValues && event.returnValues.amount
+        ? event.returnValues.amount
+        : null;
+    const eventNftName =
+      event && event.returnValues && event.returnValues.domain
+        ? event.returnValues.domain
+        : null;
 
     return (
       eventObtId === obtId &&
@@ -436,10 +448,22 @@ const findMissingWrapActions = ({
     }
 
     const wrappedEventAll = allWrappedEvents.find((event) => {
-      const eventObtId = event.returnValues?.obtid;
-      const eventAccount = event.returnValues?.account;
-      const eventAmount = event.returnValues?.amount;
-      const eventNftName = event.returnValues?.domain;
+      const eventObtId =
+        event && event.returnValues && event.returnValues.obtid
+          ? event.returnValues.obtid
+          : null;
+      const eventAccount =
+        event && event.returnValues && event.returnValues.account
+          ? event.returnValues.account
+          : null;
+      const eventAmount =
+        event && event.returnValues && event.returnValues.amount
+          ? event.returnValues.amount
+          : null;
+      const eventNftName =
+        event && event.returnValues && event.returnValues.domain
+          ? event.returnValues.domain
+          : null;
 
       return (
         eventObtId === obtId &&
@@ -614,9 +638,17 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
       const errorMessage = (error.message || '').toLowerCase();
       const errorReason = (error.reason || '').toLowerCase();
       const errorData = (error.data || '').toLowerCase();
-      const innerErrorMsg = (error.innerError?.message || '').toLowerCase();
-      const nestedErrorMsg = (error.error?.message || '').toLowerCase();
-      const causeMsg = (error.cause?.message || '').toLowerCase();
+      const innerErrorMsg = (
+        error && error.innerError && error.innerError.message
+          ? error.innerError.message
+          : ''
+      ).toLowerCase();
+      const nestedErrorMsg = (
+        error && error.error && error.error.message ? error.error.message : ''
+      ).toLowerCase();
+      const causeMsg = (
+        error && error.cause && error.cause.message ? error.cause.message : ''
+      ).toLowerCase();
 
       // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
       const fullErrorString = safeStringify(error).toLowerCase();
@@ -710,9 +742,17 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
       const errorMessage = (error.message || '').toLowerCase();
       const errorReason = (error.reason || '').toLowerCase();
       const errorData = (error.data || '').toLowerCase();
-      const innerErrorMsg = (error.innerError?.message || '').toLowerCase();
-      const nestedErrorMsg = (error.error?.message || '').toLowerCase();
-      const causeMsg = (error.cause?.message || '').toLowerCase();
+      const innerErrorMsg = (
+        error && error.innerError && error.innerError.message
+          ? error.innerError.message
+          : ''
+      ).toLowerCase();
+      const nestedErrorMsg = (
+        error && error.error && error.error.message ? error.error.message : ''
+      ).toLowerCase();
+      const causeMsg = (
+        error && error.cause && error.cause.message ? error.cause.message : ''
+      ).toLowerCase();
 
       // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
       const fullErrorString = safeStringify(error).toLowerCase();
