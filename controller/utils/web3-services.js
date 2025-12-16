@@ -58,6 +58,8 @@ class HttpRpcProvider {
         // Only treat genuine network server-side failures/timeouts as network errors
         err.isNetworkError = res.status >= 500 || res.status === 408;
         err.isRateLimitError = res.status === 429;
+        // Treat auth errors (401/403) as fallback-eligible since one provider's API key might be invalid
+        err.isAuthError = res.status === 401 || res.status === 403;
         err.rpcMethod = method;
         err.statusCode = res.status;
         err.statusText = res.statusText;
@@ -130,18 +132,16 @@ class MultiRpcProvider {
   }
 
   shouldFallbackOnError(err) {
-    // Only fallback on probable network/rate-limit issues.
+    // Fallback on ANY error by default - if one provider fails, try the next one
+    // Only exclude specific logical errors that shouldn't be retried (e.g., block range limits, execution errors)
     const msg = (err && err.message ? err.message : '').toLowerCase();
 
-    if (err && (err.isNetworkError || err.isRateLimitError)) return true;
-
-    // Check if message matches any network error patterns
-    if (NETWORK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return true;
-
     // Do NOT fallback on specific error types (provider-enforced range limitations, logical execution errors, etc.)
+    // These are errors that indicate the request itself is invalid, not a provider issue
     if (NO_FALLBACK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return false;
 
-    return false;
+    // For all other errors (401, 403, 429, 500, network errors, etc.), fallback to next provider
+    return true;
   }
 
   async request({ method, params }) {
@@ -272,6 +272,8 @@ export class Web3Service {
   // Cache web3 instances per chain using fallback provider
   static _instances = new Map();
   static _providers = new Map();
+  // Cache contract instances to prevent memory leaks from repeated instantiation
+  static _contracts = new Map();
 
   static getWe3Instance({ chainCode, rpcUrl, apiKey }) {
     const errorLogPrefix = `WEB3 ERROR [Get instance] chain [${chainCode}]:`;
@@ -303,20 +305,35 @@ export class Web3Service {
   }
 
   static getWeb3Contract({ type, chainCode, contractAddress }) {
+    // Create cache key based on chain, type, and address
+    const cacheKey = `${chainCode}-${type}-${contractAddress}`;
+
+    // Return cached contract if it exists
+    if (this._contracts.has(cacheKey)) {
+      return this._contracts.get(cacheKey);
+    }
+
     const web3ChainInstance = this.getWe3Instance({ chainCode });
 
     if (!web3ChainInstance) {
       throw new Error('Web3 instance not found');
     }
 
+    let contract;
     switch (type) {
       case ACTION_TYPES.TOKENS:
-        return new web3ChainInstance.eth.Contract(fioABI, contractAddress);
+        contract = new web3ChainInstance.eth.Contract(fioABI, contractAddress);
+        break;
       case ACTION_TYPES.NFTS:
-        return new web3ChainInstance.eth.Contract(fioNftABI, contractAddress);
+        contract = new web3ChainInstance.eth.Contract(fioNftABI, contractAddress);
+        break;
       default:
         throw new Error('Invalid chain type');
     }
+
+    // Cache the contract instance for reuse
+    this._contracts.set(cacheKey, contract);
+    return contract;
   }
 
   static getCurrentRpcProviderName({ chainCode }) {
@@ -333,5 +350,40 @@ export class Web3Service {
     if (!provider || !provider.providers) return false;
     const isMoralisName = (prov) => (prov.name || '').toLowerCase().includes('moralis');
     return provider.providers.some(isMoralisName);
+  }
+
+  /**
+   * Clear cached contract instances (useful for cleanup or testing)
+   * @param {string} chainCode - Optional chain code to clear specific contracts
+   * @param {string} type - Optional type to clear specific contracts
+   */
+  static clearContractCache({ chainCode, type } = {}) {
+    if (!chainCode && !type) {
+      // Clear all contracts
+      const count = this._contracts.size;
+      this._contracts.clear();
+      console.log(`[Web3Service] Cleared ${count} cached contract instances`);
+      return count;
+    }
+
+    // Clear specific contracts matching criteria
+    let cleared = 0;
+    for (const [key] of this._contracts) {
+      const shouldClear =
+        (!chainCode || key.startsWith(`${chainCode}-`)) &&
+        (!type || key.includes(`-${type}-`));
+
+      if (shouldClear) {
+        this._contracts.delete(key);
+        cleared++;
+      }
+    }
+
+    if (cleared > 0) {
+      console.log(
+        `[Web3Service] Cleared ${cleared} cached contract instances for ${chainCode || 'all chains'}, ${type || 'all types'}`,
+      );
+    }
+    return cleared;
   }
 }

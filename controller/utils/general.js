@@ -1,9 +1,66 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import fetch from 'node-fetch';
 
+import { getLogFilePath, LOG_FILES_KEYS } from './log-file-templates.js';
+import logger from './logger.js';
 import config from '../../config/config.js';
 import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
-import { handleServerError } from '../utils/log-files.js';
+import { handleServerError, addLogMessage } from '../utils/log-files.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let appVersion = null;
+
+/**
+ * Get application version from package.json
+ * Cached after first read for performance
+ * @returns {string} Application version
+ */
+export const getAppVersion = () => {
+  if (!appVersion) {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'),
+    );
+    appVersion = packageJson.version;
+  }
+  return appVersion;
+};
+
+/**
+ * Log app version to system.log file and/or console
+ * Only writes to file if LOG_TO_FILE is enabled in config
+ * @param {Object} params - Parameters object
+ * @param {string} params.context - Context message (e.g., "Started successfully in testnet mode", "Sync completed successfully")
+ * @param {string} params.logPrefix - Optional log prefix for console messages (default: '[Version]')
+ */
+export const logAppVersionToSystemLog = async ({ context, logPrefix = '[Version]' }) => {
+  try {
+    const version = getAppVersion();
+    const versionMessage = `App version: ${version} - ${context}`;
+
+    // Only write to file if LOG_TO_FILE is enabled
+    const { logging } = config;
+    if (logging && logging.LOG_TO_FILE) {
+      addLogMessage({
+        filePath: getLogFilePath({ key: LOG_FILES_KEYS.SYSTEM }),
+        message: versionMessage,
+      });
+    }
+
+    // Use original console to avoid double logging to file
+    // (console.log is intercepted by Logger and would write to file again)
+    const originalConsole =
+      logger && logger.originalConsole ? logger.originalConsole : console;
+    originalConsole.log(`${logPrefix} ${versionMessage}`);
+  } catch (error) {
+    console.warn(`${logPrefix} Failed to log version: ${error.message}`);
+  }
+};
 
 const { DEFAULT_MAX_RETRIES } = config;
 

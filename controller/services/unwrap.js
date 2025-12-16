@@ -1,3 +1,4 @@
+import { getCachedEvents, getCacheStats } from './event-cache.js';
 import config from '../../config/config.js';
 
 import fioCtrl from '../api/fio.js';
@@ -9,16 +10,19 @@ import { stringifyWithBigInt } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import {
   handleServerError,
-  updateBlockNumber,
   getLastProcessedBlockNumber,
+  updateUnwrapProcessedBlockNumber,
+  getLastUnwrapProcessedBlockNumber,
+  isUnwrapTransactionInFioLog,
   addLogMessage,
 } from '../utils/log-files.js';
-import {
-  splitRangeByProvider,
-  MORALIS_SAFE_BLOCKS_PER_QUERY,
-} from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
-import { globalRequestQueue } from '../utils/request-queue.js';
+import {
+  createMemoryCheckpoint,
+  logMemoryDelta,
+  logArraySize,
+  forceGCAndLog,
+} from '../utils/memory-logger.js';
 import { Web3Service } from '../utils/web3-services.js';
 
 const { oracleCache, supportedChains } = config;
@@ -30,9 +34,9 @@ export const handleUnwrap = async () => {
   for (const [type, chains] of Object.entries(supportedChains)) {
     for (const chain of chains) {
       const {
-        blocksRangeLimit,
+        // blocksRangeLimit,
         blocksOffset = 0,
-        contractAddress,
+        // contractAddress,
         contractTypeName,
         chainParams,
       } = chain;
@@ -64,176 +68,160 @@ export const handleUnwrap = async () => {
       }
       isFirstChain = false;
 
+      // Create memory checkpoint at start of chain processing
+      const chainStartCheckpoint = createMemoryCheckpoint(
+        `Start processing ${chainCode} ${type}`,
+        logPrefix,
+      );
+
+      // Initialize arrays for cleanup in finally block
+      let allCachedEvents = null;
+      let eventsInRange = null;
+      let eventsToProcess = null;
+
       try {
-        // Get contract instance once for all requests
-        const contract = await Web3Service.getWeb3Contract({
-          type,
+        // Get cache statistics
+        const cacheStats = getCacheStats({ chainCode, type });
+        if (cacheStats.exists) {
+          console.log(
+            `${logPrefix} Cache stats: ${cacheStats.eventCount} events, ` +
+              `age: ${Math.round(cacheStats.age / 1000)}s`,
+          );
+        } else {
+          console.log(`${logPrefix} Cache not ready yet, will retry on next run`);
+        }
+
+        // Get current chain block number
+        const web3ChainInstance = Web3Service.getWe3Instance({ chainCode });
+        const chainBlockNumber = await web3ChainInstance.eth.getBlockNumber();
+        const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))
+          .sub(blocksOffset)
+          .toNumber();
+
+        // Get event cache's last processed block number (upper limit for what's been fetched)
+        let eventCacheBlockNumber;
+        try {
+          eventCacheBlockNumber = getLastProcessedBlockNumber({ chainCode });
+        } catch {
+          console.log(
+            `${logPrefix} Event cache block number file not found, using chain block: ${lastInChainBlockNumber}`,
+          );
+          eventCacheBlockNumber = lastInChainBlockNumber;
+        }
+
+        // Get unwrap processed block number (tracks which blocks we've checked for unwrap)
+        let lastUnwrapProcessedBlock = getLastUnwrapProcessedBlockNumber({ chainCode });
+        if (lastUnwrapProcessedBlock === null || isNaN(lastUnwrapProcessedBlock)) {
+          // First time running or invalid value - initialize to event cache's block number
+          // This ensures we only process NEW events going forward, not old cached events
+          lastUnwrapProcessedBlock = eventCacheBlockNumber;
+
+          // Validate that eventCacheBlockNumber is valid
+          if (isNaN(lastUnwrapProcessedBlock) || lastUnwrapProcessedBlock < 0) {
+            console.warn(
+              `${logPrefix} Invalid event cache block number (${eventCacheBlockNumber}), using chain block: ${lastInChainBlockNumber}`,
+            );
+            lastUnwrapProcessedBlock = lastInChainBlockNumber;
+          }
+
+          updateUnwrapProcessedBlockNumber({
+            chainCode,
+            blockNumber: lastUnwrapProcessedBlock.toString(),
+          });
+          console.log(
+            `${logPrefix} First run or invalid value: Initialized unwrap processed block number to ${lastUnwrapProcessedBlock} ` +
+              `(will only process new events going forward)`,
+          );
+        }
+
+        // Check events from the last unwrap processed block + 1 up to the event cache's block number
+        const fromBlockNumber = new MathOp(lastUnwrapProcessedBlock).add(1).toNumber();
+        const toBlockNumber = Math.min(eventCacheBlockNumber, lastInChainBlockNumber);
+
+        console.log(
+          `${logPrefix} Checking unwrap events from block ${fromBlockNumber} to ${toBlockNumber} ` +
+            `(event cache is at block ${eventCacheBlockNumber})`,
+        );
+
+        // Get all cached unwrapped events
+        const beforeFetchCheckpoint = createMemoryCheckpoint(
+          `Before fetching cached events`,
+          logPrefix,
+        );
+        allCachedEvents = getCachedEvents({
           chainCode,
-          contractAddress,
+          type,
+          eventType: CONTRACT_ACTIONS.UNWRAPPED,
+        });
+        logMemoryDelta(`After fetching cached events`, beforeFetchCheckpoint, logPrefix);
+        logArraySize('allCachedEvents', allCachedEvents, logPrefix);
+
+        // Filter events in the block range we're checking
+        // Only process events in the normal range - missed events are handled by auto-retry-missing-actions
+        const beforeFilterCheckpoint = createMemoryCheckpoint(
+          `Before filtering events by block range`,
+          logPrefix,
+        );
+        eventsInRange = allCachedEvents.filter((event) => {
+          const blockNumber = parseInt(event.blockNumber);
+          return blockNumber >= fromBlockNumber && blockNumber <= toBlockNumber;
         });
 
-        const getActionsLogs = async ({ from, to }) => {
-          const tryWindow = async (start, end) =>
-            await globalRequestQueue.enqueue(
-              async () => {
-                console.log(
-                  `${logPrefix} Fetching events from block ${start} to ${end}...`,
-                );
-                return await contract.getPastEvents(CONTRACT_ACTIONS.UNWRAPPED, {
-                  fromBlock: start,
-                  toBlock: end,
-                });
-              },
-              { logPrefix, from: start, to: end },
+        // Sort by block number to process in order
+        eventsInRange.sort((a, b) => parseInt(a.blockNumber) - parseInt(b.blockNumber));
+        logMemoryDelta(
+          `After filtering events by block range`,
+          beforeFilterCheckpoint,
+          logPrefix,
+        );
+        logArraySize('eventsInRange', eventsInRange, logPrefix);
+
+        console.log(
+          `${logPrefix} Found ${eventsInRange.length} unwrapped events in cache ` +
+            `(from ${allCachedEvents.length} total cached events)`,
+        );
+
+        // Filter out events that are already processed in FIO.log
+        const beforeFioCheckCheckpoint = createMemoryCheckpoint(
+          `Before checking FIO.log`,
+          logPrefix,
+        );
+        eventsToProcess = [];
+        let skippedAlreadyProcessed = 0;
+
+        for (const event of eventsInRange) {
+          const txHash = event.transactionHash;
+          if (isUnwrapTransactionInFioLog(txHash)) {
+            skippedAlreadyProcessed++;
+            console.log(
+              `${logPrefix} Skipping event at block ${event.blockNumber}, txHash ${txHash} - already in FIO.log`,
             );
-
-          const windows = splitRangeByProvider({
-            chainCode,
-            fromBlock: from,
-            toBlock: to,
-            // prefer the whole window when not Moralis; util will clamp to 99 if Moralis
-            preferChunk: to - from + 1,
-            moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
-          });
-
-          const combined = [];
-
-          const fetchWindow = async (start, end) => {
-            try {
-              const part = await tryWindow(start, end);
-              return part || [];
-            } catch (err) {
-              const msg = (err && err.message) || '';
-              const isRangeError =
-                (err && err.statusCode === 400) ||
-                msg.includes('Exceeded maximum block range');
-              if (!isRangeError) throw err;
-
-              console.warn(
-                `${logPrefix} Window ${start}-${end} failed (${msg}). Retrying with ${MORALIS_SAFE_BLOCKS_PER_QUERY}-block chunks...`,
-              );
-              const merged = [];
-              for (let s = start; s <= end; s += MORALIS_SAFE_BLOCKS_PER_QUERY) {
-                const e = Math.min(end, s + MORALIS_SAFE_BLOCKS_PER_QUERY - 1);
-                const sub = await tryWindow(s, e);
-                if (sub && sub.length) merged.push(...sub);
-              }
-              return merged;
-            }
-          };
-
-          for (const w of windows) {
-            const part = await fetchWindow(w.from, w.to);
-            if (part && part.length) combined.push(...part);
+          } else {
+            eventsToProcess.push(event);
           }
-          return combined;
-        };
+        }
+        logMemoryDelta(`After checking FIO.log`, beforeFioCheckCheckpoint, logPrefix);
+        logArraySize('eventsToProcess', eventsToProcess, logPrefix);
 
-        const getUnprocessedActionsLogs = async () => {
-          const web3ChainInstance = Web3Service.getWe3Instance({ chainCode });
-
-          const chainBlockNumber = await web3ChainInstance.eth.getBlockNumber();
-          const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))
-            .sub(blocksOffset)
-            .toNumber();
-
-          // Safely get last processed block number, handle missing file or invalid data
-          let lastProcessedBlockNumber;
-          try {
-            lastProcessedBlockNumber = getLastProcessedBlockNumber({ chainCode });
-          } catch (error) {
-            console.log(`${logPrefix} error: ${error}`);
-            // File doesn't exist or can't be read
-            console.warn(
-              `${logPrefix} ${ACTIONS.UNWRAP} ${type} Block number file not found or unreadable. Starting from current chain block: ${lastInChainBlockNumber}`,
-            );
-            lastProcessedBlockNumber = lastInChainBlockNumber;
-            updateBlockNumber({
-              chainCode,
-              blockNumber: lastProcessedBlockNumber.toString(),
-            });
-          }
-
-          // Validate and fix invalid or corrupted block number
-          if (
-            isNaN(lastProcessedBlockNumber) ||
-            lastProcessedBlockNumber < 0 ||
-            new MathOp(lastProcessedBlockNumber).gt(lastInChainBlockNumber)
-          ) {
-            console.warn(
-              `${logPrefix} ${ACTIONS.UNWRAP} ${type} Invalid stored blockNumber (${lastProcessedBlockNumber}). Resetting to current chain block: ${lastInChainBlockNumber}`,
-            );
-            lastProcessedBlockNumber = lastInChainBlockNumber;
-            updateBlockNumber({
-              chainCode,
-              blockNumber: lastProcessedBlockNumber.toString(),
-            });
-          }
-
-          let fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
-
+        if (skippedAlreadyProcessed > 0) {
           console.log(
-            `${logPrefix} ${ACTIONS.UNWRAP} ${type} start Block Number: ${fromBlockNumber}, end Block Number: ${lastInChainBlockNumber}`,
+            `${logPrefix} Skipped ${skippedAlreadyProcessed} event(s) already processed in FIO.log`,
           );
+        }
 
-          const result = [];
-          let maxCheckedBlockNumber = 0;
-          let requestCount = 0;
+        console.log(
+          `${logPrefix} Processing ${eventsToProcess.length} new unwrap event(s)`,
+        );
 
-          while (new MathOp(fromBlockNumber).lte(lastInChainBlockNumber)) {
-            const maxAllowedBlockNumber = new MathOp(fromBlockNumber)
-              .add(blocksRangeLimit)
-              .sub(1)
-              .toNumber();
-
-            const toBlockNumber = new MathOp(maxAllowedBlockNumber).gt(
-              lastInChainBlockNumber,
-            )
-              ? lastInChainBlockNumber
-              : maxAllowedBlockNumber;
-
-            maxCheckedBlockNumber = toBlockNumber;
-
-            updateBlockNumber({
-              chainCode,
-              blockNumber: maxCheckedBlockNumber.toString(),
-            });
-
-            const events = await getActionsLogs({
-              from: fromBlockNumber,
-              to: toBlockNumber,
-            });
-
-            if (events && events.length) {
-              result.push(...events);
-            }
-
-            fromBlockNumber = new MathOp(toBlockNumber).add(1).toNumber();
-            requestCount++;
-
-            // Log progress every 10 requests
-            if (requestCount % 10 === 0) {
-              console.log(
-                `${logPrefix} Processed ${requestCount} batches, ${result.length} events so far...`,
-              );
-              globalRequestQueue.printStats(`${logPrefix} `);
-
-              // Allow GC to run every 10 batches to prevent memory buildup
-              await new Promise((resolve) => setImmediate(resolve));
-            }
-          }
-
-          console.log(
-            `${logPrefix} ${ACTIONS.UNWRAP} ${type} events list length: ${result.length}`,
+        // Process events that aren't already in FIO.log
+        if (eventsToProcess.length > 0) {
+          const beforeProcessingCheckpoint = createMemoryCheckpoint(
+            `Before processing events`,
+            logPrefix,
           );
-          globalRequestQueue.printStats(`${logPrefix} `);
-          return result;
-        };
+          let highestProcessedBlock = lastUnwrapProcessedBlock;
 
-        const unwrapData = await getUnprocessedActionsLogs();
-        console.log(`${logPrefix} unwrapData length: ${unwrapData.length}`);
-        if (unwrapData.length > 0) {
-          for (const unwrapItem of unwrapData) {
+          for (const unwrapItem of eventsToProcess) {
             const logText = `${unwrapItem.transactionHash} ${stringifyWithBigInt(unwrapItem.returnValues)}`;
 
             addLogMessage({
@@ -246,8 +234,52 @@ export const handleUnwrap = async () => {
               message: logText,
               addTimestamp: false,
             });
+
+            // Update highest processed block
+            const eventBlockNumber = parseInt(unwrapItem.blockNumber);
+            if (eventBlockNumber > highestProcessedBlock) {
+              highestProcessedBlock = eventBlockNumber;
+            }
+          }
+          logMemoryDelta(
+            `After processing events`,
+            beforeProcessingCheckpoint,
+            logPrefix,
+          );
+
+          // Update unwrap processed block number to the highest block we've checked
+          updateUnwrapProcessedBlockNumber({
+            chainCode,
+            blockNumber: highestProcessedBlock.toString(),
+          });
+          console.log(
+            `${logPrefix} Updated unwrap processed block number to ${highestProcessedBlock} ` +
+              `(queued ${eventsToProcess.length} event(s) for FIO processing)`,
+          );
+        } else {
+          // No new events to process, but we've checked up to toBlockNumber
+          // Update unwrap processed block number to reflect we've checked this range
+          if (toBlockNumber >= fromBlockNumber) {
+            updateUnwrapProcessedBlockNumber({
+              chainCode,
+              blockNumber: toBlockNumber.toString(),
+            });
+            console.log(
+              `${logPrefix} Updated unwrap processed block number to ${toBlockNumber} ` +
+                `(no new events to process)`,
+            );
           }
         }
+
+        // Clean up arrays to free memory
+        const beforeCleanupCheckpoint = createMemoryCheckpoint(
+          `Before cleanup`,
+          logPrefix,
+        );
+        if (allCachedEvents) allCachedEvents.length = 0;
+        if (eventsInRange) eventsInRange.length = 0;
+        if (eventsToProcess) eventsToProcess.length = 0;
+        logMemoryDelta(`After cleanup`, beforeCleanupCheckpoint, logPrefix);
 
         // Check if FIO transaction processing job is already running (global check)
         const isUnwrapFioTxJobExecuting = oracleCache.get(
@@ -265,17 +297,21 @@ export const handleUnwrap = async () => {
         handleServerError(error, `${chainCode}, ${ACTIONS.UNWRAP} ${type}`);
         // Continue to next chain even if this one failed
       } finally {
+        // Force GC and log memory delta for this chain
+        forceGCAndLog(logPrefix);
+        logMemoryDelta(
+          `Final memory (end of chain processing)`,
+          chainStartCheckpoint,
+          logPrefix,
+        );
+
         oracleCache.set(cacheKey, false, 0);
         console.log(`${logPrefix} Chain processing completed (success or error).`);
       }
     }
   }
 
-  // Print final queue statistics
   console.log('='.repeat(60));
-  globalRequestQueue.printStats('All chains completed --> ');
+  console.log('[Unwrap] All chains completed');
   console.log('='.repeat(60));
-
-  // Reset stats for next cycle to prevent infinite accumulation
-  globalRequestQueue.resetStats();
 };

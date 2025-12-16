@@ -9,11 +9,13 @@ import { MINUTE_IN_MILLISECONDS } from './constants/general.js';
 import { checkAndReplacePendingTransactions } from './jobs/transactions.js';
 import healthRoute from './routes/health.js';
 import { autoRetryMissingActions } from './services/auto-retry-missing-actions.js';
+import { initializeEventCache, runEventCacheService } from './services/event-cache.js';
 import { handleUnwrap } from './services/unwrap.js';
 import {
   getLastIrreversibleBlockOnFioChain,
   getLastFioOracleItemId,
 } from './utils/fio-chain.js';
+import { logAppVersionToSystemLog } from './utils/general.js';
 import {
   LOG_DIRECTORY_PATH_NAME,
   getLogFilePath,
@@ -59,8 +61,14 @@ class MainCtrl {
       // Show startup information
       logger.showStartupInfo();
 
-      // Prepare logs file
+      // Prepare logs directory first (must exist before writing to log files)
       prepareLogDirectory(LOG_DIRECTORY_PATH_NAME);
+
+      // Log app version after directory is created
+      await logAppVersionToSystemLog({
+        context: `Starting in ${mode} mode`,
+        logPrefix,
+      });
 
       // Clean up invalid log files (those not matching current configuration)
       cleanupInvalidLogFiles(true);
@@ -168,6 +176,21 @@ class MainCtrl {
             offset: blocksOffset,
           });
 
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.UNWRAP_PROCESSED_BLOCK_NUMBER,
+              chainCode,
+            }),
+          });
+
+          await prepareLogFile({
+            filePath: getLogFilePath({
+              key: LOG_FILES_KEYS.EVENT_CACHE_EVENTS,
+              chainCode,
+              type,
+            }),
+          });
+
           if (type === ACTION_TYPES.NFTS) {
             await prepareLogFile({
               filePath: getLogFilePath({
@@ -213,6 +236,31 @@ class MainCtrl {
 
       console.log(`${logPrefix} blocks folders are ready`);
 
+      // ========================================
+      // Initialize Event Cache Service
+      // This MUST run BEFORE unwrap and auto-retry jobs
+      // ========================================
+      console.log('='.repeat(60));
+      console.log('📦 Initializing Event Cache Service...');
+      console.log('='.repeat(60));
+
+      // Load existing cache from disk (if available)
+      initializeEventCache();
+      console.log('✅ Event cache initialized from disk');
+
+      // Run first cache update immediately
+      console.log('🔄 Running initial event cache update...');
+      await runEventCacheService();
+
+      // Wait 5 seconds for cache to fully populate
+      console.log('⏳ Waiting 5s for cache to settle before starting jobs...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      console.log('='.repeat(60));
+      console.log('✅ Event Cache Ready - Starting Jobs');
+      console.log('='.repeat(60));
+      // ========================================
+
       // Start Jobs asynchronously immediately
       fioCtrl.handleUnprocessedWrapActionsOnFioChain();
       handleUnwrap();
@@ -224,6 +272,13 @@ class MainCtrl {
       setTimeout(() => {
         autoRetryMissingActions();
       }, parseInt(DEFAULT_JOB_TIMEOUT));
+
+      // ========================================
+      // Event Cache Service Interval (MUST BE FIRST)
+      // Runs every 60 seconds to keep cache updated
+      // ========================================
+      setInterval(runEventCacheService, parseInt(DEFAULT_JOB_TIMEOUT)); // Event cache updates every 60 seconds
+      // ========================================
 
       // Start Jobs interval
       setInterval(
@@ -263,6 +318,13 @@ class MainCtrl {
       logger.info(`${logPrefix} Mode: ${mode}`);
       console.log(`${logPrefix} success`);
       console.log(`${logPrefix} Mode: ${mode}`);
+
+      // Final status message
+      console.log('='.repeat(60));
+      console.log('✅ ALL SERVICES STARTED SUCCESSFULLY');
+      console.log(`📊 Event Cache: Running every ${DEFAULT_JOB_TIMEOUT}ms`);
+      console.log('💡 Unwrap & Auto-Retry: Always using event cache');
+      console.log('='.repeat(60));
     } catch (err) {
       handleServerError(err, logPrefix);
       throw new Error(

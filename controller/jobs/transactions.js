@@ -1,5 +1,9 @@
 import config from '../../config/config.js';
-import { TRANSACTION_NOT_FOUND, MAX_TRANSACTION_AGE } from '../constants/transactions.js';
+import {
+  TRANSACTION_NOT_FOUND,
+  MAX_TRANSACTION_AGE,
+  MAX_REPLACEMENT_ATTEMPTS,
+} from '../constants/transactions.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { readLogFile, removePendingTransaction } from '../utils/log-files.js';
 import { handleChainError } from '../utils/log-files.js';
@@ -72,11 +76,35 @@ export const checkAndReplacePendingTransactions = async () => {
       // Sort by nonce to handle them in order
       pendingTransactions.sort((a, b) => a.txNonce - b.txNonce);
 
-      // Remove transactions with nonce less than latest confirmed nonce or trasaction has been already replaced
+      // Count replacement attempts per nonce
+      const replacementCountByNonce = {};
+      pendingTransactions.forEach((tx) => {
+        if (tx.isReplaceTx) {
+          replacementCountByNonce[tx.txNonce] =
+            (replacementCountByNonce[tx.txNonce] || 0) + 1;
+        }
+      });
+
+      // Remove transactions with nonce less than latest confirmed nonce or transaction has been already replaced
       pendingTransactions = pendingTransactions.filter((tx) => {
         const isReplaced = pendingTransactions.some(
           (pendingTx) => pendingTx.originalTxHash === tx.hash,
         );
+
+        // Check if this nonce has exceeded max replacement attempts
+        const replacementCount = replacementCountByNonce[tx.txNonce] || 0;
+        if (replacementCount >= MAX_REPLACEMENT_ATTEMPTS) {
+          console.log(
+            `${logPrefix} Max replacement attempts (${MAX_REPLACEMENT_ATTEMPTS}) reached for nonce ${tx.txNonce}. Removing transaction: ${tx.hash}`,
+          );
+          removePendingTransaction({
+            hash: tx.hash,
+            logFilePath: pendingTransactionFilePath,
+            logPrefix,
+          });
+          return false;
+        }
+
         if (tx.txNonce < latestNonce || isReplaced) {
           console.log(
             `${logPrefix} Removing old transaction with nonce ${tx.txNonce} (latest nonce: ${latestNonce}): ${tx.hash}`,
@@ -106,6 +134,9 @@ export const checkAndReplacePendingTransactions = async () => {
           return null;
         }
       };
+
+      // Group transactions by nonce to only process the first one per nonce
+      const processedNonces = new Set();
 
       for (const {
         action,
@@ -139,15 +170,48 @@ export const checkAndReplacePendingTransactions = async () => {
           continue;
         }
 
+        // Check if we've already processed a transaction for this nonce in this run
+        if (processedNonces.has(pendingTxNonce)) {
+          continue;
+        }
+
         if (!tx || currentTime - timestamp > MAX_TRANSACTION_AGE) {
+          // Count how many replacement attempts exist for this nonce
+          // Use pre-computed count to avoid creating temporary array in loop
+          const replacementCount = replacementCountByNonce[pendingTxNonce] || 0;
+
+          // Stop if we've reached the limit
+          if (replacementCount >= MAX_REPLACEMENT_ATTEMPTS) {
+            console.log(
+              `${logPrefix} Reached max replacement attempts (${replacementCount}/${MAX_REPLACEMENT_ATTEMPTS}) for nonce ${pendingTxNonce}. Rejecting transaction to prevent account blocking.`,
+            );
+            // Remove all pending transactions for this nonce
+            // Use direct iteration to avoid creating temporary array
+            for (const t of pendingTransactions) {
+              if (t.txNonce === pendingTxNonce) {
+                removePendingTransaction({
+                  hash: t.hash,
+                  logFilePath: pendingTransactionFilePath,
+                  logPrefix,
+                });
+              }
+            }
+            continue;
+          }
+
           // If no tx - transaction not in mempool
           if (tx) {
-            console.log(`${logPrefix} Found stuck transaction: ${hash}`);
+            console.log(
+              `${logPrefix} Found stuck transaction: ${hash} (attempt ${replacementCount + 1}/${MAX_REPLACEMENT_ATTEMPTS})`,
+            );
           } else {
             console.log(
-              `${logPrefix} Transaction ${hash} not in mempool and timed out, attempting replacement`,
+              `${logPrefix} Transaction ${hash} not in mempool and timed out, attempting replacement (${replacementCount + 1}/${MAX_REPLACEMENT_ATTEMPTS})`,
             );
           }
+
+          // Mark this nonce as processed to prevent multiple replacements in one run
+          processedNonces.add(pendingTxNonce);
 
           // Only replace the earliest stuck transaction
           await blockChainTransaction({
@@ -158,6 +222,7 @@ export const checkAndReplacePendingTransactions = async () => {
             logPrefix,
             originalTxHash: hash,
             pendingTxNonce: pendingTxNonce,
+            replacementAttempt: replacementCount,
             type,
           });
         }
