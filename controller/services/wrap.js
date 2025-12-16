@@ -3,7 +3,7 @@ import fs from 'fs';
 import { isAddress } from 'web3-validator';
 
 import config from '../../config/config.js';
-import { ACTIONS, handleActionName } from '../constants/chain.js';
+import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { isOracleAddressValid, convertNativeFioIntoFio } from '../utils/chain.js';
 import { getOracleCacheKey } from '../utils/cron-jobs.js';
@@ -107,16 +107,25 @@ export const handleWrap = async ({
             isTransactionProceededSuccessfully = true;
           };
 
+          const contractActionParams = {
+            obtId: wrapOracleId,
+            pubaddress,
+          };
+
+          // Only include nftName for NFT wraps
+          if (type === ACTION_TYPES.NFTS && nftname) {
+            contractActionParams.nftName = nftname;
+          }
+          // Only include amount for token wraps
+          if (type === ACTION_TYPES.TOKENS && amount) {
+            contractActionParams.amount = amount;
+          }
+
           await blockChainTransaction({
             action: actionNameType,
             type,
             chainCode,
-            contractActionParams: {
-              amount,
-              obtId: wrapOracleId,
-              pubaddress,
-              nftName: nftname,
-            },
+            contractActionParams,
             logPrefix,
             shouldThrowError: true,
             handleSuccessedResult: onSussessTransaction,

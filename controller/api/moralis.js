@@ -50,12 +50,21 @@ class GetMoralis {
         format: 'decimal',
         mediaItems: false,
       });
+
+      if (!nftItemWithFreshMetadataRes) {
+        console.error(
+          `MORALIS ERROR: Get metadata returned null for token id - ${nftItem.token_id}`,
+        );
+        return null;
+      }
+
       return nftItemWithFreshMetadataRes.toJSON();
     } catch (error) {
       console.error(
         `MORALIS ERROR: Get metadata for token id - ${nftItem.token_id}: `,
         error.message,
       );
+      return null;
     }
   }
 
@@ -107,49 +116,53 @@ class GetMoralis {
             cursor: contractNftsRes,
             nftsList,
           });
-        }
-      }
-
-      if (nftsList.some((nftItem) => nftItem.metadata == null)) {
-        const nftItemsWithNoMetadata = nftsList.filter(
-          (nftItem) => nftItem.metadata == null,
-        );
-        const nftItemsWithSyncedMetadata = [];
-
-        const processChunk = async (chunk) => {
-          const nftMetadataPromises = chunk.map((nftItem) =>
-            this.resyncNftMetadata(nftItem),
-          );
-
-          const chunkResults = await Promise.allSettled(nftMetadataPromises);
-
-          const resolvedChunkResults = chunkResults
-            .filter((result) => result.status === 'fulfilled')
-            .map((result) => result.value);
-
-          nftItemsWithSyncedMetadata.push(...resolvedChunkResults);
-        };
-
-        for (let i = 0; i < nftItemsWithNoMetadata.length; i += CHUNK_SIZE) {
-          const chunk = nftItemsWithNoMetadata.slice(i, i + CHUNK_SIZE);
-
-          await processChunk(chunk);
-
-          if (i + CHUNK_SIZE < nftItemsWithNoMetadata.length) {
-            await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_CHUNKS));
-          }
-        }
-
-        if (nftItemsWithSyncedMetadata.length) {
-          for (const nftItemWithSyncedMetadata of nftItemsWithSyncedMetadata) {
-            const nonUpdatedMetadataNftItem = nftsList.find(
-              (nftItem) => nftItem.token_id === nftItemWithSyncedMetadata.token_id,
+        } else {
+          // Only sync metadata once when we've finished fetching all NFTs
+          if (nftsList.some((nftItem) => nftItem.metadata == null)) {
+            const nftItemsWithNoMetadata = nftsList.filter(
+              (nftItem) => nftItem.metadata == null,
             );
+            const nftItemsWithSyncedMetadata = [];
 
-            if (nonUpdatedMetadataNftItem) {
-              nonUpdatedMetadataNftItem.metadata = nftItemWithSyncedMetadata.metadata;
-              nonUpdatedMetadataNftItem.normalized_metadata =
-                nftItemWithSyncedMetadata.normalized_metadata;
+            console.log('NFT items with no metadata:', nftItemsWithNoMetadata.length);
+
+            const processChunk = async (chunk) => {
+              const nftMetadataPromises = chunk.map((nftItem) =>
+                this.resyncNftMetadata({ chainId, nftItem }),
+              );
+
+              const chunkResults = await Promise.allSettled(nftMetadataPromises);
+
+              const resolvedChunkResults = chunkResults
+                .filter((result) => result.status === 'fulfilled')
+                .map((result) => result.value)
+                .filter((result) => result != null);
+
+              nftItemsWithSyncedMetadata.push(...resolvedChunkResults);
+            };
+
+            for (let i = 0; i < nftItemsWithNoMetadata.length; i += CHUNK_SIZE) {
+              const chunk = nftItemsWithNoMetadata.slice(i, i + CHUNK_SIZE);
+
+              await processChunk(chunk);
+
+              if (i + CHUNK_SIZE < nftItemsWithNoMetadata.length) {
+                await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_CHUNKS));
+              }
+            }
+
+            if (nftItemsWithSyncedMetadata.length) {
+              for (const nftItemWithSyncedMetadata of nftItemsWithSyncedMetadata) {
+                const nonUpdatedMetadataNftItem = nftsList.find(
+                  (nftItem) => nftItem.token_id === nftItemWithSyncedMetadata.token_id,
+                );
+
+                if (nonUpdatedMetadataNftItem) {
+                  nonUpdatedMetadataNftItem.metadata = nftItemWithSyncedMetadata.metadata;
+                  nonUpdatedMetadataNftItem.normalized_metadata =
+                    nftItemWithSyncedMetadata.normalized_metadata;
+                }
+              }
             }
           }
         }
