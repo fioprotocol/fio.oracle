@@ -9,6 +9,7 @@ export const SYSTEM_LOG_FILE = 'system.log';
 export const LOG_FILES_KEYS = {
   CHAIN: 'chain',
   BLOCK_NUMBER: 'blockNumber',
+  UNWRAP_PROCESSED_BLOCK_NUMBER: 'unwrapProcessedBlockNumber',
   NONCE: 'nonce',
   PENDING_TRANSACTIONS: 'pendingTransactions',
   WRAP: 'wrap',
@@ -21,6 +22,7 @@ export const LOG_FILES_KEYS = {
   BURN_NFTS: 'burnNFTs',
   BURN_NFTS_ERROR: 'burnNFTs-error',
   MISSING_ACTIONS: 'missingActions',
+  EVENT_CACHE_EVENTS: 'eventCacheEvents',
   SYSTEM: 'system',
 };
 
@@ -40,6 +42,9 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
       : null,
     [LOG_FILES_KEYS.BLOCK_NUMBER]: chainCode
       ? `${LOG_DIRECTORY_PATH_NAME}block-number-${chainCode}.log`
+      : null,
+    [LOG_FILES_KEYS.UNWRAP_PROCESSED_BLOCK_NUMBER]: chainCode
+      ? `${LOG_DIRECTORY_PATH_NAME}unwrap-processed-block-number-${chainCode}.log`
       : null,
     [LOG_FILES_KEYS.NONCE]: chainCode
       ? `${LOG_DIRECTORY_PATH_NAME}nonce-${chainCode}.log`
@@ -73,6 +78,10 @@ export const getLogFilePath = ({ key, chainCode = null, type = null } = {}) => {
     [LOG_FILES_KEYS.FIO_ORACLE_ITEM_ID]: `${LOG_DIRECTORY_PATH_NAME}FIO-oracle-item-id.log`,
     [LOG_FILES_KEYS.ORACLE_ERRORS]: `${LOG_DIRECTORY_PATH_NAME}Error.log`,
     [LOG_FILES_KEYS.MISSING_ACTIONS]: `${LOG_DIRECTORY_PATH_NAME}missing-actions.log`,
+    [LOG_FILES_KEYS.EVENT_CACHE_EVENTS]:
+      chainCode && type
+        ? `${LOG_DIRECTORY_PATH_NAME}event-cache-events-${chainCode}-${type}.log`
+        : null,
     [LOG_FILES_KEYS.SYSTEM]: `${LOG_DIRECTORY_PATH_NAME}${SYSTEM_LOG_FILE}`,
   };
 
@@ -117,6 +126,9 @@ export const getAllValidLogFileNames = (supportedChains) => {
       // Chain-specific files
       validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.CHAIN, chainCode, type }));
       validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.BLOCK_NUMBER, chainCode }));
+      validFilePaths.add(
+        getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP_PROCESSED_BLOCK_NUMBER, chainCode }),
+      );
       validFilePaths.add(getLogFilePath({ key: LOG_FILES_KEYS.NONCE, chainCode }));
       validFilePaths.add(
         getLogFilePath({ key: LOG_FILES_KEYS.PENDING_TRANSACTIONS, chainCode }),
@@ -139,6 +151,11 @@ export const getAllValidLogFileNames = (supportedChains) => {
           getLogFilePath({ key: LOG_FILES_KEYS.BURN_NFTS_ERROR, chainCode }),
         );
       }
+
+      // Event cache events file
+      validFilePaths.add(
+        getLogFilePath({ key: LOG_FILES_KEYS.EVENT_CACHE_EVENTS, chainCode, type }),
+      );
     }
   }
 

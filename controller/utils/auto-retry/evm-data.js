@@ -2,6 +2,11 @@ import config from '../../../config/config.js';
 import { CONTRACT_ACTIONS } from '../../constants/chain.js';
 import { estimateBlockRange } from '../chain.js';
 import { splitRangeByProvider, MORALIS_SAFE_BLOCKS_PER_QUERY } from '../logs-range.js';
+import {
+  createMemoryCheckpoint,
+  logMemoryDelta,
+  logArraySize,
+} from '../memory-logger.js';
 import { globalRequestQueue } from '../request-queue.js';
 import { Web3Service } from '../web3-services.js';
 
@@ -14,6 +19,11 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
   const { chainParams, contractAddress, blocksOffset = 0 } = chain;
   const { chainCode } = chainParams;
   const logPrefix = `Auto-Retry Missing Actions, ${chainCode} Events -->`;
+
+  const functionStart = createMemoryCheckpoint(
+    `getChainEvents ${chainCode} start`,
+    logPrefix,
+  );
 
   try {
     const web3Instance = Web3Service.getWe3Instance({ chainCode });
@@ -91,10 +101,16 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       }
     };
 
+    const beforeEventFetch = createMemoryCheckpoint(
+      `Before fetching events ${chainCode}`,
+      logPrefix,
+    );
     for (const w of windows) {
       const chunk = await fetchWindow(w.from, w.to);
       if (chunk && chunk.length) allEvents.push(...chunk);
     }
+    logMemoryDelta(`After fetching all events ${chainCode}`, beforeEventFetch, logPrefix);
+    logArraySize(`${chainCode} allEvents`, allEvents, logPrefix);
 
     // Fetch block timestamps with memory-efficient caching
     // Limit cache size to prevent memory exhaustion (configurable in config)
@@ -103,6 +119,10 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
 
     console.log(
       `${logPrefix} Fetching timestamps for ${uniqueBlockNumbers.length} unique blocks`,
+    );
+    const beforeBlockFetch = createMemoryCheckpoint(
+      `Before fetching blocks ${chainCode}`,
+      logPrefix,
     );
 
     for (const blockNumber of uniqueBlockNumbers) {
@@ -118,8 +138,20 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       );
       blockTimestamps.set(blockNumber, Number(block.timestamp) * 1000);
     }
+    logMemoryDelta(
+      `After fetching block timestamps ${chainCode}`,
+      beforeBlockFetch,
+      logPrefix,
+    );
+    console.log(
+      `${logPrefix} Block timestamp cache size: ${blockTimestamps.size} entries (~${(blockTimestamps.size * 0.05).toFixed(2)}MB)`,
+    );
 
     // Time filter with progress logging
+    const beforeFilter = createMemoryCheckpoint(
+      `Before filtering events ${chainCode}`,
+      logPrefix,
+    );
     const now = Date.now();
     const filteredEvents = allEvents.filter((event) => {
       const blockTimestamp = blockTimestamps.get(event.blockNumber);
@@ -131,12 +163,27 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
     console.log(
       `${logPrefix} Filtered ${filteredEvents.length} events (from ${allEvents.length} total) within time range`,
     );
+    logMemoryDelta(`After filtering events ${chainCode}`, beforeFilter, logPrefix);
+    logArraySize(`${chainCode} filteredEvents`, filteredEvents, logPrefix);
 
     // Clear large arrays to free memory
+    const beforeCleanup = createMemoryCheckpoint(
+      `Before cleanup ${chainCode}`,
+      logPrefix,
+    );
     allEvents.length = 0;
     blockTimestamps.clear();
+    logMemoryDelta(
+      `After clearing allEvents and blockTimestamps ${chainCode}`,
+      beforeCleanup,
+      logPrefix,
+    );
 
     // Split by event type
+    const beforeSplit = createMemoryCheckpoint(
+      `Before splitting events ${chainCode}`,
+      logPrefix,
+    );
     const consensusEvents = filteredEvents.filter(
       (e) => e.event === CONTRACT_ACTIONS.CONSENSUS_ACTIVITY,
     );
@@ -146,6 +193,10 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
     const unwrappedEvents = filteredEvents.filter(
       (e) => e.event === CONTRACT_ACTIONS.UNWRAPPED,
     );
+    logMemoryDelta(`After splitting events ${chainCode}`, beforeSplit, logPrefix);
+
+    // Note: filteredEvents still exists here and will be GC'd when function exits
+    logMemoryDelta(`getChainEvents ${chainCode} complete`, functionStart, logPrefix);
 
     return { consensusEvents, wrappedEvents, unwrappedEvents };
   } catch (error) {

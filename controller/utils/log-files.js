@@ -29,13 +29,13 @@ export const prepareLogDirectory = (directoryPath, withLogsInConsole = true) => 
     if (withLogsInConsole) console.log('The log directory exists.');
   } else {
     if (withLogsInConsole) console.log('The log directory does not exist.');
-    fs.mkdir(directoryPath, (err) => {
-      //create new file
-      if (err) {
-        return console.log(err);
-      }
+    try {
+      fs.mkdirSync(directoryPath);
       if (withLogsInConsole) console.log('The log directory was created!');
-    });
+    } catch (err) {
+      console.log(err);
+      throw err; // Re-throw to prevent app from continuing with missing directory
+    }
   }
 };
 
@@ -144,6 +144,105 @@ export const getLastProcessedBlockNumber = ({ chainCode }) => {
   );
 };
 
+/**
+ * Update unwrap processed block number (tracks which blocks have been checked for unwrap processing)
+ * This is separate from the event cache block number
+ */
+export const updateUnwrapProcessedBlockNumber = ({ chainCode, blockNumber }) => {
+  fs.writeFileSync(
+    getLogFilePath({ key: LOG_FILES_KEYS.UNWRAP_PROCESSED_BLOCK_NUMBER, chainCode }),
+    blockNumber,
+  );
+};
+
+/**
+ * Get last unwrap processed block number
+ * Returns the last block number that was checked for unwrap processing
+ * Returns null if file doesn't exist or contains invalid data
+ */
+export const getLastUnwrapProcessedBlockNumber = ({ chainCode }) => {
+  try {
+    const filePath = getLogFilePath({
+      key: LOG_FILES_KEYS.UNWRAP_PROCESSED_BLOCK_NUMBER,
+      chainCode,
+    });
+
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+
+    const content = fs.readFileSync(filePath, 'utf8').trim();
+
+    // If file is empty or contains invalid data, return null
+    if (!content || content === '') {
+      return null;
+    }
+
+    const blockNumber = parseFloat(content);
+
+    // If parseFloat returns NaN, the file contains invalid data
+    if (isNaN(blockNumber)) {
+      console.warn(
+        `[getLastUnwrapProcessedBlockNumber] Invalid block number in file for ${chainCode}: "${content}". Returning null.`,
+      );
+      return null;
+    }
+
+    return blockNumber;
+  } catch {
+    // File doesn't exist or can't be read, return null to indicate no blocks have been processed
+    return null;
+  }
+};
+
+/**
+ * Check if an unwrap transaction (by txHash/obtId) is already successfully processed in FIO.log
+ * @param {string} txHash - The transaction hash (obt_id) to check
+ * @returns {boolean} - True if transaction exists in FIO.log with a receipt (successful)
+ */
+export const isUnwrapTransactionInFioLog = (txHash) => {
+  if (!txHash) return false;
+
+  try {
+    const fioLogPath = getLogFilePath({ key: LOG_FILES_KEYS.FIO });
+    if (!fs.existsSync(fioLogPath)) {
+      return false;
+    }
+
+    const fioLogContent = fs.readFileSync(fioLogPath, 'utf8');
+    if (!fioLogContent || !fioLogContent.includes(txHash)) {
+      return false;
+    }
+
+    // Check if this line contains receipt (successful transaction)
+    // Receipt can be: "receipt": or 'receipt': or just receipt (in various formats)
+    const lines = fioLogContent.split(/\r?\n/);
+    return lines.some((line) => {
+      if (!line.includes(txHash)) return false;
+
+      const hasReceipt =
+        line.includes('"receipt"') ||
+        line.includes("'receipt'") ||
+        line.includes('"receipt":') ||
+        line.includes("'receipt':");
+
+      console.log('*'.repeat(60));
+      console.log('LINE:', line);
+      console.log('*'.repeat(60));
+      // Also check for unwrap action in the log entry
+      const hasUnwrapAction =
+        line.includes('unwrap tokens') || line.includes('unwrap domain');
+
+      return hasReceipt && hasUnwrapAction;
+    });
+  } catch (error) {
+    console.error(
+      `[isUnwrapTransactionInFioLog] Error checking FIO.log: ${error.message}`,
+    );
+    return false;
+  }
+};
+
 export const handleLogFailedWrapItem = ({
   logPrefix,
   txId,
@@ -183,11 +282,14 @@ export const handleNonceValue = ({ chainNonce, chainCode }) => {
 
   const savedNonce = getLatestNonce({ chainCode });
 
-  if (savedNonce && Number(savedNonce) === Number(txNonce)) {
-    txNonce = txNonce++;
+  // If saved nonce is higher than chain nonce, use saved nonce (indicates pending transactions)
+  // If they're equal, increment to use next available nonce
+  if (savedNonce && Number(savedNonce) >= Number(txNonce)) {
+    txNonce = Number(savedNonce) + 1; // Fixed: properly increment nonce
   }
 
-  updateNonce({ chainCode, nonce: txNonce });
+  // DON'T save the nonce here - it should only be saved when transaction is actually sent
+  // The nonce gets saved in signAndSendTransaction when transaction hash is received
 
   return txNonce;
 };

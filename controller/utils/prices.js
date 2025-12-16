@@ -82,6 +82,7 @@ export const getGasPrice = async ({
   logPrefix,
   isRetry = false,
   isReplace = false,
+  replacementAttempt = 0,
 }) => {
   const isUsingGasApi = !!parseInt(USE_GAS_API);
 
@@ -111,9 +112,22 @@ export const getGasPrice = async ({
 
     // Apply additional multipliers if needed
     if (isReplace) {
+      // Base replacement multiplier (1.5x minimum required by most networks)
       finalMultiplier = GAS_PRICE_MULTIPLIERS.REPLACEMENT;
+
+      // Progressive increase for each replacement attempt
+      // Attempt 1: 1.5x, Attempt 2: 1.65x, Attempt 3: 1.815x, etc.
+      if (replacementAttempt > 0) {
+        finalMultiplier *= Math.pow(
+          GAS_PRICE_MULTIPLIERS.REPLACEMENT_PROGRESSIVE,
+          replacementAttempt,
+        );
+      }
+
       gasPrice = Math.ceil(gasPrice * finalMultiplier);
-      console.log(`${logPrefix} Applied replace multiplier (${finalMultiplier}x)`);
+      console.log(
+        `${logPrefix} Applied replace multiplier (${finalMultiplier.toFixed(2)}x)${replacementAttempt > 0 ? ` for attempt ${replacementAttempt + 1}` : ''}`,
+      );
     } else if (isRetry) {
       finalMultiplier = GAS_PRICE_MULTIPLIERS.RETRY;
       gasPrice = Math.ceil(gasPrice * finalMultiplier);
@@ -124,12 +138,21 @@ export const getGasPrice = async ({
     gasPrice = convertGweiToWei(defaultGasPrice.toString());
 
     if (isReplace || isRetry) {
-      const multiplier = isReplace
+      let multiplier = isReplace
         ? GAS_PRICE_MULTIPLIERS.REPLACEMENT
         : GAS_PRICE_MULTIPLIERS.RETRY;
+
+      // Progressive increase for replacements
+      if (isReplace && replacementAttempt > 0) {
+        multiplier *= Math.pow(
+          GAS_PRICE_MULTIPLIERS.REPLACEMENT_PROGRESSIVE,
+          replacementAttempt,
+        );
+      }
+
       gasPrice = Math.ceil(gasPrice * multiplier);
       console.log(
-        `${logPrefix} Applied ${isReplace ? 'replace' : 'retry'} multiplier (${multiplier}x)`,
+        `${logPrefix} Applied ${isReplace ? 'replace' : 'retry'} multiplier (${multiplier.toFixed(2)}x)${isReplace && replacementAttempt > 0 ? ` for attempt ${replacementAttempt + 1}` : ''}`,
       );
     }
   }
