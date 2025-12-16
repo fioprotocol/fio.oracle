@@ -1,10 +1,18 @@
+import fs from 'fs';
+
+import { getCachedEvents, getCacheStats } from './event-cache.js';
 import config from '../../config/config.js';
-import { ACTIONS, ACTION_TYPES, FIO_CONTRACT_ACTIONS } from '../constants/chain.js';
+import {
+  ACTIONS,
+  ACTION_TYPES,
+  CONTRACT_ACTIONS,
+  FIO_CONTRACT_ACTIONS,
+} from '../constants/chain.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { ALREADY_COMPLETED } from '../constants/transactions.js';
-import { getChainEvents } from '../utils/auto-retry/evm-data.js';
 import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio-data.js';
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
+import { stringifyWithBigInt } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import { addLogMessage, handleServerError, readLogFile } from '../utils/log-files.js';
 import {
@@ -14,10 +22,13 @@ import {
   forceGCAndLog,
 } from '../utils/memory-logger.js';
 import { blockChainTransaction } from '../utils/transactions.js';
+import { Web3Service } from '../utils/web3-services.js';
 
 const { oracleCache, supportedChains } = config;
 
 const CACHE_KEY = 'isAutoRetryMissingActionsExecuting';
+const EVENT_SIGNER = 'oracle';
+
 const {
   autoRetryMissingActions: {
     MAX_RETRIES,
@@ -29,14 +40,13 @@ const {
 
 /**
  * Safely stringify an object that may contain BigInt values
+ * Uses the shared stringifyWithBigInt utility function
  * @param {any} obj - Object to stringify
  * @returns {string} - JSON string with BigInt values converted to strings
  */
 const safeStringify = (obj) => {
   try {
-    return JSON.stringify(obj, (key, value) =>
-      typeof value === 'bigint' ? value.toString() : value,
-    );
+    return stringifyWithBigInt(obj);
   } catch {
     // Fallback: return string representation
     return String(obj);
@@ -79,9 +89,244 @@ const shouldSkipDueToPendingTransactions = (chainCode, logPrefix) => {
 };
 
 /**
+ * Read all cached events from log file (not filtered by time range)
+ * This checks the complete cache history, not just recent events
+ * @param {string} chainCode - Chain code
+ * @param {string} type - Action type (tokens or nfts)
+ * @returns {Array} Array of all cached events
+ */
+const getAllCachedEventsFromFile = ({ chainCode, type }) => {
+  const events = [];
+  try {
+    const eventsLogPath = getLogFilePath({
+      key: LOG_FILES_KEYS.EVENT_CACHE_EVENTS,
+      chainCode,
+      type,
+    });
+
+    const logPrefix = `[Get All Cached Events From File] ${chainCode} ${type} -->`;
+
+    if (fs.existsSync(eventsLogPath)) {
+      const fileContent = fs.readFileSync(eventsLogPath, 'utf8');
+      const lines = fileContent.split('\n').filter((line) => line.trim());
+
+      for (const line of lines) {
+        try {
+          const jsonMatch = line.match(/\{.*\}/);
+          if (jsonMatch) {
+            const event = JSON.parse(jsonMatch[0]);
+            events.push(event);
+          }
+        } catch (error) {
+          console.log(`${logPrefix} Read lines error: ${error}`);
+        }
+      }
+    }
+  } catch (error) {
+    // Return empty array if file read fails
+    console.log(`${logPrefix} File read error: ${error}`);
+  }
+
+  return events;
+};
+
+/**
+ * Check if wrap action is already complete by checking cached events from files
+ * This avoids provider calls by checking the complete cache first
+ * @param {Object} params - Parameters object
+ * @param {string} params.obtId - Oracle item ID
+ * @param {Object} params.oracleItem - Oracle item with pubaddress, amount, nftname
+ * @param {Object} params.chain - Chain configuration
+ * @param {string} params.type - Action type (tokens or nfts)
+ * @param {string} params.logPrefix - Logging prefix
+ * @returns {boolean} - True if already complete in cache, false otherwise
+ */
+const isWrapActionCompleteInCache = ({ obtId, oracleItem, chain, type, logPrefix }) => {
+  const { chainCode } = chain.chainParams;
+  const { pubaddress, amount, nftname } = oracleItem;
+
+  // Get ALL cached events from file (not filtered by time)
+  const allCachedEvents = getAllCachedEventsFromFile({ chainCode, type });
+
+  // Check for consensus_activity events
+  const consensusEvents = allCachedEvents.filter(
+    (e) => e.event === CONTRACT_ACTIONS.CONSENSUS_ACTIVITY,
+  );
+  const ourConsensusEvent = consensusEvents.find((event) => {
+    const eventData = event.returnValues || {};
+    const eventSigner = eventData.signer;
+    const eventObtId = eventData.obtid;
+    const eventAccount = eventData.account;
+
+    console.log('Event data:', eventData);
+    console.log('Event signer:', eventSigner);
+    console.log('Event obtId:', eventObtId);
+    console.log('Event account:', eventAccount);
+    console.log('Chain public key:', chain.publicKey);
+    console.log('Event account lower case:', eventAccount.toLowerCase());
+    console.log('Chain public key lower case:', chain.publicKey.toLowerCase());
+    console.log(
+      'Event account equals chain public key:',
+      eventAccount.toLowerCase() === chain.publicKey.toLowerCase(),
+    );
+    console.log();
+
+    return (
+      eventSigner === EVENT_SIGNER &&
+      eventObtId === obtId &&
+      eventAccount &&
+      chain.publicKey &&
+      eventAccount.toLowerCase() === chain.publicKey.toLowerCase()
+    );
+  });
+
+  if (ourConsensusEvent) {
+    console.log(
+      `${logPrefix} Found consensus event in cache for obtId: ${obtId} - already complete`,
+    );
+    return true;
+  }
+
+  // Check for wrapped events
+  const wrappedEvents = allCachedEvents.filter(
+    (e) => e.event === CONTRACT_ACTIONS.WRAPPED,
+  );
+  const wrappedEvent = wrappedEvents.find((event) => {
+    const eventObtId = event.returnValues?.obtid;
+    const eventAccount = event.returnValues?.account;
+    const eventAmount = event.returnValues?.amount;
+    const eventNftName = event.returnValues?.domain;
+
+    return (
+      eventObtId === obtId &&
+      (amount ? String(eventAmount) === String(amount) : eventNftName === nftname) &&
+      eventAccount &&
+      pubaddress &&
+      eventAccount.toLowerCase() === pubaddress.toLowerCase()
+    );
+  });
+
+  if (wrappedEvent) {
+    console.log(
+      `${logPrefix} Found wrapped event in cache for obtId: ${obtId} - already complete`,
+    );
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Check if a wrap action is already complete on-chain
+ * First checks cached files, then falls back to blockchain check if needed
+ * This minimizes provider calls by checking cache first
+ * @param {Object} params - Parameters object
+ * @param {string} params.obtId - Oracle item ID
+ * @param {Object} params.oracleItem - Oracle item with pubaddress, amount, nftname
+ * @param {Object} params.chain - Chain configuration
+ * @param {string} params.type - Action type (tokens or nfts)
+ * @param {Object} params.web3Instance - Web3 instance (reused to avoid recreating)
+ * @param {Object} params.contract - Contract instance (reused to avoid recreating)
+ * @param {string} params.logPrefix - Logging prefix
+ * @returns {Promise<boolean>} - True if already complete, false otherwise
+ */
+const isWrapActionAlreadyComplete = async ({
+  obtId,
+  oracleItem,
+  chain,
+  type,
+  web3Instance,
+  contract,
+  logPrefix,
+}) => {
+  // FIRST: Check cached files (no provider call)
+  if (isWrapActionCompleteInCache({ obtId, oracleItem, chain, type, logPrefix })) {
+    return true;
+  }
+
+  // SECOND: Only if not in cache, check blockchain (provider call)
+  const { pubaddress, amount, nftname } = oracleItem;
+
+  try {
+    // FIRST: Check if our oracle has already approved this action by checking getApproval
+    try {
+      const hashInput =
+        type === ACTION_TYPES.TOKENS
+          ? web3Instance.utils.encodePacked(
+              { value: pubaddress, type: 'address' },
+              { value: amount, type: 'uint256' },
+              { value: obtId, type: 'string' },
+            )
+          : web3Instance.utils.encodePacked(
+              { value: pubaddress, type: 'address' },
+              { value: nftname, type: 'string' },
+              { value: obtId, type: 'string' },
+            );
+
+      const approvalHash = web3Instance.utils.keccak256(hashInput);
+      const approvalData = await contract.methods.getApproval(approvalHash).call();
+      const approvers = approvalData[3]; // 4th return value is address[] of approvers
+
+      if (approvers && Array.isArray(approvers)) {
+        const hasOurApproval = approvers.some(
+          (approver) =>
+            approver &&
+            chain.publicKey &&
+            approver.toLowerCase() === chain.publicKey.toLowerCase(),
+        );
+
+        if (hasOurApproval) {
+          console.log(
+            `${logPrefix} Our oracle has already approved obtId: ${obtId} on-chain - skipping`,
+          );
+          return true;
+        }
+      }
+    } catch (approvalCheckError) {
+      console.log(`${logPrefix} Approval check error: ${approvalCheckError.message}`);
+      // If getApproval fails, try static call check
+      try {
+        const contractMethod =
+          type === ACTION_TYPES.TOKENS
+            ? contract.methods.wrap(pubaddress, amount, obtId)
+            : contract.methods.wrapnft(pubaddress, nftname, obtId);
+
+        await contractMethod.call({ from: chain.publicKey });
+        // If static call succeeds, action is not complete yet
+      } catch (staticCallError) {
+        // Check if error indicates already complete
+        const errorMsg = (staticCallError.message || '').toLowerCase();
+        const errorReason = (staticCallError.reason || '').toLowerCase();
+        const fullErrorString = safeStringify(staticCallError).toLowerCase();
+
+        if (
+          errorMsg.includes(ALREADY_COMPLETED) ||
+          errorReason.includes(ALREADY_COMPLETED) ||
+          fullErrorString.includes(ALREADY_COMPLETED)
+        ) {
+          console.log(
+            `${logPrefix} Wrap already complete on-chain for obtId: ${obtId} (detected via static call) - skipping`,
+          );
+          return true;
+        }
+      }
+    }
+  } catch (blockchainCheckError) {
+    // If blockchain check fails, return false to proceed with flagging as missing
+    // This ensures we don't miss actions due to temporary blockchain connectivity issues
+    console.log(
+      `${logPrefix} Could not verify on-chain status for obtId: ${obtId} (${blockchainCheckError.message}), will flag as missing`,
+    );
+  }
+
+  return false;
+};
+
+/**
  * Find missing wrap actions
  * Wrap: FIO chain -> Other chains
  * Checks both consensus_activity (our oracle's submission) and wrapped (final result)
+ * Checks ALL cached events from files (not just time-filtered) to minimize provider calls
  */
 const findMissingWrapActions = ({
   fioWrapItems,
@@ -95,7 +340,20 @@ const findMissingWrapActions = ({
   const missing = [];
 
   console.log(
-    `${logPrefix} Checking ${fioWrapItems.length} FIO wrap oracle items against ${consensusEvents.length} consensus + ${wrappedEvents.length} wrapped events`,
+    `${logPrefix} Checking ${fioWrapItems.length} FIO wrap oracle items against ${consensusEvents.length} consensus + ${wrappedEvents.length} wrapped events (time-filtered cache)`,
+  );
+
+  // Get ALL cached events from files (not filtered by time range)
+  const allCachedEvents = getAllCachedEventsFromFile({ chainCode, type });
+  const allConsensusEvents = allCachedEvents.filter(
+    (e) => e.event === CONTRACT_ACTIONS.CONSENSUS_ACTIVITY,
+  );
+  const allWrappedEvents = allCachedEvents.filter(
+    (e) => e.event === CONTRACT_ACTIONS.WRAPPED,
+  );
+
+  console.log(
+    `${logPrefix} Also checking ${allConsensusEvents.length} consensus + ${allWrappedEvents.length} wrapped events from complete cache files`,
   );
 
   for (const oracleItem of fioWrapItems) {
@@ -109,20 +367,15 @@ const findMissingWrapActions = ({
     // The oracle item id IS the obtId used in the contract
     const obtId = String(id);
 
-    // Check if our oracle already submitted consensus_activity for this
-    console.log(`${logPrefix} Checking consensus for obtId: ${obtId}`);
-    console.log(`${logPrefix} Oracle public key: ${chain.publicKey}`);
-    console.log(`${logPrefix} Total consensus events: ${consensusEvents.length}`);
-
+    // FIRST: Check time-filtered cache (fast check)
     const ourConsensusEvent = consensusEvents.find((event) => {
       const eventData = event.returnValues || {};
       const eventSigner = eventData.signer;
       const eventObtId = eventData.obtid;
       const eventAccount = eventData.account;
 
-      // Must be oracle signer with matching obtid and our public key
       return (
-        eventSigner === 'oracle' &&
+        eventSigner === EVENT_SIGNER &&
         eventObtId === obtId &&
         eventAccount &&
         chain.publicKey &&
@@ -132,15 +385,14 @@ const findMissingWrapActions = ({
 
     if (ourConsensusEvent) {
       console.log(
-        `${logPrefix} Our oracle already submitted consensus for obtId: ${obtId}, skipping`,
+        `${logPrefix} Our oracle already submitted consensus for obtId: ${obtId} (in time-filtered cache), skipping`,
       );
       continue;
     }
 
-    // Check if wrap is already completed (wrapped event exists)
     const wrappedEvent = wrappedEvents.find((event) => {
       const eventObtId = event.returnValues.obtid;
-      const eventAccount = event.returnValues.account; // recipient address
+      const eventAccount = event.returnValues.account;
       const eventAmount = event.returnValues.amount;
       const eventNftName = event.returnValues.domain;
 
@@ -154,13 +406,61 @@ const findMissingWrapActions = ({
     });
 
     if (wrappedEvent) {
-      console.log(`${logPrefix} Wrap already completed for obtId: ${obtId}, skipping`);
+      console.log(
+        `${logPrefix} Wrap already completed for obtId: ${obtId} (in time-filtered cache), skipping`,
+      );
       continue;
     }
 
-    // Neither consensus from our oracle nor wrapped event found - it's missing
+    // SECOND: Check ALL cached events from files (complete history, not just recent)
+    const ourConsensusEventAll = allConsensusEvents.find((event) => {
+      const eventData = event.returnValues || {};
+      const eventSigner = eventData.signer;
+      const eventObtId = eventData.obtid;
+      const eventAccount = eventData.account;
+
+      return (
+        eventSigner === EVENT_SIGNER &&
+        eventObtId === obtId &&
+        eventAccount &&
+        chain.publicKey &&
+        eventAccount.toLowerCase() === chain.publicKey.toLowerCase()
+      );
+    });
+
+    if (ourConsensusEventAll) {
+      console.log(
+        `${logPrefix} Our oracle already submitted consensus for obtId: ${obtId} (in complete cache), skipping`,
+      );
+      continue;
+    }
+
+    const wrappedEventAll = allWrappedEvents.find((event) => {
+      const eventObtId = event.returnValues?.obtid;
+      const eventAccount = event.returnValues?.account;
+      const eventAmount = event.returnValues?.amount;
+      const eventNftName = event.returnValues?.domain;
+
+      return (
+        eventObtId === obtId &&
+        (amount ? String(eventAmount) === String(amount) : eventNftName === nftname) &&
+        eventAccount &&
+        pubaddress &&
+        eventAccount.toLowerCase() === pubaddress.toLowerCase()
+      );
+    });
+
+    if (wrappedEventAll) {
+      console.log(
+        `${logPrefix} Wrap already completed for obtId: ${obtId} (in complete cache), skipping`,
+      );
+      continue;
+    }
+
+    // Neither consensus nor wrapped event found in any cache - flag as potentially missing
+    // Blockchain verification happens in executeMissingWrapAction (checks cache first, then provider)
     console.log(
-      `${logPrefix} Missing wrap action for obtId: ${obtId}, pubaddress: ${pubaddress}`,
+      `${logPrefix} Potentially missing wrap action for obtId: ${obtId}, pubaddress: ${pubaddress}`,
     );
     missing.push({
       obtId,
@@ -170,7 +470,7 @@ const findMissingWrapActions = ({
     });
   }
 
-  console.log(`${logPrefix} Found ${missing.length} missing wrap actions`);
+  console.log(`${logPrefix} Found ${missing.length} potentially missing wrap actions`);
   return missing;
 };
 
@@ -239,10 +539,9 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
 
   console.log(`${logPrefix} Attempting to execute missing wrap action`);
 
-  // Pre-check: Verify if this action is already complete before attempting execution
+  // Pre-check: Verify if this action is already complete BEFORE making provider calls
   // This prevents unnecessary gas estimation calls and false-positive missing actions
   try {
-    const { Web3Service } = await import('../utils/web3-services.js');
     const web3Instance = Web3Service.getWe3Instance({ chainCode });
     const contract = await Web3Service.getWeb3Contract({
       type,
@@ -250,82 +549,15 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
       contractAddress: chain.contractAddress,
     });
 
-    // FIRST: Check if our oracle has already approved this action by checking getApproval
-    try {
-      // Compute the hash the same way the contract does
-      // For tokens: keccak256(abi.encodePacked(pubaddress, amount, obtId))
-      // For NFTs: keccak256(abi.encodePacked(pubaddress, nftname, obtId))
-      const hashInput =
-        type === ACTION_TYPES.TOKENS
-          ? web3Instance.utils.encodePacked(
-              { value: pubaddress, type: 'address' },
-              { value: amount, type: 'uint256' },
-              { value: obtId, type: 'string' },
-            )
-          : web3Instance.utils.encodePacked(
-              { value: pubaddress, type: 'address' },
-              { value: nftname, type: 'string' },
-              { value: obtId, type: 'string' },
-            );
-
-      const approvalHash = web3Instance.utils.keccak256(hashInput);
-
-      // Check if approval exists and if our public key is in the approvers list
-      const approvalData = await contract.methods.getApproval(approvalHash).call();
-      const approvers = approvalData[3]; // 4th return value is address[] of approvers
-
-      if (approvers && Array.isArray(approvers)) {
-        const hasOurApproval = approvers.some(
-          (approver) =>
-            approver &&
-            chain.publicKey &&
-            approver.toLowerCase() === chain.publicKey.toLowerCase(),
-        );
-
-        if (hasOurApproval) {
-          console.log(
-            `${logPrefix} Our oracle (${chain.publicKey}) has already approved this action - skipping`,
-          );
-          return true; // Already approved, consider it a success
-        }
-      }
-    } catch (approvalCheckError) {
-      // If getApproval fails, it's OK - might mean approval doesn't exist yet
-      console.log(
-        `${logPrefix} Could not check approvals (${approvalCheckError.message}), continuing with simulation check`,
-      );
-    }
-
-    // SECOND: Try to call the wrap function with static call (no gas cost, just simulation)
-    // If it reverts with "already X" error, skip execution
-    const contractMethod =
-      type === ACTION_TYPES.TOKENS
-        ? contract.methods.wrap(pubaddress, amount, obtId)
-        : contract.methods.wrapnft(pubaddress, nftname, obtId);
-
-    await contractMethod.call({ from: chain.publicKey });
-    console.log(`${logPrefix} Pre-check passed, action is not yet complete`);
-  } catch (preCheckError) {
-    // Extract all possible error message sources from nested error structure
-    const errorMsg = (preCheckError.message || '').toLowerCase();
-    const errorReason = (preCheckError.reason || '').toLowerCase();
-    const errorData = (preCheckError.data || '').toLowerCase();
-    const innerErrorMsg = (preCheckError.innerError?.message || '').toLowerCase();
-    const nestedErrorMsg = (preCheckError.error?.message || '').toLowerCase();
-    const causeMsg = (preCheckError.cause?.message || '').toLowerCase();
-
-    // Stringify the entire error to catch deeply nested revert reasons (handles BigInt)
-    const fullErrorString = safeStringify(preCheckError).toLowerCase();
-
-    // Check if any error property contains "already"
-    const isAlreadyComplete =
-      errorMsg.includes(ALREADY_COMPLETED) ||
-      errorReason.includes(ALREADY_COMPLETED) ||
-      errorData.includes(ALREADY_COMPLETED) ||
-      innerErrorMsg.includes(ALREADY_COMPLETED) ||
-      nestedErrorMsg.includes(ALREADY_COMPLETED) ||
-      causeMsg.includes(ALREADY_COMPLETED) ||
-      fullErrorString.includes(ALREADY_COMPLETED);
+    const isAlreadyComplete = await isWrapActionAlreadyComplete({
+      obtId,
+      oracleItem,
+      chain,
+      type,
+      web3Instance,
+      contract,
+      logPrefix,
+    });
 
     if (isAlreadyComplete) {
       console.log(
@@ -334,7 +566,10 @@ const executeMissingWrapAction = async ({ obtId, oracleItem, chain, type }) => {
       return true; // Already complete, consider it a success
     }
 
-    // Other errors during pre-check are OK, proceed with execution
+    console.log(`${logPrefix} Pre-check passed, action is not yet complete`);
+  } catch (preCheckError) {
+    // If pre-check fails, log but proceed with execution
+    // This ensures we don't miss actions due to temporary blockchain connectivity issues
     console.log(
       `${logPrefix} Pre-check inconclusive (${preCheckError.message}), proceeding with execution`,
     );
@@ -578,22 +813,46 @@ export const autoRetryMissingActions = async () => {
           logPrefix,
         );
 
-        // Fetch all relevant events (consensus_activity, wrapped, unwrapped)
-        const beforeEvents = createMemoryCheckpoint(
-          `Before fetching ${chainCode} ${type} events`,
-          logPrefix,
-        );
-        const { consensusEvents, wrappedEvents, unwrappedEvents } = await getChainEvents({
-          chain,
+        // Get cache statistics
+        const cacheStats = getCacheStats({ chainCode, type });
+        if (cacheStats.exists) {
+          console.log(
+            `${logPrefix} ${chainCode} ${type} cache: ${cacheStats.eventCount} events, ` +
+              `age: ${Math.round(cacheStats.age / 1000)}s`,
+          );
+        } else {
+          console.log(`${logPrefix} ${chainCode} ${type} cache not ready yet`);
+        }
+
+        // Calculate time range
+        const now = Date.now();
+        const beforeTimestamp = now - TIME_RANGE_START;
+        const afterTimestamp = now - TIME_RANGE_END;
+
+        // Get all events from cache for the time range
+        const allEventsInRange = getCachedEvents({
+          chainCode,
           type,
-          timeRangeStart: TIME_RANGE_START,
-          timeRangeEnd: TIME_RANGE_END,
+          fromTimestamp: afterTimestamp,
+          toTimestamp: beforeTimestamp,
         });
-        logMemoryDelta(
-          `After fetching ${chainCode} ${type} events`,
-          beforeEvents,
-          logPrefix,
+
+        // Filter by event type
+        const consensusEvents = allEventsInRange.filter(
+          (e) => e.event === CONTRACT_ACTIONS.CONSENSUS_ACTIVITY,
         );
+        const wrappedEvents = allEventsInRange.filter(
+          (e) => e.event === CONTRACT_ACTIONS.WRAPPED,
+        );
+        const unwrappedEvents = allEventsInRange.filter(
+          (e) => e.event === CONTRACT_ACTIONS.UNWRAPPED,
+        );
+
+        console.log(
+          `${logPrefix} ${chainCode} ${type}: ${consensusEvents.length} consensus, ` +
+            `${wrappedEvents.length} wrapped, ${unwrappedEvents.length} unwrapped (from cache)`,
+        );
+
         logArraySize(`${chainCode} ${type} consensusEvents`, consensusEvents, logPrefix);
         logArraySize(`${chainCode} ${type} wrappedEvents`, wrappedEvents, logPrefix);
         logArraySize(`${chainCode} ${type} unwrappedEvents`, unwrappedEvents, logPrefix);

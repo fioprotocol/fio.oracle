@@ -58,6 +58,8 @@ class HttpRpcProvider {
         // Only treat genuine network server-side failures/timeouts as network errors
         err.isNetworkError = res.status >= 500 || res.status === 408;
         err.isRateLimitError = res.status === 429;
+        // Treat auth errors (401/403) as fallback-eligible since one provider's API key might be invalid
+        err.isAuthError = res.status === 401 || res.status === 403;
         err.rpcMethod = method;
         err.statusCode = res.status;
         err.statusText = res.statusText;
@@ -130,18 +132,16 @@ class MultiRpcProvider {
   }
 
   shouldFallbackOnError(err) {
-    // Only fallback on probable network/rate-limit issues.
+    // Fallback on ANY error by default - if one provider fails, try the next one
+    // Only exclude specific logical errors that shouldn't be retried (e.g., block range limits, execution errors)
     const msg = (err && err.message ? err.message : '').toLowerCase();
 
-    if (err && (err.isNetworkError || err.isRateLimitError)) return true;
-
-    // Check if message matches any network error patterns
-    if (NETWORK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return true;
-
     // Do NOT fallback on specific error types (provider-enforced range limitations, logical execution errors, etc.)
+    // These are errors that indicate the request itself is invalid, not a provider issue
     if (NO_FALLBACK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return false;
 
-    return false;
+    // For all other errors (401, 403, 429, 500, network errors, etc.), fallback to next provider
+    return true;
   }
 
   async request({ method, params }) {

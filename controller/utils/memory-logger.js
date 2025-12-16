@@ -35,7 +35,7 @@ export const getMemoryUsage = () => {
 export const logMemory = (context, logPrefix = '', previousMem = null) => {
   const mem = getMemoryUsage();
   const prefix = logPrefix ? `${logPrefix} ` : '';
-  
+
   if (previousMem) {
     const delta = mem.heapUsed - previousMem.heapUsed;
     const deltaFormatted = delta >= 0 ? `+${formatMB(delta)}` : formatMB(delta);
@@ -47,7 +47,7 @@ export const logMemory = (context, logPrefix = '', previousMem = null) => {
       `${prefix}[MEMORY] ${context} - Heap: ${mem.heapUsedMB}MB / ${mem.heapTotalMB}MB, RSS: ${mem.rssMB}MB`,
     );
   }
-  
+
   return mem;
 };
 
@@ -71,11 +71,11 @@ export const logMemoryDelta = (label, checkpoint, logPrefix = '') => {
   const delta = current.heapUsed - checkpoint.heapUsed;
   const deltaFormatted = delta >= 0 ? `+${formatMB(delta)}` : formatMB(delta);
   const prefix = logPrefix ? `${logPrefix} ` : '';
-  
+
   console.log(
     `${prefix}[MEMORY DELTA] ${label} - Current: ${current.heapUsedMB}MB, Delta: ${deltaFormatted}MB`,
   );
-  
+
   return current;
 };
 
@@ -87,14 +87,14 @@ export const logArraySize = (arrayName, array, logPrefix = '') => {
     console.log(`${logPrefix}[MEMORY] ${arrayName} is not an array`);
     return;
   }
-  
+
   const prefix = logPrefix ? `${logPrefix} ` : '';
   const length = array.length;
-  
+
   // Rough estimate: assume each item is ~2KB (for event objects)
   const estimatedSizeKB = length * 2;
   const estimatedSizeMB = (estimatedSizeKB / 1024).toFixed(2);
-  
+
   console.log(
     `${prefix}[MEMORY] ${arrayName} - ${length} items (~${estimatedSizeMB}MB estimated)`,
   );
@@ -105,27 +105,24 @@ export const logArraySize = (arrayName, array, logPrefix = '') => {
  */
 export const forceGCAndLog = (logPrefix = '') => {
   const prefix = logPrefix ? `${logPrefix} ` : '';
-  
+
   if (global.gc) {
     const before = getMemoryUsage();
     console.log(`${prefix}[MEMORY] Forcing garbage collection...`);
-    
+
     global.gc();
-    
+
     const after = getMemoryUsage();
     const freed = before.heapUsed - after.heapUsed;
     const freedMB = formatMB(freed);
-    
+
     console.log(
       `${prefix}[MEMORY] GC completed - Freed ${freedMB}MB (${before.heapUsedMB}MB → ${after.heapUsedMB}MB)`,
     );
-    
+
     return after;
   } else {
-    console.log(
-      `${prefix}[MEMORY] GC not available (start node with --expose-gc to enable)`,
-    );
+    // GC not available - silently return current memory usage
     return getMemoryUsage();
   }
 };
-
