@@ -278,18 +278,23 @@ export const handleLogFailedUnwrapItem = ({
 };
 
 export const handleNonceValue = ({ chainNonce, chainCode }) => {
-  let txNonce = typeof chainNonce === 'bigint' ? parseInt(chainNonce) : chainNonce;
+  const chainNonceNumber =
+    typeof chainNonce === 'bigint' ? parseInt(chainNonce) : Number(chainNonce);
 
   const savedNonce = getLatestNonce({ chainCode });
+  const savedNonceNumber = Number(savedNonce);
 
-  // If saved nonce is higher than chain nonce, use saved nonce (indicates pending transactions)
-  // If they're equal, increment to use next available nonce
-  if (savedNonce && Number(savedNonce) >= Number(txNonce)) {
-    txNonce = Number(savedNonce) + 1; // Fixed: properly increment nonce
+  let txNonce = chainNonceNumber;
+
+  // If our saved nonce is ahead of what the chain reports, prefer the saved value to avoid
+  // reusing a nonce when the provider is lagging.
+  if (Number.isFinite(savedNonceNumber) && savedNonceNumber > chainNonceNumber) {
+    txNonce = savedNonceNumber;
   }
 
-  // DON'T save the nonce here - it should only be saved when transaction is actually sent
-  // The nonce gets saved in signAndSendTransaction when transaction hash is received
+  // If savedNonce === chainNonce, keep the chain nonce. Legacy versions (<= v1.5.1)
+  // persisted the "next" nonce to the log file; incrementing here would skip a nonce
+  // and leave a gap (e.g. saved 728, chain 728 -> would incorrectly produce 729).
 
   return txNonce;
 };
