@@ -168,34 +168,31 @@ export const blockChainTransaction = async (transactionParams) => {
       privateKeyBuffer,
     );
 
-    try {
-      // REFACTORED: Use pure promise-based approach (no event listeners)
-      // This eliminates potential memory leaks from event listener accumulation
-      const receipt = await web3Instance.eth.sendSignedTransaction(
-        signedTx.rawTransaction,
-        {
-          transactionPollingTimeout: MAX_TRANSACTION_AGE,
-        },
-      );
+    const promiEvent = web3Instance.eth.sendSignedTransaction(signedTx.rawTransaction, {
+      transactionPollingTimeout: MAX_TRANSACTION_AGE,
+    });
 
-      // Transaction confirmed successfully!
-      const txHash = receipt.transactionHash;
+    const cleanupPromiListeners = () => {
+      try {
+        promiEvent.removeAllListeners?.('transactionHash');
+        promiEvent.removeAllListeners?.('receipt');
+        promiEvent.removeAllListeners?.('error');
+      } catch {
+        // best-effort cleanup
+      }
+    };
 
+    promiEvent.on('transactionHash', (hash) => {
       console.log(
-        `${isReplaceTx ? 'Replacement of' : ''} Transaction confirmed in chain. TxHash: ${txHash}, nonce: ${txNonce} ${isReplaceTx ? `, replacing: ${originalTxHash}` : ''}`,
+        `${isReplaceTx ? 'Replacement of' : ''} Transaction has been signed and send into the chain. TxHash: ${hash}, nonce: ${txNonce} ${isReplaceTx ? `, replacing: ${originalTxHash}` : ''}`,
       );
-
-      // Save the nonce now that transaction is confirmed
-      updateNonce({ chainCode, nonce: txNonce });
-
-      // Store transaction as pending for monitoring
-      // The pending transaction handler will clean this up on its next run
+      // Store transaction
       addLogMessage({
         filePath: getLogFilePath({
           key: LOG_FILES_KEYS.PENDING_TRANSACTIONS,
           chainCode,
         }),
-        message: `${txHash} ${JSON.stringify({
+        message: `${hash} ${JSON.stringify({
           action,
           chainCode,
           contractActionParams,
@@ -206,12 +203,16 @@ export const blockChainTransaction = async (transactionParams) => {
         })}`,
         addTimestamp: false,
       });
+    });
+
+    promiEvent.on('receipt', (receipt) => {
+      // Confirmed (successfully mined) - nonce is consumed
+      updateNonce({ chainCode, nonce: txNonce });
 
       console.log(
         `${logPrefix} ${isReplaceTx ? 'Replacement of' : ''} Transaction has been successfully completed in the chain.`,
       );
 
-      // Handle success callback
       if (receipt && handleSuccessedResult) {
         try {
           const parsedReceipt = stringifyWithBigInt(receipt);
@@ -220,68 +221,43 @@ export const blockChainTransaction = async (transactionParams) => {
           console.log('RECEIPT ERROR', error);
         }
       }
-    } catch (error) {
-      // Transaction failed or was rejected
-      // Try to extract transaction hash from error (if it was broadcast and mined)
-      const txHash =
-        error && error.receipt && error.receipt.transactionHash
-          ? error.receipt.transactionHash
-          : null;
+    });
 
-      if (txHash) {
-        console.log(
-          `${isReplaceTx ? 'Replacement of' : ''} Transaction broadcast but failed/reverted. TxHash: ${txHash}, nonce: ${txNonce}`,
-        );
-
-        // Update nonce - the transaction was mined (even though it failed), so nonce is consumed
-        updateNonce({ chainCode, nonce: txNonce });
-
-        // Note: We don't log to pending here because:
-        // 1. The transaction is already finalized (confirmed with failure status)
-        // 2. The nonce has been consumed
-        // 3. There's nothing the pending transaction handler can do with it
-        // 4. In the old PromiEvent code, pending was only logged in 'transactionHash' event,
-        //    not in 'error' or 'receipt' events
-      }
-
-      // Log the failure
-      console.log(`${logPrefix} Transaction failed in the chain.`);
+    promiEvent.on('error', (error, receipt) => {
+      console.log(`${logPrefix} Transaction has been failed in the chain.`);
 
       handleChainError({
-        consoleMessage: `${error.message}: ${error.reason || ''}`,
-        logMessage: `${error.message}: ${error.reason || ''}`,
+        consoleMessage: `${error.message}: ${error.reason}`,
+        logMessage: `${error.message}: ${error.reason}`,
       });
 
-      // Check receipt status if available
-      if (error.receipt) {
-        const receipt = error.receipt;
+      if (receipt) {
         // status is BigInt after web3 updates to 4x version
-        if (receipt.blockHash && receipt.status === BigInt(0)) {
+        if (receipt.blockHash && receipt.status === BigInt(0))
           console.log(
-            `${logPrefix} Transaction reverted (status 0). Possibly out of gas, or Oracle has already approved this ObtId. Also, check nonce value`,
+            `${logPrefix} It looks like the transaction ended out of gas. Or Oracle has already approved this ObtId. Also, check nonce value`,
           );
-        }
+        // Mined (even if failed) - nonce is consumed
+        updateNonce({ chainCode, nonce: txNonce });
       } else {
         console.log(`${logPrefix} No receipt available for failed transaction`);
       }
+    });
 
-      // Now handle retry logic and error classification
+    try {
+      await promiEvent;
+    } catch (error) {
       console.log(`${logPrefix} ${error.stack}`);
 
       const nonceTooLowError = error.message.includes(NONCE_TOO_LOW_ERROR);
       const transactionAlreadyKnown = error.message.includes(ALREADY_KNOWN_TRANSACTION);
       const lowGasPriceError = error.message.includes(LOW_GAS_PRICE);
       const revertedByTheEvm = error.message.includes(REVERTED_BY_THE_EVM);
-
-      // Check for "already completed" but EXCLUDE "already known"
-      // "already known" means transaction is in mempool (still pending)
-      // "already completed/approved/wrapped" means action was completed on contract (should not retry)
       const alreadyCompleted =
-        !transactionAlreadyKnown &&
-        ((error.reason && error.reason.toLowerCase().includes(ALREADY_COMPLETED)) ||
-          (error.message && error.message.toLowerCase().includes(ALREADY_COMPLETED)));
+        (error.reason && error.reason.toLowerCase().includes(ALREADY_COMPLETED)) ||
+        (error.message && error.message.toLowerCase().includes(ALREADY_COMPLETED));
 
-      // Don't retry if action is already complete (but DO retry if transaction is "already known")
+      // Don't retry if action is already complete
       if (alreadyCompleted) {
         console.log(
           `${logPrefix} Action already complete - not retrying (transaction was already processed)`,
@@ -290,20 +266,12 @@ export const blockChainTransaction = async (transactionParams) => {
         return;
       }
 
-      // Special handling for "already known" error
-      // This means the transaction is already in the mempool - don't retry, just wait
-      if (transactionAlreadyKnown) {
-        console.log(
-          `${logPrefix} Transaction already in mempool - not retrying. The pending transaction handler will monitor it.`,
-        );
-        // Transaction remains in pending log and will be handled by checkAndReplacePendingTransactions
-        if (shouldThrowError) throw error;
-        return;
-      }
-
       if (
         retryCount < MAX_RETRY_TRANSACTION_ATTEMPTS &&
-        (nonceTooLowError || lowGasPriceError || revertedByTheEvm)
+        (nonceTooLowError ||
+          transactionAlreadyKnown ||
+          lowGasPriceError ||
+          revertedByTheEvm)
       ) {
         // Retry with an incremented nonce
         console.log(
@@ -325,6 +293,8 @@ export const blockChainTransaction = async (transactionParams) => {
       } else {
         if (shouldThrowError) throw error;
       }
+    } finally {
+      cleanupPromiListeners();
     }
   };
 
