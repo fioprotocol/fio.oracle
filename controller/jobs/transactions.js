@@ -76,13 +76,22 @@ export const checkAndReplacePendingTransactions = async () => {
       // Sort by nonce to handle them in order
       pendingTransactions.sort((a, b) => a.txNonce - b.txNonce);
 
-      // Count replacement attempts per nonce
-      const replacementCountByNonce = {};
+      // Track the highest replacement attempt number (1-based) per nonce
+      const replacementAttemptsByNonce = {};
       pendingTransactions.forEach((tx) => {
-        if (tx.isReplaceTx) {
-          replacementCountByNonce[tx.txNonce] =
-            (replacementCountByNonce[tx.txNonce] || 0) + 1;
-        }
+        if (!tx.isReplaceTx) return;
+
+        const { txNonce } = tx;
+        if (txNonce === undefined || txNonce === null) return;
+
+        const attemptNumber = Number(tx.replacementAttempt);
+        const attemptsDone =
+          Number.isFinite(attemptNumber) && attemptNumber > 0 ? attemptNumber : 1;
+
+        replacementAttemptsByNonce[txNonce] = Math.max(
+          replacementAttemptsByNonce[txNonce] || 0,
+          attemptsDone,
+        );
       });
 
       // Remove transactions with nonce less than latest confirmed nonce or transaction has been already replaced
@@ -92,7 +101,7 @@ export const checkAndReplacePendingTransactions = async () => {
         );
 
         // Check if this nonce has exceeded max replacement attempts
-        const replacementCount = replacementCountByNonce[tx.txNonce] || 0;
+        const replacementCount = replacementAttemptsByNonce[tx.txNonce] || 0;
         if (replacementCount >= MAX_REPLACEMENT_ATTEMPTS) {
           console.log(
             `${logPrefix} Max replacement attempts (${MAX_REPLACEMENT_ATTEMPTS}) reached for nonce ${tx.txNonce}. Removing transaction: ${tx.hash}`,
@@ -178,7 +187,7 @@ export const checkAndReplacePendingTransactions = async () => {
         if (!tx || currentTime - timestamp > MAX_TRANSACTION_AGE) {
           // Count how many replacement attempts exist for this nonce
           // Use pre-computed count to avoid creating temporary array in loop
-          const replacementCount = replacementCountByNonce[pendingTxNonce] || 0;
+          const replacementCount = replacementAttemptsByNonce[pendingTxNonce] || 0;
 
           // Stop if we've reached the limit
           if (replacementCount >= MAX_REPLACEMENT_ATTEMPTS) {
@@ -222,7 +231,8 @@ export const checkAndReplacePendingTransactions = async () => {
             logPrefix,
             originalTxHash: hash,
             pendingTxNonce: pendingTxNonce,
-            replacementAttempt: replacementCount,
+            // replacementAttempt is 1-based for clarity in downstream gas logic
+            replacementAttempt: replacementCount + 1,
             type,
           });
         }
