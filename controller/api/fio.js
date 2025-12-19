@@ -410,10 +410,12 @@ class FIOCtrl {
                 added: 0,
                 skippedOwnedByOracle: 0,
                 skippedAlreadyInFioLog: 0,
+                skippedNoOwner: 0,
               };
 
               for (const nftItem of nftsList) {
-                const { metadata, token_id, normalized_metadata } = nftItem;
+                const { metadata, token_id, normalized_metadata, token_hash, owner_of } =
+                  nftItem;
 
                 let metadataName = null;
 
@@ -457,6 +459,14 @@ class FIOCtrl {
                   continue;
                 }
 
+                if (!owner_of) {
+                  candidateStats.skippedNoOwner += 1;
+                  console.log(
+                    `${logPrefix} Skipping NFT with no owner (tokenId=${token_id}, token_hash=${token_hash || 'n/a'}, name=${name || 'n/a'})`,
+                  );
+                  continue;
+                }
+
                 burnCandidates.push({
                   tokenId: token_id,
                   obtId: trxId,
@@ -479,6 +489,11 @@ class FIOCtrl {
               if (candidateStats.skippedAlreadyInFioLog) {
                 console.log(
                   `${logPrefix} Skipped ${candidateStats.skippedAlreadyInFioLog} ${chainCode} NFTs already exist in FIO log (already executed).`,
+                );
+              }
+              if (candidateStats.skippedNoOwner) {
+                console.log(
+                  `${logPrefix} Skipped ${candidateStats.skippedNoOwner} ${chainCode} NFTs with no owner in Moralis response.`,
                 );
               }
 
