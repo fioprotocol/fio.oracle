@@ -100,6 +100,14 @@ export const blockChainTransaction = async (transactionParams) => {
 
   const signAndSendTransaction = async ({ txNonce, retryCount = 0 }) => {
     let gasPrice = 0;
+    const parsedReplacementAttempt = Number(replacementAttempt);
+    const normalizedReplacementAttempt = Number.isFinite(parsedReplacementAttempt)
+      ? parsedReplacementAttempt
+      : 0;
+    const attemptNumber = isReplaceTx
+      ? Math.max(normalizedReplacementAttempt, 1)
+      : normalizedReplacementAttempt;
+    const replacementAttemptIndex = isReplaceTx ? attemptNumber - 1 : attemptNumber;
 
     if (manualSetGasPrice) {
       gasPrice = manualSetGasPrice;
@@ -119,7 +127,7 @@ export const blockChainTransaction = async (transactionParams) => {
         logPrefix,
         isRetry: retryCount > 0,
         isReplace: isReplaceTx,
-        replacementAttempt,
+        replacementAttempt: replacementAttemptIndex,
       });
     }
 
@@ -199,6 +207,7 @@ export const blockChainTransaction = async (transactionParams) => {
           timestamp: Date.now(),
           isReplaceTx: isReplaceTx,
           originalTxHash: originalTxHash,
+          replacementAttempt: attemptNumber,
           txNonce,
         })}`,
         addTimestamp: false,
