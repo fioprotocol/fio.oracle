@@ -242,7 +242,7 @@ class FIOCtrl {
             if (unwrapData.amount) {
               transactionActionData.amount = parseInt(unwrapData.amount);
             } else if (unwrapData.domain) {
-              transactionActionData.domain = unwrapData.domain;
+              transactionActionData.fio_domain = unwrapData.domain;
             }
 
             const transactionResult = await runUnwrapFioTransaction({

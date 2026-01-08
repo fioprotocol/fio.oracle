@@ -719,7 +719,7 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
       if (amount) {
         transactionActionData.amount = parseInt(amount);
       } else if (domain) {
-        transactionActionData.domain = domain;
+        transactionActionData.fio_domain = domain;
       }
 
       const result = await runUnwrapFioTransaction({
