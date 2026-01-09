@@ -1,7 +1,7 @@
 import Moralis from 'moralis';
-import fetch from 'node-fetch';
 
 import config from '../../config/config.js';
+import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 
 import { handleBackups, sleep } from '../utils/general.js';
 
@@ -286,7 +286,7 @@ const getGasPrices = async ({ chainName, rpcNodeApiKey, isRetry }) => {
       }),
     };
 
-    const response = await fetch(url ? url : primaryUrl, options);
+    const response = await fetchWithTimeout(url ? url : primaryUrl, options);
 
     if (!response.ok) {
       throw new Error(`Network response was not ok: ${response.statusText}`);

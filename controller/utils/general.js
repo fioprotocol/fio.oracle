@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import fetch from 'node-fetch';
-
+import { fetchWithTimeout } from './fetch-with-timeout.js';
 import { getLogFilePath, LOG_FILES_KEYS } from './log-file-templates.js';
 import logger from './logger.js';
 import config from '../../config/config.js';
@@ -151,7 +150,7 @@ export const fetchWithMultipleServers = async ({
       // Try the current server with its own retry logic for rate limits
       while (serverRetries <= maxRetriesPerServer) {
         try {
-          const response = await fetch(targetUrl, options);
+          const response = await fetchWithTimeout(targetUrl, options);
 
           if (response.ok) {
             if (cycleAttempt > 1 || serverIndex > 0) {

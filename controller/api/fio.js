@@ -19,7 +19,12 @@ import {
   verifyAndFilterBurnList,
 } from '../utils/burn-utils.js';
 import { convertNativeFioIntoFio } from '../utils/chain.js';
-import { getOracleCacheKey } from '../utils/cron-jobs.js';
+import {
+  getOracleCacheKey,
+  acquireJobLock,
+  releaseJobLock,
+  isJobLocked,
+} from '../utils/cron-jobs.js';
 import {
   getOracleItems,
   runUnwrapFioTransaction,
@@ -39,7 +44,6 @@ import {
 
 const {
   fio: { FIO_TRANSACTION_MAX_RETRIES, LOWEST_ORACLE_ID, FIO_SERVER_URL_ACTION },
-  oracleCache,
   supportedChains,
 } = config;
 
@@ -49,10 +53,7 @@ class FIOCtrl {
   async handleUnprocessedWrapActionsOnFioChain() {
     const logPrefix = 'FIO, Get latest Wrap (tokens and nfts) actions on FIO chain -->';
 
-    if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting)) {
-      oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, true, 0);
-    } else {
-      console.log(`${logPrefix} Job is already running`);
+    if (!acquireJobLock(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, logPrefix)) {
       return;
     }
 
@@ -158,7 +159,7 @@ class FIOCtrl {
             type,
             chainCode,
           });
-          const isWrapOnChainJobExecuting = oracleCache.get(cacheKey);
+          const isWrapOnChainJobExecuting = isJobLocked(cacheKey);
 
           if (!isWrapOnChainJobExecuting) {
             console.log(
@@ -178,9 +179,10 @@ class FIOCtrl {
       await handleWrapAction();
     } catch (err) {
       handleServerError(err, 'FIO, handleUnprocessedWrapActionsOnFioChain');
+    } finally {
+      releaseJobLock(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting);
+      console.log(`${logPrefix} End`);
     }
-    oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedWrapActionsExecuting, false, 0);
-    console.log(`${logPrefix} End`);
   }
 
   handleUnwrapFromOtherChainsToFioChain = async () => {
@@ -188,17 +190,13 @@ class FIOCtrl {
 
     // Use a global cache key for this function since it processes all chains
     if (
-      oracleCache.get(ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting)
+      !acquireJobLock(
+        ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
+        logPrefix,
+      )
     ) {
-      console.log(`${logPrefix} Job is already running`);
       return;
     }
-
-    oracleCache.set(
-      ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
-      true,
-      0,
-    );
     console.log(`${logPrefix} Start`);
 
     for (const [type, chains] of Object.entries(supportedChains)) {
@@ -331,21 +329,19 @@ class FIOCtrl {
       }
     }
 
-    oracleCache.set(
-      ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
-      false,
-      0,
-    );
+    releaseJobLock(ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting);
     console.log(`${logPrefix} End`);
   };
 
   async handleUnprocessedBurnNFTActions() {
     const logPrefix = 'FIO, Get latest Burned domain actions on FIO chain -->';
 
-    if (!oracleCache.get(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting)) {
-      oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, true, 0);
-    } else {
-      console.log(`${logPrefix} Job is already running`);
+    if (
+      !acquireJobLock(
+        ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting,
+        logPrefix,
+      )
+    ) {
       return;
     }
 
@@ -558,7 +554,7 @@ class FIOCtrl {
               chainCode,
               type,
             });
-            if (oracleCache.get(burnCacheKey)) {
+            if (isJobLocked(burnCacheKey)) {
               isBurnNFTJobExecuting = true;
               break;
             }
@@ -578,10 +574,10 @@ class FIOCtrl {
       await handleBurnNFTAction();
     } catch (err) {
       handleServerError(err, 'FIO, handleUnprocessedBurnNFTActions');
+    } finally {
+      releaseJobLock(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting);
+      console.log(`${logPrefix} End`);
     }
-
-    oracleCache.set(ORACLE_CACHE_KEYS.isUnprocessedBurnNFTActionsJobExecuting, false, 0);
-    console.log(`${logPrefix} End`);
   }
 }
 
