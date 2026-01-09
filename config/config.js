@@ -69,6 +69,7 @@ export default {
   port: config.get('app.port'),
 
   app: {
+    FETCH_TIMEOUT_MS: config.get('app.fetchTimeoutMs'),
     MAX_RETRIES: config.get('app.maxRetries'),
     RESTART_TIMEOUT: config.get('app.restartTimeout') || SECOND_IN_MILLISECONDS * 5,
     STABILITY_THRESHOLD:
@@ -114,6 +115,7 @@ export default {
     ),
     BURN_DOMAINS_JOB_TIMEOUT: config.get('jobTimeouts.burnDomainsJobTimeout'),
     DEFAULT_JOB_TIMEOUT: config.get('jobTimeouts.defaultJobTimeout'),
+    JOB_LOCK_TTL_SECONDS: config.get('jobTimeouts.jobLockTtlSeconds'),
   },
 
   logging: {

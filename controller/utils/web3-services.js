@@ -1,6 +1,5 @@
 import { createRequire } from 'node:module';
 
-import fetch from 'node-fetch';
 import { createThirdwebClient } from 'thirdweb';
 import * as thirdwebChains from 'thirdweb/chains';
 import { getRpcClient } from 'thirdweb/rpc';
@@ -8,6 +7,7 @@ import { Web3 } from 'web3';
 
 const require = createRequire(import.meta.url);
 
+import { fetchWithTimeout } from './fetch-with-timeout.js';
 import config from '../../config/config.js';
 import { ACTION_TYPES } from '../constants/chain.js';
 import {
@@ -18,6 +18,9 @@ import {
 
 const fioABI = require('../../config/ABI/FIO.json');
 const fioNftABI = require('../../config/ABI/FIOMATICNFT.json');
+
+// Get fetch timeout from config for error messages
+const FETCH_TIMEOUT_MS = (config.app && config.app.FETCH_TIMEOUT_MS) || 60000;
 
 // --- Lightweight EIP-1193 providers with fallback chaining ---
 
@@ -30,7 +33,7 @@ class HttpRpcProvider {
 
   async request({ method, params = [] }) {
     try {
-      const res = await fetch(this.url, {
+      const res = await fetchWithTimeout(this.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: this._id++, method, params }),
@@ -68,6 +71,7 @@ class HttpRpcProvider {
       }
 
       const json = await res.json();
+
       if (json.error) {
         // Propagate JSON-RPC errors enriched with context
         const err = new Error(
@@ -80,6 +84,18 @@ class HttpRpcProvider {
       }
       return json.result;
     } catch (e) {
+      // Handle timeout errors from fetchWithTimeout
+      if (e.isTimeoutError || e.name === 'TimeoutError') {
+        const err = new Error(
+          `${this.name} ${method} -> Request timeout after ${FETCH_TIMEOUT_MS}ms`,
+        );
+        err.isNetworkError = true;
+        err.isTimeoutError = true;
+        err.providerName = this.name;
+        err.rpcMethod = method;
+        throw err;
+      }
+
       // Attach provider name for diagnostics
       e.providerName = this.name;
 
@@ -106,12 +122,16 @@ class ThirdwebRpcProvider {
     const client = createThirdwebClient({ secretKey: apiKey || '' });
     const chain = thirdwebChains[chainName];
     if (!chain) throw new Error(`Thirdweb: unknown chainName ${chainName}`);
-    this.rpc = getRpcClient({ client, chain });
+    // Use native requestTimeoutMs config
+    this.rpc = getRpcClient({
+      client,
+      chain,
+      config: { requestTimeoutMs: FETCH_TIMEOUT_MS },
+    });
   }
 
   async request({ method, params = [] }) {
     try {
-      // Use thirdweb's EIP-1193 request function directly to keep raw JSON-RPC semantics
       return await this.rpc({ method, params });
     } catch (e) {
       e.providerName = this.name;

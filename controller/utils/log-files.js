@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
+import { releaseJobLock } from './cron-jobs.js';
 import {
   LOG_FILES_KEYS,
   getLogFilePath,
@@ -10,7 +11,7 @@ import {
 import config from '../../config/config.js';
 import { replaceNewLines } from '../utils/general.js';
 
-const { oracleCache, supportedChains } = config;
+const { supportedChains } = config;
 
 export const createLogFile = ({ filePath, dataToWrite, showSuccessConsole }) => {
   fs.writeFileSync(filePath, dataToWrite, (err) => {
@@ -338,7 +339,7 @@ export const handleUpdatePendingItemsQueue = ({
   } else {
     console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
     fs.writeFileSync(logFilePath, '');
-    oracleCache.set(jobIsRunningCacheKey, false, 0);
+    releaseJobLock(jobIsRunningCacheKey);
   }
 };
 
