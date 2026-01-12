@@ -5,7 +5,12 @@ import fioCtrl from '../api/fio.js';
 import { ACTIONS, CONTRACT_ACTIONS } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS, ORACLE_JOB_TYPES } from '../constants/cron-jobs.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
-import { getOracleCacheKey } from '../utils/cron-jobs.js';
+import {
+  getOracleCacheKey,
+  acquireJobLock,
+  releaseJobLock,
+  isJobLocked,
+} from '../utils/cron-jobs.js';
 import { stringifyWithBigInt } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import {
@@ -25,7 +30,7 @@ import {
 } from '../utils/memory-logger.js';
 import { Web3Service } from '../utils/web3-services.js';
 
-const { oracleCache, supportedChains } = config;
+const { supportedChains } = config;
 
 export const handleUnwrap = async () => {
   // All chains will use the global request queue to avoid rate limiting
@@ -51,35 +56,32 @@ export const handleUnwrap = async () => {
 
       const logPrefix = `${chainCode}, ${type}, Unwrap -->`;
 
-      if (!oracleCache.get(cacheKey)) {
-        oracleCache.set(cacheKey, true, 0);
-      } else {
-        console.log(`${logPrefix} Job is already running`);
+      if (!acquireJobLock(cacheKey, logPrefix)) {
         continue; // Skip this chain but continue processing others
       }
 
-      // Add significant delay between chains to ensure rate limit windows reset
-      if (!isFirstChain) {
-        const chainDelay = SECOND_IN_MILLISECONDS * 3; // 3 seconds between chains (full reset)
-        console.log(
-          `${logPrefix} Waiting ${chainDelay / SECOND_IN_MILLISECONDS}s before processing to reset rate limits...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, chainDelay));
-      }
-      isFirstChain = false;
-
-      // Create memory checkpoint at start of chain processing
-      const chainStartCheckpoint = createMemoryCheckpoint(
-        `Start processing ${chainCode} ${type}`,
-        logPrefix,
-      );
-
-      // Initialize arrays for cleanup in finally block
+      // Initialize variables outside try block for use in finally
+      let chainStartCheckpoint = null;
       let allCachedEvents = null;
       let eventsInRange = null;
       let eventsToProcess = null;
 
       try {
+        // Add significant delay between chains to ensure rate limit windows reset
+        if (!isFirstChain) {
+          const chainDelay = SECOND_IN_MILLISECONDS * 3; // 3 seconds between chains (full reset)
+          console.log(
+            `${logPrefix} Waiting ${chainDelay / SECOND_IN_MILLISECONDS}s before processing to reset rate limits...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, chainDelay));
+        }
+        isFirstChain = false;
+
+        // Create memory checkpoint at start of chain processing
+        chainStartCheckpoint = createMemoryCheckpoint(
+          `Start processing ${chainCode} ${type}`,
+          logPrefix,
+        );
         // Get cache statistics
         const cacheStats = getCacheStats({ chainCode, type });
         if (cacheStats.exists) {
@@ -282,7 +284,7 @@ export const handleUnwrap = async () => {
         logMemoryDelta(`After cleanup`, beforeCleanupCheckpoint, logPrefix);
 
         // Check if FIO transaction processing job is already running (global check)
-        const isUnwrapFioTxJobExecuting = oracleCache.get(
+        const isUnwrapFioTxJobExecuting = isJobLocked(
           ORACLE_CACHE_KEYS.isUnwrapFromOtherChainsToFioChainJobExecuting,
         );
         console.log(
@@ -299,13 +301,15 @@ export const handleUnwrap = async () => {
       } finally {
         // Force GC and log memory delta for this chain
         forceGCAndLog(logPrefix);
-        logMemoryDelta(
-          `Final memory (end of chain processing)`,
-          chainStartCheckpoint,
-          logPrefix,
-        );
+        if (chainStartCheckpoint) {
+          logMemoryDelta(
+            `Final memory (end of chain processing)`,
+            chainStartCheckpoint,
+            logPrefix,
+          );
+        }
 
-        oracleCache.set(cacheKey, false, 0);
+        releaseJobLock(cacheKey);
         console.log(`${logPrefix} Chain processing completed (success or error).`);
       }
     }

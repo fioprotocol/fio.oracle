@@ -2,11 +2,10 @@ import fs from 'fs';
 
 import { isAddress } from 'web3-validator';
 
-import config from '../../config/config.js';
 import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
 import { NON_VALID_ORACLE_ADDRESS } from '../constants/errors.js';
 import { isOracleAddressValid, convertNativeFioIntoFio } from '../utils/chain.js';
-import { getOracleCacheKey } from '../utils/cron-jobs.js';
+import { getOracleCacheKey, acquireJobLock, releaseJobLock } from '../utils/cron-jobs.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
 import {
   addLogMessage,
@@ -17,8 +16,6 @@ import {
 } from '../utils/log-files.js';
 import { blockChainTransaction } from '../utils/transactions.js';
 import { Web3Service } from '../utils/web3-services.js';
-
-const { oracleCache } = config;
 
 export const handleWrap = async ({
   type,
@@ -36,45 +33,42 @@ export const handleWrap = async ({
     chainCode,
   });
 
-  if (!oracleCache.get(oracleCacheKey)) {
-    oracleCache.set(oracleCacheKey, true, 0); // ttl = 0 means that value shouldn't ever been expired
-    console.log(`[handleWrap ${chainCode} ${type}] Started - cache locked`);
-  } else {
-    console.log(`[handleWrap ${chainCode} ${type}] Already running - skipping`);
-    return; // job is already running
-  }
-
-  const transactionToProceed = fs
-    .readFileSync(getLogFilePath({ key: LOG_FILES_KEYS.WRAP, chainCode, type }))
-    .toString()
-    .split('\r\n')[0];
-  if (transactionToProceed === '') {
-    console.log(
-      `[handleWrap ${chainCode} ${type}] No transactions in queue - cache released`,
-    );
-    oracleCache.set(oracleCacheKey, false, 0);
+  const logPrefixShort = `[handleWrap ${chainCode} ${type}]`;
+  if (!acquireJobLock(oracleCacheKey, logPrefixShort)) {
     return;
   }
+  console.log(`${logPrefixShort} Started - cache locked`);
 
-  const wrapOracleId = transactionToProceed.split(' ')[0];
-  const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
-  const { amount, chaincode, nftname, pubaddress } = wrapData || {};
-
+  // Define actionNameType outside try block so it's available in catch/finally
   const actionNameType = handleActionName({
     actionName: ACTIONS.WRAP,
     type,
   });
 
-  const logPrefix = `${chainCode}, ${actionNameType}, FIO oracle id: "${wrapOracleId}", ${amount ? `amount: ${convertNativeFioIntoFio(amount)} FIO` : `nftname: "${nftname}"`}, pubaddress: "${pubaddress}": -->`;
-  console.log(`${logPrefix} Executing...`);
-
-  if (chainCode && chaincode && chainCode.toLowerCase() !== chaincode.toLowerCase()) {
-    console.log(`${logPrefix} Chain code mismatch - cache released`);
-    oracleCache.set(oracleCacheKey, false, 0);
-    return;
-  }
-
   try {
+    const transactionToProceed = fs
+      .readFileSync(getLogFilePath({ key: LOG_FILES_KEYS.WRAP, chainCode, type }))
+      .toString()
+      .split('\r\n')[0];
+    if (transactionToProceed === '') {
+      console.log(
+        `[handleWrap ${chainCode} ${type}] No transactions in queue - cache released`,
+      );
+      return;
+    }
+
+    const wrapOracleId = transactionToProceed.split(' ')[0];
+    const wrapData = JSON.parse(transactionToProceed.split(' ')[1]);
+    const { amount, chaincode, nftname, pubaddress } = wrapData || {};
+
+    const logPrefix = `${chainCode}, ${actionNameType}, FIO oracle id: "${wrapOracleId}", ${amount ? `amount: ${convertNativeFioIntoFio(amount)} FIO` : `nftname: "${nftname}"`}, pubaddress: "${pubaddress}": -->`;
+    console.log(`${logPrefix} Executing...`);
+
+    if (chainCode && chaincode && chainCode.toLowerCase() !== chaincode.toLowerCase()) {
+      console.log(`${logPrefix} Chain code mismatch - cache released`);
+      return;
+    }
+
     const contract = Web3Service.getWeb3Contract({
       type,
       chainCode,
@@ -87,8 +81,7 @@ export const handleWrap = async ({
     });
 
     if (!isOracleAddressValidResult) {
-      console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS} - cache released`);
-      oracleCache.set(oracleCacheKey, false, 0);
+      console.log(`${logPrefix} ${NON_VALID_ORACLE_ADDRESS}`);
     } else {
       let isTransactionProceededSuccessfully = false;
 
@@ -173,8 +166,10 @@ export const handleWrap = async ({
       });
     }
   } catch (error) {
-    console.log(`[handleWrap ${chainCode} ${type}] Error occurred - cache released`);
-    oracleCache.set(oracleCacheKey, false, 0);
+    console.log(`[handleWrap ${chainCode} ${type}] Error occurred`);
     handleServerError(error, actionNameType);
+  } finally {
+    releaseJobLock(oracleCacheKey);
+    console.log(`${logPrefixShort} Cache released`);
   }
 };

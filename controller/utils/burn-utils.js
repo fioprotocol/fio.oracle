@@ -2,7 +2,11 @@ import fs from 'fs';
 
 import { getFioNameFromChain, normalizeNftName } from './fio-chain.js';
 import { getLogFilePath, LOG_FILES_KEYS } from './log-file-templates.js';
-import { FIO_ACCOUNT_NAMES } from '../constants/chain.js';
+import {
+  AUTOMATIC_BURN_PREFIX,
+  AUTOMATIC_BURN_PREFIX_LEGACY,
+  FIO_ACCOUNT_NAMES,
+} from '../constants/chain.js';
 import { FIO_NON_RETRYABLE_ERRORS } from '../constants/errors.js';
 
 /**
@@ -15,7 +19,25 @@ export const isNonRetryableError = (errorString) => {
 };
 
 /**
+ * Gets the legacy (historical) transaction ID format for backward compatibility
+ * Current format: {tokenId}AutomaticNFTBurn{name}
+ * Legacy format: {tokenId}AutomaticDomainBurn{name}
+ * @param {string} transactionId - The transaction ID in current format
+ * @returns {string|null} - Legacy format transaction ID or null if not applicable
+ */
+const getLegacyTransactionId = (transactionId) => {
+  if (!transactionId) return null;
+
+  // Only convert current format to legacy format for backward compatibility
+  if (transactionId.includes(AUTOMATIC_BURN_PREFIX)) {
+    return transactionId.replace(AUTOMATIC_BURN_PREFIX, AUTOMATIC_BURN_PREFIX_LEGACY);
+  }
+  return null;
+};
+
+/**
  * Checks if a transaction ID exists in FIO log file with a successful receipt
+ * Also checks legacy transaction ID format for backward compatibility with old logs
  * @param {string} fioLogContent - Content of the FIO log file
  * @param {string} transactionId - The transaction ID (obtId) to check
  * @returns {boolean} - True if transaction exists with a receipt (successful)
@@ -23,10 +45,18 @@ export const isNonRetryableError = (errorString) => {
 const hasSuccessfulTransactionInFioLog = (fioLogContent, transactionId) => {
   if (!fioLogContent || !transactionId) return false;
 
+  // Get legacy transaction ID format for backward compatibility with old logs
+  const legacyTransactionId = getLegacyTransactionId(transactionId);
+
   // Each log entry is a single line with JSON.stringify(message)
   const lines = fioLogContent.split(/\r?\n/);
   return lines.some((line) => {
-    if (!line.includes(transactionId)) return false;
+    // Check both current and legacy transaction ID formats
+    const hasTransactionId =
+      line.includes(transactionId) ||
+      (legacyTransactionId && line.includes(legacyTransactionId));
+
+    if (!hasTransactionId) return false;
 
     // Check if this line contains receipt (successful transaction)
     // Receipt can be: "receipt": or 'receipt': or just receipt (in various formats)
@@ -85,8 +115,14 @@ export const createBurnRecordChecker = ({ chainCode, logPrefix = '' }) => {
   return (obtId) => {
     if (!obtId) return false;
 
-    // Check burn log file
-    const existsInBurnLog = logContents.some((content) => content.includes(obtId));
+    // Get legacy transaction ID format for backward compatibility with old logs
+    const legacyObtId = getLegacyTransactionId(obtId);
+
+    // Check burn log file (both current and legacy format)
+    const existsInBurnLog = logContents.some(
+      (content) =>
+        content.includes(obtId) || (legacyObtId && content.includes(legacyObtId)),
+    );
     if (existsInBurnLog) return true;
 
     // Check FIO log file - must have both obtId and receipt (indicating successful transaction)

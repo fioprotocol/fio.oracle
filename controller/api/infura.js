@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 
 export const getInfuraGasPrice = async ({ infura, chainCode }) => {
   const { rpcUrl, apiKey } = infura || {};
@@ -16,7 +16,7 @@ export const getInfuraGasPrice = async ({ infura, chainCode }) => {
 
   try {
     const gasPriceSuggestion = await (
-      await fetch(url, {
+      await fetchWithTimeout(url, {
         body: JSON.stringify({
           jsonrpc: '2.0',
           method: 'eth_gasPrice',
