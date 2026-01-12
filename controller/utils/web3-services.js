@@ -372,6 +372,13 @@ export class Web3Service {
     return provider.providers.some(isMoralisName);
   }
 
+  static hasThirdwebProvider({ chainCode }) {
+    const provider = this._providers.get(chainCode);
+    if (!provider || !provider.providers) return false;
+    const isThirdwebName = (prov) => (prov.name || '').toLowerCase().includes('thirdweb');
+    return provider.providers.some(isThirdwebName);
+  }
+
   /**
    * Clear cached contract instances (useful for cleanup or testing)
    * @param {string} chainCode - Optional chain code to clear specific contracts
