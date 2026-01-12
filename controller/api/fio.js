@@ -4,11 +4,14 @@ import moralis from './moralis.js';
 import config from '../../config/config.js';
 
 import {
+  ACTIONS,
+  ACTION_TYPES,
+  AUTOMATIC_BURN_PREFIX,
   FIO_ACCOUNT_NAMES,
   FIO_CHAIN_NAME,
   FIO_CONTRACT_ACTIONS,
+  handleActionName,
 } from '../constants/chain.js';
-import { ACTIONS, ACTION_TYPES, handleActionName } from '../constants/chain.js';
 import { ORACLE_CACHE_KEYS } from '../constants/cron-jobs.js';
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { handleBurnNFTs } from '../services/burnnfts.js';
@@ -394,6 +397,22 @@ class FIOCtrl {
               console.log(
                 `NFTS LENGTH FOR ${chainCode} = ${nftsList && nftsList.length}`,
               );
+              /**
+               * BURN LOGIC SUMMARY:
+               * ===================
+               * An NFT on POL chain should be BURNED when:
+               * 1. The domain NO LONGER exists on FIO chain (expired/burned there), OR
+               * 2. The domain exists on FIO but is NOT owned by fio.oracle (was unwrapped)
+               *
+               * An NFT should NOT be burned when:
+               * 1. The domain exists on FIO chain AND is owned by fio.oracle (still wrapped)
+               * 2. The NFT has no owner on POL (owner_of=null) - means already burned on POL
+               * 3. The burn transaction was already executed (exists in logs with receipt)
+               *
+               * Data sources:
+               * - FIO chain: fioConsensusDomains (domains owned by fio.oracle on FIO)
+               * - POL chain: nftsList from Moralis (all NFTs in the POL contract)
+               */
 
               // Create a checker function to see if transactions already exist in log files
               const hasExistingBurnRecord = createBurnRecordChecker({
@@ -408,6 +427,10 @@ class FIOCtrl {
                 skippedAlreadyInFioLog: 0,
                 skippedNoOwner: 0,
               };
+
+              console.log(
+                `${logPrefix} Starting burn candidate analysis. POL NFTs: ${nftsList.length}, FIO domains: ${fioConsensusDomains.length}`,
+              );
 
               for (const nftItem of nftsList) {
                 const { metadata, token_id, normalized_metadata, token_hash, owner_of } =
@@ -432,6 +455,7 @@ class FIOCtrl {
 
                 if (!name) continue;
 
+                // Check if domain exists on FIO chain and is owned by fio.oracle
                 const existingNftOnFioChain = fioConsensusDomains.find(
                   (nft) => normalizeNftName(nft.name) === normalizeNftName(name),
                 );
@@ -440,11 +464,12 @@ class FIOCtrl {
                   existingNftOnFioChain &&
                   existingNftOnFioChain.account === FIO_ACCOUNT_NAMES.FIO_ORACLE
                 ) {
+                  // Domain is still wrapped on FIO - DO NOT burn on POL
                   candidateStats.skippedOwnedByOracle += 1;
                   continue;
                 }
 
-                const trxId = `${token_id}AutomaticNFTBurn${name}`;
+                const trxId = `${token_id}${AUTOMATIC_BURN_PREFIX}${name}`;
 
                 // Check if this transaction already exists in log files (FIO log with receipt or burn log)
                 if (hasExistingBurnRecord(trxId)) {
@@ -476,20 +501,24 @@ class FIOCtrl {
                 `${logPrefix} Burn candidates for ${chainCode} before verification: ${burnCandidates.length}`,
               );
 
+              // Log detailed breakdown of skipped items
+              console.log(`${logPrefix} Candidate selection summary for ${chainCode}:`);
+              console.log(
+                `${logPrefix}   - Added to burn queue: ${candidateStats.added} (domains NOT on FIO or NOT owned by oracle)`,
+              );
               if (candidateStats.skippedOwnedByOracle) {
                 console.log(
-                  `${logPrefix} Skipped ${candidateStats.skippedOwnedByOracle} ${chainCode} NFTs are owned by fio.oracle on FIO.`,
+                  `${logPrefix}   - Skipped (owned by fio.oracle on FIO): ${candidateStats.skippedOwnedByOracle} (domain still wrapped, should NOT burn)`,
                 );
               }
-
               if (candidateStats.skippedAlreadyInFioLog) {
                 console.log(
-                  `${logPrefix} Skipped ${candidateStats.skippedAlreadyInFioLog} ${chainCode} NFTs already exist in FIO log (already executed).`,
+                  `${logPrefix}   - Skipped (already in logs): ${candidateStats.skippedAlreadyInFioLog} (burn already executed/attempted)`,
                 );
               }
               if (candidateStats.skippedNoOwner) {
                 console.log(
-                  `${logPrefix} Skipped ${candidateStats.skippedNoOwner} ${chainCode} NFTs with no owner in Moralis response.`,
+                  `${logPrefix}   - Skipped (no owner on POL): ${candidateStats.skippedNoOwner} (likely already burned on POL blockchain)`,
                 );
               }
 
