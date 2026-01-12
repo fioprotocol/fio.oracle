@@ -133,9 +133,58 @@ export const handleBurnNFTs = async () => {
                 shouldThrowError: true,
               });
             } catch (error) {
+              const errorMessage = error.message || String(error);
+              const errorStack = error.stack || '';
+
+              // Detect specific error patterns for better diagnostics
+              const isTokenNotExist =
+                errorMessage.includes('ERC721: invalid token ID') ||
+                errorMessage.includes('nonexistent token') ||
+                errorMessage.includes('owner query for nonexistent token') ||
+                errorMessage.includes('token does not exist');
+              const isNotOwner =
+                errorMessage.includes('caller is not token owner') ||
+                errorMessage.includes('not owner nor approved');
+              const isAlreadyBurned =
+                errorMessage.includes('already burned') ||
+                errorMessage.includes('token already burned');
+              const isExecutionReverted = errorMessage.includes('execution reverted');
+
+              let errorType = 'UNKNOWN';
+              if (isTokenNotExist) errorType = 'TOKEN_NOT_EXIST';
+              else if (isAlreadyBurned) errorType = 'ALREADY_BURNED';
+              else if (isNotOwner) errorType = 'NOT_OWNER';
+              else if (isExecutionReverted) errorType = 'EXECUTION_REVERTED';
+
+              console.error(`${logPrefix} BURN FAILED [${errorType}]: ${errorMessage}`);
+              console.error(`${logPrefix} Full error details:`, {
+                errorType,
+                tokenId,
+                nftName,
+                obtId,
+                errorMessage: errorMessage.substring(0, 500), // Truncate long messages
+              });
+
               handleChainError({
-                logMessage: `BURN ERROR ${chainCode} ${contractTypeName} ${actionNameType} ${error}`,
-                consoleMessage: `${logPrefix} ${error.stack}`,
+                logMessage: `BURN ERROR [${errorType}] ${chainCode} ${contractTypeName} ${actionNameType} tokenId=${tokenId} nftName=${nftName}: ${errorMessage}`,
+                consoleMessage: `${logPrefix} ${errorStack}`,
+              });
+
+              // Log detailed error to Error.log for tracking
+              addLogMessage({
+                filePath: getLogFilePath({ key: LOG_FILES_KEYS.ORACLE_ERRORS }),
+                message: {
+                  chain: FIO_CHAIN_NAME,
+                  contract: FIO_ACCOUNT_NAMES.FIO_ORACLE,
+                  action: `${ACTIONS.BURN} ${chainCode} FAILED`,
+                  transaction: {
+                    obtId,
+                    nftName,
+                    tokenId,
+                    errorType,
+                    error: errorMessage.substring(0, 200),
+                  },
+                },
               });
             }
 
