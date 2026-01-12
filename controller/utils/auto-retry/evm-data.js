@@ -1,7 +1,11 @@
 import config from '../../../config/config.js';
 import { CONTRACT_ACTIONS } from '../../constants/chain.js';
 import { estimateBlockRange } from '../chain.js';
-import { splitRangeByProvider, MORALIS_SAFE_BLOCKS_PER_QUERY } from '../logs-range.js';
+import {
+  splitRangeByProvider,
+  MORALIS_SAFE_BLOCKS_PER_QUERY,
+  THIRDWEB_SAFE_BLOCKS_PER_QUERY,
+} from '../logs-range.js';
 import {
   createMemoryCheckpoint,
   logMemoryDelta,
@@ -65,7 +69,14 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       toBlock,
       preferChunk: toBlock - fromBlock + 1,
       moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
+      thirdwebMax: THIRDWEB_SAFE_BLOCKS_PER_QUERY,
     });
+
+    // Use the smallest safe limit for fallback (Moralis at 95 is safest)
+    const fallbackChunkSize = Math.min(
+      MORALIS_SAFE_BLOCKS_PER_QUERY,
+      THIRDWEB_SAFE_BLOCKS_PER_QUERY,
+    );
 
     const fetchWindow = async (start, end) => {
       try {
@@ -81,12 +92,14 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
       } catch (err) {
         const msg = (err && err.message) || '';
         const isRangeError =
-          (err && err.statusCode === 400) || msg.includes('Exceeded maximum block range');
+          (err && err.statusCode === 400) ||
+          msg.includes('Exceeded maximum block range') ||
+          msg.includes('Maximum allowed number of requested blocks');
         if (!isRangeError) throw err;
 
         const merged = [];
-        for (let s = start; s <= end; s += MORALIS_SAFE_BLOCKS_PER_QUERY) {
-          const e = Math.min(end, s + MORALIS_SAFE_BLOCKS_PER_QUERY - 1);
+        for (let s = start; s <= end; s += fallbackChunkSize) {
+          const e = Math.min(end, s + fallbackChunkSize - 1);
           const part = await globalRequestQueue.enqueue(
             async () =>
               await contract.getPastEvents('allEvents', {

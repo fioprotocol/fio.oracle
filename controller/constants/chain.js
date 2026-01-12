@@ -47,6 +47,11 @@ export const FIO_CONTRACT_ACTIONS = {
 
 export const FIO_HANDLE_DELIMITER = '@';
 
+// Transaction ID prefix for automatic burns (used in obtId/trxId generation)
+export const AUTOMATIC_BURN_PREFIX = 'AutomaticNFTBurn';
+// Historical prefix used in old logs (for backward compatibility when checking existing records)
+export const AUTOMATIC_BURN_PREFIX_LEGACY = 'AutomaticDomainBurn';
+
 export const handleActionName = ({ actionName, type }) => {
   // Allow passing either enum keys (e.g., 'WRAP', 'TOKENS') or values ('wrap', 'tokens')
   const actionValue = ACTIONS[actionName] || actionName;

@@ -11,6 +11,7 @@ import {
 import { SECOND_IN_MILLISECONDS } from '../constants/general.js';
 import { ALREADY_COMPLETED } from '../constants/transactions.js';
 import { getWrapOracleItems, getUnwrapFioActions } from '../utils/auto-retry/fio-data.js';
+import { acquireJobLock, releaseJobLock } from '../utils/cron-jobs.js';
 import { runUnwrapFioTransaction } from '../utils/fio-chain.js';
 import { stringifyWithBigInt } from '../utils/general.js';
 import { getLogFilePath, LOG_FILES_KEYS } from '../utils/log-file-templates.js';
@@ -24,7 +25,7 @@ import {
 import { blockChainTransaction } from '../utils/transactions.js';
 import { Web3Service } from '../utils/web3-services.js';
 
-const { oracleCache, supportedChains } = config;
+const { supportedChains } = config;
 
 const CACHE_KEY = 'isAutoRetryMissingActionsExecuting';
 const EVENT_SIGNER = 'oracle';
@@ -719,7 +720,7 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
       if (amount) {
         transactionActionData.amount = parseInt(amount);
       } else if (domain) {
-        transactionActionData.domain = domain;
+        transactionActionData.fio_domain = domain;
       }
 
       const result = await runUnwrapFioTransaction({
@@ -797,18 +798,17 @@ const executeMissingUnwrapAction = async ({ txHash, chainEvent, chain, type }) =
 export const autoRetryMissingActions = async () => {
   const logPrefix = 'Auto-Retry Missing Actions -->';
 
-  if (oracleCache.get(CACHE_KEY)) {
-    console.log(`${logPrefix} Job is already running`);
+  if (!acquireJobLock(CACHE_KEY, logPrefix)) {
     return;
   }
-
-  oracleCache.set(CACHE_KEY, true, 0);
   console.log(`${logPrefix} Starting...`);
 
-  // Create memory checkpoint at start
-  const startCheckpoint = createMemoryCheckpoint('Auto-retry start', logPrefix);
+  // Initialize checkpoint variable for finally block
+  let startCheckpoint = null;
 
   try {
+    // Create memory checkpoint at start (inside try block to ensure finally always runs)
+    startCheckpoint = createMemoryCheckpoint('Auto-retry start', logPrefix);
     const now = Date.now();
     const beforeTimestamp = now - TIME_RANGE_START; // 15 minutes ago
     const afterTimestamp = now - TIME_RANGE_END; // 1 hour ago
@@ -1076,9 +1076,11 @@ export const autoRetryMissingActions = async () => {
     // Force GC and log results
     forceGCAndLog(logPrefix);
 
-    // Log final memory usage compared to start
-    logMemoryDelta('Final memory (end of job)', startCheckpoint, logPrefix);
+    // Log final memory usage compared to start (only if checkpoint was created)
+    if (startCheckpoint) {
+      logMemoryDelta('Final memory (end of job)', startCheckpoint, logPrefix);
+    }
 
-    oracleCache.set(CACHE_KEY, false, 0);
+    releaseJobLock(CACHE_KEY);
   }
 };

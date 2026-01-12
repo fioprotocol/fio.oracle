@@ -3,8 +3,9 @@ import crypto from 'crypto';
 import 'dotenv/config';
 
 import { Fio } from '@fioprotocol/fiojs';
-import fetch from 'node-fetch';
 import * as textEncoderObj from 'text-encoding';
+
+import { fetchWithTimeout } from './fetch-with-timeout.js';
 
 import MathOp from './math.js';
 import config from '../../config/config.js';
@@ -319,10 +320,13 @@ export const getFioOracleNfts = async ({
 
   while (retryCount <= DEFAULT_MAX_RETRIES) {
     try {
-      const getTableRowsActionResponse = await fetch(makeTableRowsUrl(serverUrl), {
-        method: 'POST',
-        body: JSON.stringify(tableRowsParams),
-      });
+      const getTableRowsActionResponse = await fetchWithTimeout(
+        makeTableRowsUrl(serverUrl),
+        {
+          method: 'POST',
+          body: JSON.stringify(tableRowsParams),
+        },
+      );
 
       if (!getTableRowsActionResponse || !getTableRowsActionResponse.ok) {
         const errorStatus =
@@ -417,7 +421,7 @@ const checkServerFreshness = async (serverUrl) => {
   const STALE_THRESHOLD_MS = FIO_SERVER_STALE_THRESHOLD_MINUTES * MINUTE_IN_MILLISECONDS;
 
   try {
-    const response = await fetch(makeGetInfoUrl(serverUrl));
+    const response = await fetchWithTimeout(makeGetInfoUrl(serverUrl));
 
     if (!response || !response.ok) {
       return {
