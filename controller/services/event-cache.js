@@ -28,6 +28,11 @@ import {
   MORALIS_SAFE_BLOCKS_PER_QUERY,
 } from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
+import {
+  createMemoryCheckpoint,
+  logMemoryDelta,
+  logArraySize,
+} from '../utils/memory-logger.js';
 import { globalRequestQueue } from '../utils/request-queue.js';
 import { Web3Service } from '../utils/web3-services.js';
 
@@ -270,6 +275,9 @@ const updateEventCache = async ({ chain, type }) => {
   const cacheKey = `${chainCode}-${type}`;
   const logPrefix = `[Event Cache ${chainCode} ${type}] -->`;
 
+  // Memory checkpoint at start
+  const startCheckpoint = createMemoryCheckpoint(`Start ${chainCode} ${type}`, logPrefix);
+
   try {
     // Get or initialize cache
     let cache = eventCache.get(cacheKey);
@@ -319,27 +327,31 @@ const updateEventCache = async ({ chain, type }) => {
       updateBlockNumber({ chainCode, blockNumber: lastProcessedBlockNumber.toString() });
     }
 
-    const fromBlockNumber = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
+    let currentFromBlock = new MathOp(lastProcessedBlockNumber).add(1).toNumber();
 
     // Skip if no new blocks
-    if (fromBlockNumber > lastInChainBlockNumber) {
+    if (new MathOp(currentFromBlock).gt(lastInChainBlockNumber)) {
       logEventCache(`${logPrefix} No new blocks (at block ${lastInChainBlockNumber})`);
       return;
     }
 
-    logEventCache(
-      `${logPrefix} Fetching events from block ${fromBlockNumber} to ${lastInChainBlockNumber}`,
+    const totalBlocksToProcess = new MathOp(lastInChainBlockNumber)
+      .sub(currentFromBlock)
+      .add(1)
+      .toNumber();
+    const estimatedChunks = Math.ceil(
+      new MathOp(totalBlocksToProcess).div(blocksRangeLimit).toNumber(),
     );
 
-    // Determine block range to fetch
-    const maxAllowedBlockNumber = new MathOp(fromBlockNumber)
-      .add(blocksRangeLimit)
-      .sub(1)
-      .toNumber();
+    logEventCache(
+      `${logPrefix} Fetching events from block ${currentFromBlock} to ${lastInChainBlockNumber}`,
+    );
 
-    const toBlockNumber = new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
-      ? lastInChainBlockNumber
-      : maxAllowedBlockNumber;
+    if (estimatedChunks > 1) {
+      logEventCache(
+        `${logPrefix} Behind by ${totalBlocksToProcess} blocks, will process in ~${estimatedChunks} chunks of ${blocksRangeLimit} blocks`,
+      );
+    }
 
     // Fetch ALL events at once (not separated by type)
     const fetchEvents = async (start, end) => {
@@ -383,43 +395,98 @@ const updateEventCache = async ({ chain, type }) => {
       }
     };
 
-    // Use smart chunking based on provider
-    const windows = splitRangeByProvider({
-      chainCode,
-      fromBlock: fromBlockNumber,
-      toBlock: toBlockNumber,
-      preferChunk: toBlockNumber - fromBlockNumber + 1,
-      moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
-    });
+    let chunksProcessed = 0;
+    let totalEventsFound = 0;
 
-    const newEvents = [];
-    for (const w of windows) {
-      const part = await fetchEvents(w.from, w.to);
-      if (part && part.length) {
-        // Add timestamp to each event for cache filtering
-        part.forEach((event) => {
-          event.timestamp = Date.now();
-          event.cacheAddedAt = Date.now();
-        });
-        newEvents.push(...part);
+    // Memory checkpoint before loop
+    let loopCheckpoint = createMemoryCheckpoint('Before catch-up loop', logPrefix);
+
+    // Loop until caught up with the chain
+    while (currentFromBlock <= lastInChainBlockNumber) {
+      // Determine block range to fetch for this chunk
+      const maxAllowedBlockNumber = new MathOp(currentFromBlock)
+        .add(blocksRangeLimit)
+        .sub(1)
+        .toNumber();
+
+      const toBlockNumber = new MathOp(maxAllowedBlockNumber).gt(lastInChainBlockNumber)
+        ? lastInChainBlockNumber
+        : maxAllowedBlockNumber;
+
+      // Use smart chunking based on provider
+      const windows = splitRangeByProvider({
+        chainCode,
+        fromBlock: currentFromBlock,
+        toBlock: toBlockNumber,
+        preferChunk: toBlockNumber - currentFromBlock + 1,
+        moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
+      });
+
+      let chunkEvents = [];
+      for (const w of windows) {
+        const part = await fetchEvents(w.from, w.to);
+        if (part && part.length) {
+          // Add timestamp to each event for cache filtering
+          part.forEach((event) => {
+            event.timestamp = Date.now();
+            event.cacheAddedAt = Date.now();
+          });
+          chunkEvents.push(...part);
+        }
       }
+
+      chunksProcessed++;
+
+      // Save events to log file and add to cache IMMEDIATELY after each chunk
+      // This prevents memory buildup during large catch-ups
+      if (chunkEvents.length > 0) {
+        saveEventsToLogFile(chainCode, type, chunkEvents);
+        cache.events.push(...chunkEvents);
+        totalEventsFound += chunkEvents.length;
+      }
+
+      // Update block number after each chunk (for recovery if interrupted)
+      updateBlockNumber({
+        chainCode,
+        blockNumber: toBlockNumber.toString(),
+      });
+
+      // Move to next chunk
+      currentFromBlock = new MathOp(toBlockNumber).add(1).toNumber();
+
+      // Log progress for large catch-ups (every 10 chunks)
+      if (
+        new MathOp(estimatedChunks).gt(1) &&
+        new MathOp(chunksProcessed).mod(10).eq(0)
+      ) {
+        const progress = new MathOp(chunksProcessed)
+          .div(estimatedChunks)
+          .mul(100)
+          .round(0)
+          .toNumber();
+        logEventCache(
+          `${logPrefix} Progress: ${chunksProcessed}/${estimatedChunks} chunks (${progress}%), found ${totalEventsFound} events so far`,
+        );
+        // Log memory delta every 10 chunks
+        loopCheckpoint = logMemoryDelta(
+          `After ${chunksProcessed} chunks`,
+          loopCheckpoint,
+          logPrefix,
+        );
+        logArraySize('cache.events', cache.events, logPrefix);
+      }
+
+      // Clear chunk data to help garbage collection
+      chunkEvents.length = 0;
+      chunkEvents = null;
     }
 
-    logEventCache(`${logPrefix} Fetched ${newEvents.length} new events`);
+    logEventCache(
+      `${logPrefix} Fetched ${totalEventsFound} new events in ${chunksProcessed} chunk(s)`,
+    );
 
-    // Update block number
-    updateBlockNumber({
-      chainCode,
-      blockNumber: toBlockNumber.toString(),
-    });
-
-    // Save new events to log file
-    if (newEvents.length > 0) {
-      saveEventsToLogFile(chainCode, type, newEvents);
-    }
-
-    // Add new events to cache
-    cache.events.push(...newEvents);
+    // Memory checkpoint before cleanup
+    const cleanupCheckpoint = createMemoryCheckpoint('Before cleanup', logPrefix);
 
     // Clean up old events from memory (older than 1 hour)
     const now = Date.now();
@@ -446,6 +513,9 @@ const updateEventCache = async ({ chain, type }) => {
       );
     }
 
+    // Memory delta after cleanup
+    logMemoryDelta('After cleanup', cleanupCheckpoint, logPrefix);
+
     // Remove cache entry if it's empty and stale (older than retention period)
     if (cache.events.length === 0 && now - cache.lastUpdate > CACHE_RETENTION_MS) {
       eventCache.delete(cacheKey);
@@ -458,6 +528,9 @@ const updateEventCache = async ({ chain, type }) => {
     logEventCache(
       `${logPrefix} Cache updated: ${cache.events.length} total events in cache`,
     );
+
+    // Final memory delta from start
+    logMemoryDelta(`Final (end of ${chainCode} ${type})`, startCheckpoint, logPrefix);
   } catch (error) {
     logEventCache(`${logPrefix} Error updating cache: ${error.message}`, true);
     handleServerError(error, `Event Cache ${chainCode} ${type}`);
