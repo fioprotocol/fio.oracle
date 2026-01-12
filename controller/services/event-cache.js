@@ -26,6 +26,7 @@ import {
 import {
   splitRangeByProvider,
   MORALIS_SAFE_BLOCKS_PER_QUERY,
+  THIRDWEB_SAFE_BLOCKS_PER_QUERY,
 } from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
 import {
@@ -353,6 +354,12 @@ const updateEventCache = async ({ chain, type }) => {
       );
     }
 
+    // Use the smallest safe limit for fallback (Moralis at 95 is safest)
+    const fallbackChunkSize = Math.min(
+      MORALIS_SAFE_BLOCKS_PER_QUERY,
+      THIRDWEB_SAFE_BLOCKS_PER_QUERY,
+    );
+
     // Fetch ALL events at once (not separated by type)
     const fetchEvents = async (start, end) => {
       try {
@@ -371,16 +378,18 @@ const updateEventCache = async ({ chain, type }) => {
       } catch (err) {
         const msg = (err && err.message) || '';
         const isRangeError =
-          (err && err.statusCode === 400) || msg.includes('Exceeded maximum block range');
+          (err && err.statusCode === 400) ||
+          msg.includes('Exceeded maximum block range') ||
+          msg.includes('Maximum allowed number of requested blocks');
         if (!isRangeError) throw err;
 
         // If range error, split into smaller chunks
         logEventCache(
-          `${logPrefix} Range error, splitting into ${MORALIS_SAFE_BLOCKS_PER_QUERY}-block chunks`,
+          `${logPrefix} Range error, splitting into ${fallbackChunkSize}-block chunks`,
         );
         const merged = [];
-        for (let s = start; s <= end; s += MORALIS_SAFE_BLOCKS_PER_QUERY) {
-          const e = Math.min(end, s + MORALIS_SAFE_BLOCKS_PER_QUERY - 1);
+        for (let s = start; s <= end; s += fallbackChunkSize) {
+          const e = Math.min(end, s + fallbackChunkSize - 1);
           const part = await globalRequestQueue.enqueue(
             async () =>
               await contract.getPastEvents('allEvents', {
@@ -420,6 +429,7 @@ const updateEventCache = async ({ chain, type }) => {
         toBlock: toBlockNumber,
         preferChunk: toBlockNumber - currentFromBlock + 1,
         moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
+        thirdwebMax: THIRDWEB_SAFE_BLOCKS_PER_QUERY,
       });
 
       let chunkEvents = [];
