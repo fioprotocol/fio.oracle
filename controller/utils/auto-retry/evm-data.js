@@ -3,8 +3,8 @@ import { CONTRACT_ACTIONS } from '../../constants/chain.js';
 import { estimateBlockRange } from '../chain.js';
 import {
   splitRangeByProvider,
-  MORALIS_SAFE_BLOCKS_PER_QUERY,
-  THIRDWEB_SAFE_BLOCKS_PER_QUERY,
+  getBlocksRangeLimitForProvider,
+  getBlocksOffsetForProvider,
 } from '../logs-range.js';
 import {
   createMemoryCheckpoint,
@@ -20,7 +20,7 @@ const {
 
 // Fetch consensus_activity, wrapped, and unwrapped events for a chain within a time range
 export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd }) => {
-  const { chainParams, contractAddress, blocksOffset = 0 } = chain;
+  const { chainParams, contractAddress } = chain;
   const { chainCode } = chainParams;
   const logPrefix = `Auto-Retry Missing Actions, ${chainCode} Events -->`;
 
@@ -33,7 +33,8 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
     const web3Instance = Web3Service.getWe3Instance({ chainCode });
 
     const currentBlock = Number(await web3Instance.eth.getBlockNumber());
-    const lastInChainBlockNumber = Math.max(0, currentBlock - Number(blocksOffset || 0));
+    const blocksOffset = getBlocksOffsetForProvider({ isGetLogs: true });
+    const lastInChainBlockNumber = Math.max(0, currentBlock - blocksOffset);
     const blocksInRange = estimateBlockRange(timeRangeEnd);
 
     // Add 20% buffer to block range to account for:
@@ -63,20 +64,7 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
     });
 
     const allEvents = [];
-    const windows = splitRangeByProvider({
-      chainCode,
-      fromBlock,
-      toBlock,
-      preferChunk: toBlock - fromBlock + 1,
-      moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
-      thirdwebMax: THIRDWEB_SAFE_BLOCKS_PER_QUERY,
-    });
-
-    // Use the smallest safe limit for fallback (Moralis at 95 is safest)
-    const fallbackChunkSize = Math.min(
-      MORALIS_SAFE_BLOCKS_PER_QUERY,
-      THIRDWEB_SAFE_BLOCKS_PER_QUERY,
-    );
+    const windows = splitRangeByProvider({ fromBlock, toBlock });
 
     const fetchWindow = async (start, end) => {
       try {
@@ -96,6 +84,9 @@ export const getChainEvents = async ({ chain, type, timeRangeStart, timeRangeEnd
           msg.includes('Exceeded maximum block range') ||
           msg.includes('Maximum allowed number of requested blocks');
         if (!isRangeError) throw err;
+
+        // Get provider's limit based on priority
+        const fallbackChunkSize = getBlocksRangeLimitForProvider({ isGetLogs: true });
 
         const merged = [];
         for (let s = start; s <= end; s += fallbackChunkSize) {

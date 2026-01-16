@@ -6,11 +6,13 @@ import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { handleBackups, sleep } from '../utils/general.js';
 
 const {
-  nfts: { NFT_PROVIDER_API_KEY },
-  moralis: {
-    MORALIS_RPC_BASE_URL,
-    MORALIS_RPC_BASE_URL_FALLBACK,
-    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
+  web3Providers: {
+    moralis: {
+      API_KEY: MORALIS_API_KEY,
+      RPC_BASE_URL: MORALIS_RPC_BASE_URL,
+      RPC_BASE_URL_FALLBACK: MORALIS_RPC_BASE_URL_FALLBACK,
+      DEFAULT_TIMEOUT_BETWEEN_CALLS: MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS,
+    },
   },
 } = config;
 
@@ -21,7 +23,7 @@ class GetMoralis {
   async init() {
     if (!Moralis.Core._isStarted)
       await Moralis.start({
-        apiKey: NFT_PROVIDER_API_KEY,
+        apiKey: MORALIS_API_KEY,
       });
   }
 

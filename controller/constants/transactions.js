@@ -40,8 +40,9 @@ export const NETWORK_ERROR_MESSAGES = [
 ];
 
 // Error message patterns that should NOT trigger fallback (lowercase)
+// Note: 'exceeded maximum block range' is NOT here - each provider uses its own limit from config,
+// so if one provider fails with range error, fallback to another may succeed with different limit
 export const NO_FALLBACK_ERROR_MESSAGES = [
-  'exceeded maximum block range',
   NONCE_TOO_LOW_ERROR,
   'replacement transaction underpriced',
   ALREADY_KNOWN_TRANSACTION,
