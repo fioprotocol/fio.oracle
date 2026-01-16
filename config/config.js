@@ -124,21 +124,34 @@ export default {
     SYNC_INTERVAL_HOURS: config.get('logging.syncIntervalHours'),
   },
 
-  moralis: {
-    MORALIS_DEFAULT_TIMEOUT_BETWEEN_CALLS: config.get(
-      'moralis.defaultTimeoutBetweenCalls',
-    ),
-    MORALIS_RPC_BASE_URL: config.get('moralis.rpcBaseUrl'),
-    MORALIS_RPC_BASE_URL_FALLBACK: config.get('moralis.rpcBaseUrlFallback'),
-  },
-
-  nfts: {
-    NFT_PROVIDER_API_KEY: config.get('moralis.apiKey'),
-  },
-
   supportedChains,
 
-  thirdWeb: {
-    THIRDWEB_API_KEY: config.get('thirdWeb.apiKey'),
+  // Web3 providers config
+  web3Providers: {
+    infura: {
+      BLOCKS_RANGE_LIMIT: config.get('web3Providers.infura.blocksRangeLimit'),
+      BLOCKS_OFFSET: config.get('web3Providers.infura.blocksOffset'),
+      PRIORITY: config.get('web3Providers.infura.priority'),
+      GET_LOGS_PRIORITY: config.get('web3Providers.infura.getLogsPriority'),
+    },
+    moralis: {
+      API_KEY: config.get('web3Providers.moralis.apiKey'),
+      RPC_BASE_URL: config.get('web3Providers.moralis.rpcBaseUrl'),
+      RPC_BASE_URL_FALLBACK: config.get('web3Providers.moralis.rpcBaseUrlFallback'),
+      DEFAULT_TIMEOUT_BETWEEN_CALLS: config.get(
+        'web3Providers.moralis.defaultTimeoutBetweenCalls',
+      ),
+      BLOCKS_RANGE_LIMIT: config.get('web3Providers.moralis.blocksRangeLimit'),
+      BLOCKS_OFFSET: config.get('web3Providers.moralis.blocksOffset'),
+      PRIORITY: config.get('web3Providers.moralis.priority'),
+      GET_LOGS_PRIORITY: config.get('web3Providers.moralis.getLogsPriority'),
+    },
+    thirdweb: {
+      API_KEY: config.get('web3Providers.thirdweb.apiKey'),
+      BLOCKS_RANGE_LIMIT: config.get('web3Providers.thirdweb.blocksRangeLimit'),
+      BLOCKS_OFFSET: config.get('web3Providers.thirdweb.blocksOffset'),
+      PRIORITY: config.get('web3Providers.thirdweb.priority'),
+      GET_LOGS_PRIORITY: config.get('web3Providers.thirdweb.getLogsPriority'),
+    },
   },
 };

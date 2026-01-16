@@ -30,6 +30,7 @@ import {
 } from './utils/log-files.js';
 import { initializeLogScheduler } from './utils/log-scheduler.js';
 import logger from './utils/logger.js';
+import { getBlocksOffsetForProvider } from './utils/logs-range.js';
 import {
   convertWeiToEth,
   convertWeiToGwei,
@@ -76,7 +77,7 @@ class MainCtrl {
       // Check oracle addresses balances on chains
       for (const [type, chains] of Object.entries(supportedChains)) {
         for (const supportedChain of chains) {
-          const { blocksOffset, chainParams, infura, moralis, publicKey, thirdweb } =
+          const { chainParams, infura, moralis, publicKey, thirdweb } =
             supportedChain || {};
 
           const { chainName, chainCode } = chainParams;
@@ -173,7 +174,7 @@ class MainCtrl {
               chainCode,
             }),
             fetchAction: () => web3ChainInstance.eth.getBlockNumber(),
-            offset: blocksOffset,
+            offset: getBlocksOffsetForProvider({}),
           });
 
           await prepareLogFile({

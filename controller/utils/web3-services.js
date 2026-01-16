@@ -22,6 +22,9 @@ const fioNftABI = require('../../config/ABI/FIOMATICNFT.json');
 // Get fetch timeout from config for error messages
 const FETCH_TIMEOUT_MS = (config.app && config.app.FETCH_TIMEOUT_MS) || 60000;
 
+// RPC method constants
+const ETH_GET_LOGS = 'eth_getLogs';
+
 // --- Lightweight EIP-1193 providers with fallback chaining ---
 
 class HttpRpcProvider {
@@ -144,68 +147,98 @@ class MultiRpcProvider {
   constructor(providers) {
     this.providers = providers.filter(Boolean);
     if (!this.providers.length) throw new Error('No RPC providers configured');
-    this.currentIndex = 0;
   }
 
   current() {
-    return this.providers[this.currentIndex];
+    return this.providers[0];
   }
 
   shouldFallbackOnError(err) {
-    // Fallback on ANY error by default - if one provider fails, try the next one
-    // Only exclude specific logical errors that shouldn't be retried (e.g., block range limits, execution errors)
     const msg = (err && err.message ? err.message : '').toLowerCase();
-
-    // Do NOT fallback on specific error types (provider-enforced range limitations, logical execution errors, etc.)
-    // These are errors that indicate the request itself is invalid, not a provider issue
     if (NO_FALLBACK_ERROR_MESSAGES.some((pattern) => msg.includes(pattern))) return false;
-
-    // For all other errors (401, 403, 429, 500, network errors, etc.), fallback to next provider
     return true;
+  }
+
+  getProviderPriority({ providerName, isGetLogs = false }) {
+    const name = (providerName || '').toLowerCase();
+    const priorityKey = isGetLogs ? 'GET_LOGS_PRIORITY' : 'PRIORITY';
+
+    for (const [key, providerConfig] of Object.entries(config.web3Providers)) {
+      if (name.includes(key.toLowerCase())) {
+        return providerConfig[priorityKey] ?? 999;
+      }
+    }
+    return 999;
+  }
+
+  // Get block range limit for a provider from config
+  getProviderBlocksRangeLimit(providerName) {
+    const name = (providerName || '').toLowerCase();
+
+    for (const [key, providerConfig] of Object.entries(config.web3Providers)) {
+      if (name.includes(key.toLowerCase())) {
+        return providerConfig.BLOCKS_RANGE_LIMIT;
+      }
+    }
+    return null;
+  }
+
+  // Execute eth_getLogs with provider's block range limit from config
+  async executeGetLogs({ provider, params }) {
+    const filter = params[0];
+    const fromBlock = parseInt(filter.fromBlock, 16);
+    const toBlock = parseInt(filter.toBlock, 16);
+    const limit = this.getProviderBlocksRangeLimit(provider.name);
+
+    // If no limit configured or request fits within limit, just execute
+    if (!limit || toBlock - fromBlock + 1 <= limit) {
+      return await provider.request({ method: ETH_GET_LOGS, params });
+    }
+
+    // Chunk based on provider's config limit
+    const results = [];
+    for (let start = fromBlock; start <= toBlock; start += limit) {
+      const end = Math.min(toBlock, start + limit - 1);
+      const chunkParams = [
+        {
+          ...filter,
+          fromBlock: '0x' + start.toString(16),
+          toBlock: '0x' + end.toString(16),
+        },
+      ];
+      const chunk = await provider.request({
+        method: ETH_GET_LOGS,
+        params: chunkParams,
+      });
+      if (chunk && chunk.length) results.push(...chunk);
+    }
+    return results;
   }
 
   async request({ method, params }) {
     let lastError = null;
+    const isGetLogs = method === ETH_GET_LOGS;
 
-    // Build a method-aware provider order
-    const infura = this.providers.filter((p) => (p.name || '') === 'Infura');
-    const moralis = this.providers.filter((p) => (p.name || '').startsWith('Moralis'));
-    const thirdweb = this.providers.filter((p) => (p.name || '') === 'Thirdweb');
-    const known = new Set([...infura, ...moralis, ...thirdweb]);
-    const others = this.providers.filter((p) => !known.has(p));
-
-    const providersToTry =
-      method === 'eth_getLogs'
-        ? [...infura, ...thirdweb, ...moralis, ...others]
-        : [...infura, ...moralis, ...thirdweb, ...others];
+    const providersToTry = [...this.providers].sort((a, b) => {
+      const priorityA = this.getProviderPriority({ providerName: a.name, isGetLogs });
+      const priorityB = this.getProviderPriority({ providerName: b.name, isGetLogs });
+      return priorityA - priorityB;
+    });
 
     for (let i = 0; i < providersToTry.length; i++) {
-      const index = (this.currentIndex + i) % providersToTry.length;
-      const provider = providersToTry[index];
+      const provider = providersToTry[i];
+
       try {
-        const result = await provider.request({ method, params });
-        // Stick to the provider that worked
-        this.currentIndex = this.providers.indexOf(provider);
-        return result;
+        // For eth_getLogs, use provider's block range limit from config
+        if (isGetLogs) {
+          return await this.executeGetLogs({ provider, params });
+        }
+        return await provider.request({ method, params });
       } catch (err) {
         lastError = err;
         const canFallback = this.shouldFallbackOnError(err);
-        if (canFallback && i < providersToTry.length - 1) {
-          const meta = {
-            provider: provider.name || 'Unknown',
-            method,
-            status: err.statusCode,
-            code: err.code,
-            msg: err.message,
-            details: (
-              err.responseSnippet || (err.data ? JSON.stringify(err.data) : '')
-            ).slice(0, 200),
-          };
-          console.warn(`[Web3 Fallback] Provider error, trying next`, meta);
-          continue;
-        }
-        // Either not recoverable or no providers left
-        console.error(`[Web3 Fallback] Final error`, {
+
+        const meta = {
           provider: provider.name || 'Unknown',
           method,
           status: err.statusCode,
@@ -214,7 +247,17 @@ class MultiRpcProvider {
           details: (
             err.responseSnippet || (err.data ? JSON.stringify(err.data) : '')
           ).slice(0, 200),
-        });
+        };
+
+        if (canFallback && i < providersToTry.length - 1) {
+          console.warn(
+            `[Web3 Fallback] Provider "${provider.name}" error, trying next`,
+            meta,
+          );
+          continue;
+        }
+
+        console.error(`[Web3 Fallback] Final error`, meta);
         throw err;
       }
     }
@@ -251,8 +294,9 @@ const buildProvidersForChain = ({ chainCode }) => {
   }
 
   // 2) Moralis primary + fallback (second by default)
-  const { moralis: { MORALIS_RPC_BASE_URL, MORALIS_RPC_BASE_URL_FALLBACK } = {} } =
-    config;
+  const moralisConfig = config.web3Providers.moralis || {};
+  const MORALIS_RPC_BASE_URL = moralisConfig.RPC_BASE_URL || '';
+  const MORALIS_RPC_BASE_URL_FALLBACK = moralisConfig.RPC_BASE_URL_FALLBACK || '';
 
   if (moralis && moralis.chainName && moralis.rpcNodeApiKey) {
     const urlParams = `${moralis.chainName}/${moralis.rpcNodeApiKey}`;
@@ -276,7 +320,8 @@ const buildProvidersForChain = ({ chainCode }) => {
 
   // 3) Thirdweb (third by default; moved ahead of Moralis on getLogs at runtime)
   if (thirdweb && thirdweb.chainName) {
-    const { thirdWeb: { THIRDWEB_API_KEY } = {} } = config;
+    const thirdwebConfig = config.web3Providers.thirdweb || {};
+    const THIRDWEB_API_KEY = thirdwebConfig.API_KEY || '';
     providers.push(
       new ThirdwebRpcProvider({
         chainName: thirdweb.chainName,

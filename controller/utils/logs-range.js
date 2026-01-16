@@ -1,78 +1,68 @@
-import { Web3Service } from './web3-services.js';
+import config from '../../config/config.js';
 
-export const MORALIS_SAFE_BLOCKS_PER_QUERY = 95;
-export const THIRDWEB_SAFE_BLOCKS_PER_QUERY = 995;
+// Get provider config by priority (lowest number = highest priority)
+// isGetLogs: true = use GET_LOGS_PRIORITY, false = use PRIORITY
+// Returns { name, config, priority }
+export const getProviderByPriority = ({ isGetLogs = false }) => {
+  const priorityKey = isGetLogs ? 'GET_LOGS_PRIORITY' : 'PRIORITY';
 
-// Returns true if the active provider for the chain looks like Moralis
-export const isMoralisProviderActive = ({ chainCode }) => {
-  const name = Web3Service.getCurrentRpcProviderName({ chainCode }) || '';
-  return name.toLowerCase().includes('moralis');
-};
+  let bestName = null;
+  let bestConfig = null;
+  let bestPriority = Infinity;
 
-// Returns true if the active provider for the chain looks like Thirdweb
-export const isThirdwebProviderActive = ({ chainCode }) => {
-  const name = Web3Service.getCurrentRpcProviderName({ chainCode }) || '';
-  return name.toLowerCase().includes('thirdweb');
-};
-
-// Returns true if Moralis provider exists in the provider chain (may be used as fallback)
-export const hasMoralisInProviderChain = ({ chainCode }) => {
-  return Web3Service.hasMoralisProvider({ chainCode });
-};
-
-// Returns true if Thirdweb provider exists in the provider chain (may be used as fallback)
-export const hasThirdwebInProviderChain = ({ chainCode }) => {
-  return Web3Service.hasThirdwebProvider({ chainCode });
-};
-
-// Returns the safe block limit based on ALL providers that might be used in fallback chain
-// For eth_getLogs, the order is Thirdweb → Moralis → others, so we need the smallest limit
-export const getSafeBlocksForProviderChain = ({ chainCode }) => {
-  // Check if Moralis exists in the chain (has the smallest limit at 95)
-  if (hasMoralisInProviderChain({ chainCode })) {
-    return MORALIS_SAFE_BLOCKS_PER_QUERY;
+  for (const [name, providerConfig] of Object.entries(config.web3Providers)) {
+    const priority = providerConfig[priorityKey];
+    if (priority != null && priority < bestPriority) {
+      bestPriority = priority;
+      bestName = name;
+      bestConfig = providerConfig;
+    }
   }
-  // Check if Thirdweb exists in the chain (limit of 1000)
-  if (hasThirdwebInProviderChain({ chainCode })) {
-    return THIRDWEB_SAFE_BLOCKS_PER_QUERY;
-  }
-  // Infura and others: no special limit
-  return null;
+
+  return { name: bestName, config: bestConfig, priority: bestPriority };
 };
 
-// Split a [fromBlock, toBlock] range into windows using a provider-aware chunk size
-// preferChunk: desired chunk size (e.g., 3000 or the whole window length)
-// moralisMax: max chunk size for Moralis (default 95 to stay under 100)
-// thirdwebMax: max chunk size for Thirdweb (default 1000)
-export const splitRangeByProvider = ({
-  chainCode,
-  fromBlock,
-  toBlock,
-  preferChunk,
-  moralisMax = MORALIS_SAFE_BLOCKS_PER_QUERY,
-  thirdwebMax = THIRDWEB_SAFE_BLOCKS_PER_QUERY,
-}) => {
+// Get blocksRangeLimit based on priority provider
+export const getBlocksRangeLimitForProvider = ({ isGetLogs = false }) => {
+  const provider = getProviderByPriority({ isGetLogs });
+
+  if (!provider.config || !provider.config.BLOCKS_RANGE_LIMIT) {
+    throw new Error(`Can't find provider's blocksRangeLimit, check your config`);
+  }
+
+  return provider.config.BLOCKS_RANGE_LIMIT;
+};
+
+// Get blocksOffset based on priority (not chainCode)
+export const getBlocksOffsetForProvider = ({ isGetLogs = false }) => {
+  const provider = getProviderByPriority({ isGetLogs });
+
+  if (!provider.config || provider.config.BLOCKS_OFFSET == null) {
+    throw new Error(`Can't find provider's blocksOffset, check your config`);
+  }
+
+  return provider.config.BLOCKS_OFFSET;
+};
+
+// Log which provider will be used for getLogs
+export const logGetLogsProvider = ({ logPrefix = '' }) => {
+  const provider = getProviderByPriority({ isGetLogs: true });
+  if (logPrefix && provider.name) {
+    console.log(
+      `${logPrefix} Using provider "${provider.name}" for eth_getLogs (priority: ${provider.priority}, blocksRangeLimit: ${provider.config.BLOCKS_RANGE_LIMIT})`,
+    );
+  }
+  return provider;
+};
+
+// Split a [fromBlock, toBlock] range into windows based on getLogs provider's limit
+export const splitRangeByProvider = ({ fromBlock, toBlock }) => {
   const from = Number(fromBlock);
   const to = Number(toBlock);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return [];
 
-  // Determine the chunk size based on which providers EXIST in the chain
-  // For eth_getLogs, the provider order is: Thirdweb → Moralis → others
-  // We must use the smallest limit that works for ALL providers in the fallback chain
-  // Moralis: 95 blocks, Thirdweb: 1000 blocks, Infura/others: use preferChunk
-  const hasMoralis = hasMoralisInProviderChain({ chainCode });
-  const hasThirdweb = hasThirdwebInProviderChain({ chainCode });
-
-  let providerMax = preferChunk;
-  if (hasMoralis) {
-    // Moralis has the smallest limit, use it if Moralis is in the chain
-    providerMax = moralisMax;
-  } else if (hasThirdweb) {
-    // Thirdweb has a 1000 block limit
-    providerMax = thirdwebMax;
-  }
-
-  const chunk = Math.max(1, Math.min(preferChunk, providerMax));
+  // Get the provider that will handle eth_getLogs
+  const chunk = getBlocksRangeLimitForProvider({ isGetLogs: true });
 
   const windows = [];
   for (let start = from; start <= to; start += chunk) {
@@ -89,23 +79,12 @@ export const splitRangeByProvider = ({
 export const fetchEventsChunked = async ({
   contract,
   eventName,
-  chainCode,
   fromBlock,
   toBlock,
   logPrefix = '',
   queue,
-  preferChunk,
-  moralisMax = MORALIS_SAFE_BLOCKS_PER_QUERY,
-  thirdwebMax = THIRDWEB_SAFE_BLOCKS_PER_QUERY,
 }) => {
-  const windows = splitRangeByProvider({
-    chainCode,
-    fromBlock,
-    toBlock,
-    preferChunk,
-    moralisMax,
-    thirdwebMax,
-  });
+  const windows = splitRangeByProvider({ fromBlock, toBlock });
 
   const combined = [];
 
@@ -123,9 +102,6 @@ export const fetchEventsChunked = async ({
       { logPrefix, from: start, to: end },
     );
 
-  // Use the smallest safe limit for fallback (Moralis at 95 is safest)
-  const fallbackChunkSize = Math.min(moralisMax, thirdwebMax);
-
   for (const w of windows) {
     try {
       const part = await tryWindow(w.from, w.to);
@@ -137,6 +113,9 @@ export const fetchEventsChunked = async ({
         msg.includes('Exceeded maximum block range') ||
         msg.includes('Maximum allowed number of requested blocks');
       if (!isRangeError) throw err;
+
+      // Get provider's limit for getLogs based on priority
+      const fallbackChunkSize = getBlocksRangeLimitForProvider({ isGetLogs: true });
 
       if (logPrefix) {
         console.warn(

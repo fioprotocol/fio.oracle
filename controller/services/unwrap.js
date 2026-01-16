@@ -21,6 +21,7 @@ import {
   isUnwrapTransactionInFioLog,
   addLogMessage,
 } from '../utils/log-files.js';
+import { getBlocksOffsetForProvider } from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
 import {
   createMemoryCheckpoint,
@@ -39,8 +40,6 @@ export const handleUnwrap = async () => {
   for (const [type, chains] of Object.entries(supportedChains)) {
     for (const chain of chains) {
       const {
-        // blocksRangeLimit,
-        blocksOffset = 0,
         // contractAddress,
         contractTypeName,
         chainParams,
@@ -96,6 +95,7 @@ export const handleUnwrap = async () => {
         // Get current chain block number
         const web3ChainInstance = Web3Service.getWe3Instance({ chainCode });
         const chainBlockNumber = await web3ChainInstance.eth.getBlockNumber();
+        const blocksOffset = getBlocksOffsetForProvider({ isGetLogs: true });
         const lastInChainBlockNumber = new MathOp(parseInt(chainBlockNumber))
           .sub(blocksOffset)
           .toNumber();
