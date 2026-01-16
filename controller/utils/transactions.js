@@ -182,9 +182,9 @@ export const blockChainTransaction = async (transactionParams) => {
 
     const cleanupPromiListeners = () => {
       try {
-        promiEvent.removeAllListeners?.('transactionHash');
-        promiEvent.removeAllListeners?.('receipt');
-        promiEvent.removeAllListeners?.('error');
+        promiEvent.removeAllListeners && promiEvent.removeAllListeners('transactionHash');
+        promiEvent.removeAllListeners && promiEvent.removeAllListeners('receipt');
+        promiEvent.removeAllListeners && promiEvent.removeAllListeners('error');
       } catch {
         // best-effort cleanup
       }
