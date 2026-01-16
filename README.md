@@ -55,16 +55,19 @@ These are examples/skeletons showing the current shape and where values come fro
 Main base config: `config/default.json:1`
 ```
 {
-  "app": { "port": 3000, "restartTimeout": 5000, "maxRetries": 5, "stabilityThreshold": 30000 },
-  "autoRetryMissingActions": { "maxRetries": 5, "retryDelayMs": 5000, "timeRangeStart": 900000, "timeRangeEnd": 3600000 },
+  "app": { "port": 3000, "restartTimeout": 5000, "maxRetries": 5, "stabilityThreshold": 30000, "fetchTimeoutMs": 120000 },
+  "autoRetryMissingActions": { "maxRetries": 5, "retryDelayMs": 5000, "timeRangeStart": 900000, "timeRangeEnd": 3600000, "maxBlockCacheSize": 5000 },
   "aws": { "s3Key": "", "s3Secret": "", "s3Bucket": "fio-oracle-logs", "s3Region": "us-east-1", "s3PermittedFolder": "" },
   "chainDefaults": { "useGasApi": 1, "gasPriceLevel": "average", "defaultHardfork": "london" },
   "fio": { "serverUrlHistory": [], "serverUrlAction": [], "getTableRowsOffset": 1000, "historyOffset": 1000, "lowestOracleId": 0, "maxRetries": 5, "privateKey": "", "account": "", "permission": "active", "serverStaleThresholdMinutes": 5 },
-  "jobTimeouts": { "defaultJobTimeout": 60000, "burnDomainsJobTimeout": 10800000, "autoRetryMissingActionsTimeout": 600000 },
+  "jobTimeouts": { "defaultJobTimeout": 60000, "burnDomainsJobTimeout": 86400000, "autoRetryMissingActionsTimeout": 600000, "jobLockTtlSeconds": 1800 },
   "logging": { "logToFile": false, "syncIntervalHours": 1, "enableS3Sync": false },
-  "moralis": { "apiKey": "", "rpcBaseUrl": "https://site1.moralis-nodes.com", "rpcBaseUrlFallback": "https://site2.moralis-nodes.com", "defaultTimeoutBetweenCalls": 1000 },
-  "thirdWeb": { "apiKey": "" },
-  "supportedChains": { "tokens": [], "nfts": [] }
+  "supportedChains": { "tokens": [], "nfts": [] },
+  "web3Providers": {
+    "infura": { "blocksRangeLimit": 3000, "blocksOffset": 7, "priority": 1, "getLogsPriority": 1 },
+    "moralis": { "apiKey": "", "rpcBaseUrl": "https://site1.moralis-nodes.com", "rpcBaseUrlFallback": "https://site2.moralis-nodes.com", "defaultTimeoutBetweenCalls": 1000, "blocksRangeLimit": 95, "blocksOffset": 7, "priority": 2, "getLogsPriority": 3 },
+    "thirdweb": { "apiKey": "", "blocksRangeLimit": 995, "blocksOffset": 7, "priority": 3, "getLogsPriority": 2 }
+  }
 }
 ```
 
@@ -73,19 +76,16 @@ Mainnet overrides: `config/mainnet.json:1`
 {
   "app": { "port": 3030 },
   "fio": {
-    "serverUrlHistory": ["https://fio.server-url.io/", "https://fio.server-url-2.io/"],
-    "serverUrlAction":  ["https://fio.server-url.io/", "https://fio.server-url-2.io/"],
+    "serverUrlHistory": ["FIO_SERVER_URL_1", "FIO_SERVER_URL_2"],
+    "serverUrlAction":  ["FIO_SERVER_URL_1", "FIO_SERVER_URL_2"],
     "lowestOracleId": 900
   },
-  "logging": { "enableS3Sync": false },
   "supportedChains": {
     "tokens": [
       {
         "chainParams": { "chainName": "ethereum", "chainCode": "ETH", "chainId": 1 },
         "contractAddress": "0x...",
         "contractTypeName": "fio.erc20",
-        "blocksRangeLimit": 3000,
-        "blocksOffset": 7,
         "gasLimit": 200000,
         "defaultGasPrice": 30,
         "infura": { "rpcUrl": "https://mainnet.infura.io/v3", "apiKey": "ENV_VAR_INFURA_ETH_TOKENS_API_KEY" },
@@ -94,14 +94,13 @@ Mainnet overrides: `config/mainnet.json:1`
         "privateKey": "ENV_VAR_ETH_ORACLE_PRIVATE",
         "publicKey":  "ENV_VAR_ETH_ORACLE_PUBLIC"
       }
-      // ...additional chains
+      // ...additional chains (BASE)
     ],
     "nfts": [
       {
         "chainParams": { "chainName": "polygon", "chainCode": "POL", "chainId": 137 },
         "contractAddress": "0x...",
         "contractTypeName": "fio.erc721",
-        "blocksRangeLimit": 3000,
         "gasLimit": 200000,
         "defaultGasPrice": 50,
         "infura": { "rpcUrl": "https://polygon-mainnet.infura.io/v3", "apiKey": "ENV_VAR_INFURA_POLYGON_NFTS_API_KEY" },
@@ -120,8 +119,8 @@ Testnet overrides: `config/testnet.json:1`
 {
   "app": { "port": 3020 },
   "fio": {
-    "serverUrlHistory": ["https://testnet.fio.server-url.io/", "https://testnet.fio.server-url-2.io/"],
-    "serverUrlAction":  ["https://testnet.fio.server-url.io/", "https://testnet.fio.server-url-2.io/"],
+    "serverUrlHistory": ["FIO_HISTORY_URL_V1", "FIO_HISTORY_URL_V1_2", "FIO_HISTORY_URL_V1_3"],
+    "serverUrlAction":  ["FIO_SERVER_URL_1", "FIO_SERVER_URL_2", "FIO_SERVER_URL_3"],
     "lowestOracleId": 416
   },
   "supportedChains": {
@@ -130,8 +129,6 @@ Testnet overrides: `config/testnet.json:1`
         "chainParams": { "chainName": "sepolia", "chainCode": "ETH", "chainId": 11155111 },
         "contractAddress": "0x...",
         "contractTypeName": "fio.erc20",
-        "blocksRangeLimit": 3000,
-        "blocksOffset": 7,
         "gasLimit": 200000,
         "defaultGasPrice": 30,
         "infura": { "rpcUrl": "https://sepolia.infura.io/v3", "apiKey": "ENV_VAR_INFURA_ETH_TOKENS_API_KEY" },
@@ -140,14 +137,13 @@ Testnet overrides: `config/testnet.json:1`
         "privateKey": "ENV_VAR_ETH_ORACLE_PRIVATE",
         "publicKey":  "ENV_VAR_ETH_ORACLE_PUBLIC"
       }
-      // ...additional chains
+      // ...additional chains (BASE sepolia)
     ],
     "nfts": [
       {
         "chainParams": { "chainName": "polygon amoy", "chainCode": "POL", "chainId": 80002 },
         "contractAddress": "0x...",
         "contractTypeName": "fio.erc721",
-        "blocksRangeLimit": 3000,
         "gasLimit": 200000,
         "defaultGasPrice": 50,
         "infura": { "rpcUrl": "https://polygon-amoy.infura.io/v3", "apiKey": "ENV_VAR_INFURA_POLYGON_NFTS_API_KEY" },
@@ -163,7 +159,8 @@ Testnet overrides: `config/testnet.json:1`
 
 Notes:
 - Any string value starting with `ENV_VAR_` is resolved at runtime to the respective environment variable by `config/config.js:38`.
-- Scalar values like `aws.s3Key`, `fio.privateKey`, `moralis.apiKey`, `thirdWeb.apiKey` are mapped to env vars by `config/custom-environment-variables.json:1`.
+- Scalar values like `aws.s3Key`, `fio.privateKey`, `web3Providers.moralis.apiKey`, `web3Providers.thirdweb.apiKey` are mapped to env vars by `config/custom-environment-variables.json:1`.
+- The `web3Providers` section centralizes provider-level settings (rate limits, priorities) while per-chain RPC details remain in `supportedChains` entries.
 
 ## Install And Run
 
@@ -206,6 +203,26 @@ Examples:
   npm run oracle unwrap tokens chainCode:BASE amount:12000000000 address:alice@fiotestnet obtId:<fioTxHash>
   npm run oracle burn nfts chainCode:POL nftName:fiodomainname obtId:<fioTxHash>
 ```
+
+## Web3 Provider Priority And Failover
+
+The `web3Providers` section in `config/default.json` configures provider-level settings that apply across all chains:
+
+```
+"web3Providers": {
+  "infura":   { "blocksRangeLimit": 3000, "blocksOffset": 7, "priority": 1, "getLogsPriority": 1 },
+  "moralis":  { "blocksRangeLimit": 95,   "blocksOffset": 7, "priority": 2, "getLogsPriority": 3 },
+  "thirdweb": { "blocksRangeLimit": 995,  "blocksOffset": 7, "priority": 3, "getLogsPriority": 2 }
+}
+```
+
+Key settings:
+- `priority` – Provider preference order for general RPC calls (lower = preferred)
+- `getLogsPriority` – Provider preference order specifically for `getLogs` operations
+- `blocksRangeLimit` – Max block range per `getLogs` query (provider rate-limit dependent)
+- `blocksOffset` – Offset from latest block for finality safety
+
+Per-chain RPC endpoints and API keys are still defined in `supportedChains` entries.
 
 ## FIO Server Failover And Retry
 

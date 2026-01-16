@@ -24,9 +24,9 @@ import {
   updateBlockNumber,
 } from '../utils/log-files.js';
 import {
-  splitRangeByProvider,
-  MORALIS_SAFE_BLOCKS_PER_QUERY,
-  THIRDWEB_SAFE_BLOCKS_PER_QUERY,
+  getBlocksRangeLimitForProvider,
+  getBlocksOffsetForProvider,
+  logGetLogsProvider,
 } from '../utils/logs-range.js';
 import MathOp from '../utils/math.js';
 import {
@@ -271,7 +271,7 @@ export const getCacheStats = ({ chainCode, type }) => {
  * Fetch events for a chain and update cache
  */
 const updateEventCache = async ({ chain, type }) => {
-  const { blocksRangeLimit, blocksOffset = 0, contractAddress, chainParams } = chain;
+  const { contractAddress, chainParams } = chain;
   const { chainCode } = chainParams || {};
   const cacheKey = `${chainCode}-${type}`;
   const logPrefix = `[Event Cache ${chainCode} ${type}] -->`;
@@ -280,6 +280,10 @@ const updateEventCache = async ({ chain, type }) => {
   const startCheckpoint = createMemoryCheckpoint(`Start ${chainCode} ${type}`, logPrefix);
 
   try {
+    // Log and get provider-specific limits
+    logGetLogsProvider({ logPrefix });
+    const blocksRangeLimit = getBlocksRangeLimitForProvider({ isGetLogs: true });
+    const blocksOffset = getBlocksOffsetForProvider({ isGetLogs: true });
     // Get or initialize cache
     let cache = eventCache.get(cacheKey);
     if (!cache) {
@@ -354,54 +358,18 @@ const updateEventCache = async ({ chain, type }) => {
       );
     }
 
-    // Use the smallest safe limit for fallback (Moralis at 95 is safest)
-    const fallbackChunkSize = Math.min(
-      MORALIS_SAFE_BLOCKS_PER_QUERY,
-      THIRDWEB_SAFE_BLOCKS_PER_QUERY,
-    );
-
-    // Fetch ALL events at once (not separated by type)
+    // Fetch events - provider handles chunking based on its config limit
     const fetchEvents = async (start, end) => {
-      try {
-        return await globalRequestQueue.enqueue(
-          async () => {
-            logEventCache(
-              `${logPrefix} Fetching ALL events from block ${start} to ${end}...`,
-            );
-            return await contract.getPastEvents('allEvents', {
-              fromBlock: start,
-              toBlock: end,
-            });
-          },
-          { logPrefix, from: start, to: end },
-        );
-      } catch (err) {
-        const msg = (err && err.message) || '';
-        const isRangeError =
-          (err && err.statusCode === 400) ||
-          msg.includes('Exceeded maximum block range') ||
-          msg.includes('Maximum allowed number of requested blocks');
-        if (!isRangeError) throw err;
-
-        // If range error, split into smaller chunks
-        logEventCache(
-          `${logPrefix} Range error, splitting into ${fallbackChunkSize}-block chunks`,
-        );
-        const merged = [];
-        for (let s = start; s <= end; s += fallbackChunkSize) {
-          const e = Math.min(end, s + fallbackChunkSize - 1);
-          const part = await globalRequestQueue.enqueue(
-            async () =>
-              await contract.getPastEvents('allEvents', {
-                fromBlock: s,
-                toBlock: e,
-              }),
-            { logPrefix, from: s, to: e },
-          );
-          if (part && part.length) merged.push(...part);
-        }
-        return merged;
-      }
+      return await globalRequestQueue.enqueue(
+        async () => {
+          logEventCache(`${logPrefix} Fetching events from block ${start} to ${end}...`);
+          return await contract.getPastEvents('allEvents', {
+            fromBlock: start,
+            toBlock: end,
+          });
+        },
+        { logPrefix, from: start, to: end },
+      );
     };
 
     let chunksProcessed = 0;
@@ -422,27 +390,16 @@ const updateEventCache = async ({ chain, type }) => {
         ? lastInChainBlockNumber
         : maxAllowedBlockNumber;
 
-      // Use smart chunking based on provider
-      const windows = splitRangeByProvider({
-        chainCode,
-        fromBlock: currentFromBlock,
-        toBlock: toBlockNumber,
-        preferChunk: toBlockNumber - currentFromBlock + 1,
-        moralisMax: MORALIS_SAFE_BLOCKS_PER_QUERY,
-        thirdwebMax: THIRDWEB_SAFE_BLOCKS_PER_QUERY,
-      });
-
+      // Fetch events - provider handles chunking based on its config limit
       let chunkEvents = [];
-      for (const w of windows) {
-        const part = await fetchEvents(w.from, w.to);
-        if (part && part.length) {
-          // Add timestamp to each event for cache filtering
-          part.forEach((event) => {
-            event.timestamp = Date.now();
-            event.cacheAddedAt = Date.now();
-          });
-          chunkEvents.push(...part);
-        }
+      const part = await fetchEvents(currentFromBlock, toBlockNumber);
+      if (part && part.length) {
+        // Add timestamp to each event for cache filtering
+        part.forEach((event) => {
+          event.timestamp = Date.now();
+          event.cacheAddedAt = Date.now();
+        });
+        chunkEvents.push(...part);
       }
 
       chunksProcessed++;

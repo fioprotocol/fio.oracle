@@ -5,7 +5,9 @@ import { getRpcClient, eth_gasPrice } from 'thirdweb/rpc';
 import config from '../../config/config.js';
 
 const {
-  thirdWeb: { THIRDWEB_API_KEY },
+  web3Providers: {
+    thirdweb: { API_KEY: THIRDWEB_API_KEY },
+  },
 } = config;
 
 const client = createThirdwebClient({

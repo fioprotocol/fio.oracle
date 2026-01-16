@@ -335,6 +335,8 @@ export const handleUpdatePendingItemsQueue = ({
     const newLogFileDataToSave = csvContent.join('\r\n'); // convert array back to string
     fs.writeFileSync(logFilePath, newLogFileDataToSave);
     console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
+    // Release lock BEFORE recursive call so the next iteration can acquire it
+    releaseJobLock(jobIsRunningCacheKey);
     action();
   } else {
     console.log(`${logPrefix} ${logFilePath} log file was successfully updated.`);
